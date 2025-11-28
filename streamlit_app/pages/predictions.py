@@ -1658,6 +1658,56 @@ def _render_help_guide() -> None:
     """)
 
 
+def _select_numbers_with_quality_threshold(pred_probs: np.ndarray, max_number: int, main_nums: int, min_percentile: int = 80) -> tuple:
+    """
+    Select lottery numbers only if they meet quality threshold.
+    
+    Prevents selecting low-confidence numbers just because they're top-N.
+    Uses percentile-based threshold to adapt to model output ranges.
+    
+    Args:
+        pred_probs: Probability array from model (length = max_number)
+        max_number: Maximum valid lottery number
+        main_nums: How many numbers to select (usually 6)
+        min_percentile: Minimum percentile threshold (80 = top 20%)
+    
+    Returns:
+        tuple: (numbers, confidence) - Selected numbers and confidence score
+    """
+    # Ensure we have correct number of probabilities
+    if len(pred_probs) != max_number:
+        app_logger.warning(f"Probability shape mismatch: expected {max_number}, got {len(pred_probs)}")
+        if len(pred_probs) < max_number:
+            # Pad with low values
+            padding = np.ones(max_number - len(pred_probs)) * np.min(pred_probs) * 0.5
+            pred_probs = np.concatenate([pred_probs, padding])
+        else:
+            # Truncate
+            pred_probs = pred_probs[:max_number]
+    
+    # Calculate quality threshold (percentile of probability distribution)
+    quality_threshold = np.percentile(pred_probs, min_percentile)
+    
+    # Find numbers above threshold
+    above_threshold_indices = np.where(pred_probs > quality_threshold)[0]
+    
+    if len(above_threshold_indices) >= main_nums:
+        # Good: enough numbers above threshold, select top main_nums from them
+        above_threshold_probs = pred_probs[above_threshold_indices]
+        top_positions = np.argsort(above_threshold_probs)[-main_nums:]
+        top_indices = above_threshold_indices[top_positions]
+    else:
+        # Fallback: not enough numbers above threshold, use top-N overall
+        app_logger.debug(f"Only {len(above_threshold_indices)} numbers above {min_percentile}th percentile, using top-{main_nums}")
+        top_indices = np.argsort(pred_probs)[-main_nums:]
+    
+    # Extract numbers (convert from 0-indexed to 1-indexed)
+    numbers = sorted((top_indices + 1).tolist())
+    confidence = float(np.mean(pred_probs[top_indices]))
+    
+    return numbers, confidence
+
+
 def _validate_prediction_numbers(numbers: List[int], max_number: int = 49) -> bool:
     """
     Validate that prediction numbers are within valid lottery range.
@@ -2339,10 +2389,13 @@ def _generate_single_model_predictions(game: str, count: int, mode: str, model_t
                         numbers = sorted(rng.choice(range(1, max_number + 1), main_nums, replace=False).tolist())
                         confidence = np.mean(pred_probs[0]) if len(pred_probs[0]) > 0 else 0.5
                 elif pred_probs.shape[1] > main_nums:
-                    # For other output shapes, extract top numbers by probability
-                    top_indices = np.argsort(pred_probs[0])[-main_nums:]
-                    numbers = sorted((top_indices + 1).tolist())
-                    confidence = float(np.mean(np.sort(pred_probs[0])[-main_nums:]))
+                    # CHANGE 2: Use quality threshold to select high-confidence numbers only
+                    numbers, confidence = _select_numbers_with_quality_threshold(
+                        pred_probs[0],
+                        max_number=max_number,
+                        main_nums=main_nums,
+                        min_percentile=80
+                    )
                 else:
                     numbers = sorted(rng.choice(range(1, max_number + 1), main_nums, replace=False).tolist())
                     confidence = np.mean(pred_probs[0]) if len(pred_probs[0]) > 0 else 0.5
@@ -2834,6 +2887,53 @@ def _generate_single_model_predictions(game: str, count: int, mode: str, model_t
         return {'error': str(e), 'sets': []}
 
 
+def _normalize_model_predictions(pred_probs: np.ndarray, method: str = 'minmax') -> np.ndarray:
+    """
+    Normalize model prediction probabilities to consistent 0-1 scale.
+    
+    Handles different output ranges from different model types.
+    Prevents biasing ensemble voting toward models with higher output ranges.
+    
+    Methods:
+    - 'minmax': Scale to [0, 1] using min-max normalization
+    - 'softmax': Apply softmax to ensure valid probability distribution
+    - 'percentile': Convert to percentile ranks
+    
+    Args:
+        pred_probs: Probability array from model
+        method: Normalization method to use
+    
+    Returns:
+        Normalized probability array (0-1 scale)
+    """
+    if len(pred_probs) == 0:
+        return pred_probs
+    
+    if method == 'minmax':
+        prob_min = np.min(pred_probs)
+        prob_max = np.max(pred_probs)
+        
+        if prob_max == prob_min:
+            # All probabilities same, use uniform
+            return np.ones_like(pred_probs) / len(pred_probs)
+        
+        # Scale to [0, 1]
+        normalized = (pred_probs - prob_min) / (prob_max - prob_min)
+        return normalized
+    
+    elif method == 'softmax':
+        # Numerically stable softmax
+        pred_probs_adjusted = pred_probs - np.max(pred_probs)
+        exp_probs = np.exp(pred_probs_adjusted)
+        return exp_probs / np.sum(exp_probs)
+    
+    elif method == 'percentile':
+        # Convert to percentile ranks
+        return np.argsort(np.argsort(pred_probs)) / len(pred_probs)
+    
+    return pred_probs
+
+
 def _build_model_agreement_matrix(all_model_predictions: List[Dict], final_sets: List[List[int]]) -> Dict[str, Any]:
     """
     Build a matrix showing agreement between models on predicted numbers.
@@ -3090,17 +3190,29 @@ def _generate_ensemble_predictions(game: str, count: int, models_dict: Dict[str,
         
         # Calculate ensemble weights based on individual accuracies
         # IMPORTANT: Account for 6-number set accuracy = single_accuracy^(1/6)
-        # E.g., 98% single accuracy = 0.98^(1/6) = ~88% set accuracy
-        # Use exponential factor to properly weight individual accuracies
-        adjusted_accuracies = {model: max(0.01, acc ** (1/6)) for model, acc in model_accuracies.items()}
+        # E.g., 98% single accuracy = 0.98^(1/6) = ~88.5% set accuracy
+        # Formula: set_accuracy = single_accuracy ^ (1/set_size)
+        set_size = main_nums  # Usually 6 for lottery
+        adjusted_accuracies = {}
+        
+        for model, single_accuracy in model_accuracies.items():
+            if single_accuracy <= 0:
+                set_accuracy = 0.01  # Minimum to prevent division issues
+            else:
+                set_accuracy = single_accuracy ** (1.0 / set_size)
+            adjusted_accuracies[model] = max(0.01, set_accuracy)
+        
         total_adjusted = sum(adjusted_accuracies.values())
         
         # Prevent division by zero
         if total_adjusted <= 0:
-            total_adjusted = len(adjusted_accuracies)
-            adjusted_accuracies = {model: 1.0 for model in adjusted_accuracies}
+            total_adjusted = float(len(adjusted_accuracies))
+            ensemble_weights = {model: 1.0 / len(adjusted_accuracies) for model in adjusted_accuracies}
+        else:
+            ensemble_weights = {model: adj_acc / total_adjusted for model, adj_acc in adjusted_accuracies.items()}
         
-        ensemble_weights = {model: adj_acc / total_adjusted for model, adj_acc in adjusted_accuracies.items()}
+        app_logger.info(f"Set-adjusted accuracies: {adjusted_accuracies}")
+        app_logger.info(f"Ensemble weights: {ensemble_weights}")
         
         # Combined accuracy for metadata (use arithmetic mean of original accuracies)
         combined_accuracy = np.mean(list(model_accuracies.values()))
@@ -3146,18 +3258,23 @@ def _generate_ensemble_predictions(game: str, count: int, models_dict: Dict[str,
                         app_logger.warning(f"No predictions from {model_type}")
                         continue
                     
-                    # Get top predictions from this model
-                    model_votes = np.argsort(pred_probs)[-main_nums:]
+                    # CHANGE 3: NORMALIZE each model's probabilities to 0-1 range
+                    # This prevents bias from different output ranges (e.g., XGBoost: 0.9-0.95, CNN: 0.1-0.5)
+                    pred_probs_normalized = _normalize_model_predictions(pred_probs, method='minmax')
+                    
+                    # Get top predictions from this model (using normalized probs)
+                    model_votes = np.argsort(pred_probs_normalized)[-main_nums:]
                     model_predictions[model_type] = (model_votes + 1).tolist()  # Convert to 1-based
                     
                     weight = ensemble_weights.get(model_type, 1.0 / len(models_loaded))
                     
-                    # Add weighted votes with bounds checking
+                    # Add weighted votes with bounds checking (using NORMALIZED probabilities)
                     for idx, number in enumerate(model_votes + 1):
                         number = int(number)
                         # Validate number is within valid range and within prediction probability array
-                        if 1 <= number <= max_number and number - 1 < len(pred_probs):
-                            vote_strength = float(pred_probs[number - 1]) * weight
+                        if 1 <= number <= max_number and number - 1 < len(pred_probs_normalized):
+                            # Use normalized probability (0-1 scale) for fair voting
+                            vote_strength = float(pred_probs_normalized[number - 1]) * weight
                             all_votes[number] = all_votes.get(number, 0) + vote_strength
                 
                 except Exception as e:
