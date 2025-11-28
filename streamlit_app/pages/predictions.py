@@ -3188,6 +3188,9 @@ def _generate_ensemble_predictions(game: str, count: int, models_dict: Dict[str,
         if not models_loaded:
             raise ValueError("Could not load any ensemble models")
         
+        app_logger.info(f"Ensemble loaded {len(models_loaded)} models: {list(models_loaded.keys())}")
+        app_logger.info(f"Model accuracies: {model_accuracies}")
+        
         # Calculate ensemble weights based on individual accuracies
         # IMPORTANT: Account for 6-number set accuracy = single_accuracy^(1/6)
         # E.g., 98% single accuracy = 0.98^(1/6) = ~88.5% set accuracy
@@ -3262,9 +3265,15 @@ def _generate_ensemble_predictions(game: str, count: int, models_dict: Dict[str,
                     # This prevents bias from different output ranges (e.g., XGBoost: 0.9-0.95, CNN: 0.1-0.5)
                     pred_probs_normalized = _normalize_model_predictions(pred_probs, method='minmax')
                     
+                    # Debug: Check normalized probs
+                    app_logger.debug(f"{model_type} raw probs: min={np.min(pred_probs):.4f}, max={np.max(pred_probs):.4f}, mean={np.mean(pred_probs):.4f}")
+                    app_logger.debug(f"{model_type} normalized: min={np.min(pred_probs_normalized):.4f}, max={np.max(pred_probs_normalized):.4f}, mean={np.mean(pred_probs_normalized):.4f}")
+                    
                     # Get top predictions from this model (using normalized probs)
                     model_votes = np.argsort(pred_probs_normalized)[-main_nums:]
                     model_predictions[model_type] = (model_votes + 1).tolist()  # Convert to 1-based
+                    
+                    app_logger.debug(f"{model_type} predicted numbers: {model_predictions[model_type]}")
                     
                     weight = ensemble_weights.get(model_type, 1.0 / len(models_loaded))
                     
@@ -3276,6 +3285,7 @@ def _generate_ensemble_predictions(game: str, count: int, models_dict: Dict[str,
                             # Use normalized probability (0-1 scale) for fair voting
                             vote_strength = float(pred_probs_normalized[number - 1]) * weight
                             all_votes[number] = all_votes.get(number, 0) + vote_strength
+                            app_logger.debug(f"  {model_type} vote for {number}: {pred_probs_normalized[number-1]:.4f} * {weight:.4f} = {vote_strength:.4f}")
                 
                 except Exception as e:
                     app_logger.warning(f"Model {model_type} prediction failed: {str(e)}")
@@ -3287,8 +3297,10 @@ def _generate_ensemble_predictions(game: str, count: int, models_dict: Dict[str,
                 
                 # Calculate confidence using agreement-aware method
                 confidence = _calculate_ensemble_confidence(all_votes, main_nums, confidence_threshold)
+                app_logger.debug(f"Ensemble set {pred_set_idx}: votes={all_votes}, selected={numbers}, conf={confidence}")
             else:
                 # Fallback to random valid numbers
+                app_logger.warning(f"Ensemble set {pred_set_idx}: No votes received from any model, using random fallback")
                 numbers = sorted(rng.choice(range(1, max_number + 1), main_nums, replace=False).tolist())
                 confidence = confidence_threshold
             
