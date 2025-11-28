@@ -1,0 +1,90 @@
+# Default Configuration for Lottery Prediction System
+# This configuration is used when no environment-specific config is found
+
+app_name: "Lottery Prediction System"
+version: "2.0.0"
+environment: "development"
+debug: true
+timezone: "UTC"
+
+# Database Configuration
+database:
+  connection_string: "sqlite:///data/lottery.db"
+  pool_size: 10
+  pool_timeout: 30
+  echo: false
+  backup_enabled: true
+  backup_interval_hours: 24
+
+# Cache Configuration
+cache:
+  enabled: true
+  max_memory_mb: 500
+  default_ttl: 3600
+  cache_dir: "cache"
+  cleanup_interval: 300
+  persistent_cache: true
+
+# Logging Configuration
+logging:
+  level: "INFO"
+  format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+  file: "logs/app.log"
+  max_file_size_mb: 10
+  backup_count: 5
+  console_output: true
+
+# API Configuration
+api:
+  host: "0.0.0.0"
+  port: 8501
+  debug: false
+  cors_enabled: true
+  cors_origins:
+    - "*"
+  rate_limit_enabled: true
+  rate_limit_per_minute: 60
+
+# Security Configuration
+security:
+  secret_key: "lottery-prediction-secret-key-change-in-production"
+  session_timeout: 3600
+  password_min_length: 8
+  max_login_attempts: 5
+  lockout_duration: 300
+  encryption_enabled: true
+
+# AI Model Configuration
+ai:
+  ensemble_enabled: true
+  neural_network_enabled: true
+  quantum_enabled: true
+  pattern_enabled: true
+  model_timeout: 30
+  prediction_cache_ttl: 1800
+  retrain_interval_hours: 24
+  confidence_threshold: 0.1
+
+# Game Configuration
+game:
+  default_game: "powerball"
+  max_predictions: 10
+  historical_data_limit: 1000
+  update_frequency_minutes: 60
+  supported_games:
+    - "powerball"
+    - "mega_millions"
+    - "euromillions"
+
+# Export Configuration
+export:
+  export_dir: "exports"
+  max_file_size_mb: 100
+  include_metadata: true
+  timestamp_files: true
+  cleanup_old_exports_days: 30
+  supported_formats:
+    - "csv"
+    - "json"
+    - "excel"
+    - "pdf"

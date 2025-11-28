@@ -1,0 +1,181 @@
+2025-09-23 21:07:41 - lottery_ai - ERROR - logger.py:138 - Safe execution failed for test_exception: [DATA_ERROR] Game 'TestGame' is not supported. Supported games: Lotto Max, Lotto 6/49
+2025-09-27 22:31:07 - lottery_ai - ERROR - logger.py:138 - Failed to initialize DataService service: property 'data_manager' of 'DataService' object has no setter
+2025-11-17 21:37:41 - lottery_ai - ERROR - logger.py:138 - Error in prediction_ai page: cannot convert float NaN to integer
+2025-11-18 14:34:15 - lottery_ai - ERROR - logger.py:138 - Error finding predictions by model: name 'Path' is not defined
+2025-11-18 14:34:15 - lottery_ai - ERROR - logger.py:138 - Error finding predictions by date: name 'Path' is not defined
+2025-11-18 14:34:32 - lottery_ai - ERROR - logger.py:138 - Error finding predictions by model: name 'Path' is not defined
+2025-11-18 14:34:32 - lottery_ai - ERROR - logger.py:138 - Error finding predictions by date: name 'Path' is not defined
+2025-11-18 14:34:36 - lottery_ai - ERROR - logger.py:138 - Error finding predictions by model: name 'Path' is not defined
+2025-11-18 14:34:36 - lottery_ai - ERROR - logger.py:138 - Error finding predictions by date: name 'Path' is not defined
+2025-11-18 14:34:39 - lottery_ai - ERROR - logger.py:138 - Error finding predictions by model: name 'Path' is not defined
+2025-11-18 14:34:39 - lottery_ai - ERROR - logger.py:138 - Error finding predictions by date: name 'Path' is not defined
+2025-11-18 14:34:42 - lottery_ai - ERROR - logger.py:138 - Error finding predictions by model: name 'Path' is not defined
+2025-11-18 14:34:42 - lottery_ai - ERROR - logger.py:138 - Error finding predictions by date: name 'Path' is not defined
+2025-11-18 14:34:47 - lottery_ai - ERROR - logger.py:138 - Error finding predictions by model: name 'Path' is not defined
+2025-11-18 14:34:47 - lottery_ai - ERROR - logger.py:138 - Error finding predictions by date: name 'Path' is not defined
+2025-11-18 14:34:49 - lottery_ai - ERROR - logger.py:138 - Error finding predictions by model: name 'Path' is not defined
+2025-11-18 14:34:49 - lottery_ai - ERROR - logger.py:138 - Error finding predictions by date: name 'Path' is not defined
+2025-11-18 14:34:52 - lottery_ai - ERROR - logger.py:138 - Error finding predictions by model: name 'Path' is not defined
+2025-11-18 14:34:52 - lottery_ai - ERROR - logger.py:138 - Error finding predictions by date: name 'Path' is not defined
+2025-11-18 14:34:55 - lottery_ai - ERROR - logger.py:138 - Error finding predictions by model: name 'Path' is not defined
+2025-11-18 14:34:55 - lottery_ai - ERROR - logger.py:138 - Error finding predictions by date: name 'Path' is not defined
+2025-11-18 14:34:58 - lottery_ai - ERROR - logger.py:138 - Error finding predictions by model: name 'Path' is not defined
+2025-11-18 14:34:58 - lottery_ai - ERROR - logger.py:138 - Error finding predictions by date: name 'Path' is not defined
+2025-11-18 14:35:01 - lottery_ai - ERROR - logger.py:138 - Error finding predictions by model: name 'Path' is not defined
+2025-11-18 14:35:01 - lottery_ai - ERROR - logger.py:138 - Error finding predictions by date: name 'Path' is not defined
+2025-11-18 14:35:06 - lottery_ai - ERROR - logger.py:138 - Error finding predictions by model: name 'Path' is not defined
+2025-11-18 14:35:06 - lottery_ai - ERROR - logger.py:138 - Error finding predictions by date: name 'Path' is not defined
+2025-11-18 14:35:09 - lottery_ai - ERROR - logger.py:138 - Error finding predictions by model: name 'Path' is not defined
+2025-11-18 14:35:09 - lottery_ai - ERROR - logger.py:138 - Error finding predictions by date: name 'Path' is not defined
+2025-11-18 14:35:20 - lottery_ai - ERROR - logger.py:138 - Error finding predictions by model: name 'Path' is not defined
+2025-11-18 14:35:20 - lottery_ai - ERROR - logger.py:138 - Error finding predictions by date: name 'Path' is not defined
+2025-11-18 14:35:25 - lottery_ai - ERROR - logger.py:138 - Error finding predictions by model: name 'Path' is not defined
+2025-11-18 14:35:25 - lottery_ai - ERROR - logger.py:138 - Error finding predictions by date: name 'Path' is not defined
+2025-11-18 14:35:29 - lottery_ai - ERROR - logger.py:138 - Error finding predictions by model: name 'Path' is not defined
+2025-11-18 14:35:29 - lottery_ai - ERROR - logger.py:138 - Error finding predictions by date: name 'Path' is not defined
+2025-11-18 14:35:33 - lottery_ai - ERROR - logger.py:138 - Error finding predictions by model: name 'Path' is not defined
+2025-11-18 14:35:33 - lottery_ai - ERROR - logger.py:138 - Error finding predictions by date: name 'Path' is not defined
+2025-11-18 14:35:36 - lottery_ai - ERROR - logger.py:138 - Error finding predictions by model: name 'Path' is not defined
+2025-11-18 14:35:36 - lottery_ai - ERROR - logger.py:138 - Error finding predictions by date: name 'Path' is not defined
+2025-11-18 14:36:43 - lottery_ai - ERROR - logger.py:138 - Error finding predictions by model: name 'Path' is not defined
+2025-11-18 14:36:43 - lottery_ai - ERROR - logger.py:138 - Error finding predictions by date: name 'Path' is not defined
+2025-11-18 16:09:47 - lottery_ai - ERROR - logger.py:138 - Error finding predictions by model: name 'Path' is not defined
+2025-11-18 16:09:47 - lottery_ai - ERROR - logger.py:138 - Error finding predictions by date: name 'Path' is not defined
+2025-11-18 16:10:00 - lottery_ai - ERROR - logger.py:138 - Error finding predictions by model: name 'Path' is not defined
+2025-11-18 16:10:00 - lottery_ai - ERROR - logger.py:138 - Error finding predictions by date: name 'Path' is not defined
+2025-11-18 16:10:04 - lottery_ai - ERROR - logger.py:138 - Error finding predictions by model: name 'Path' is not defined
+2025-11-18 16:10:04 - lottery_ai - ERROR - logger.py:138 - Error finding predictions by date: name 'Path' is not defined
+2025-11-18 16:10:07 - lottery_ai - ERROR - logger.py:138 - Error finding predictions by model: name 'Path' is not defined
+2025-11-18 16:10:07 - lottery_ai - ERROR - logger.py:138 - Error finding predictions by date: name 'Path' is not defined
+2025-11-18 16:10:11 - lottery_ai - ERROR - logger.py:138 - Error finding predictions by model: name 'Path' is not defined
+2025-11-18 16:10:11 - lottery_ai - ERROR - logger.py:138 - Error finding predictions by date: name 'Path' is not defined
+2025-11-18 16:10:19 - lottery_ai - ERROR - logger.py:138 - Error finding predictions by model: name 'Path' is not defined
+2025-11-18 16:10:19 - lottery_ai - ERROR - logger.py:138 - Error finding predictions by date: name 'Path' is not defined
+2025-11-18 16:10:21 - lottery_ai - ERROR - logger.py:138 - Error finding predictions by model: name 'Path' is not defined
+2025-11-18 16:10:21 - lottery_ai - ERROR - logger.py:138 - Error finding predictions by date: name 'Path' is not defined
+2025-11-18 16:10:30 - lottery_ai - ERROR - logger.py:138 - Error finding predictions by model: name 'Path' is not defined
+2025-11-18 16:10:30 - lottery_ai - ERROR - logger.py:138 - Error finding predictions by date: name 'Path' is not defined
+2025-11-18 16:10:39 - lottery_ai - ERROR - logger.py:138 - Error finding predictions by model: name 'Path' is not defined
+2025-11-18 16:10:39 - lottery_ai - ERROR - logger.py:138 - Error finding predictions by date: name 'Path' is not defined
+2025-11-18 16:10:41 - lottery_ai - ERROR - logger.py:138 - Error finding predictions by model: name 'Path' is not defined
+2025-11-18 16:10:41 - lottery_ai - ERROR - logger.py:138 - Error finding predictions by date: name 'Path' is not defined
+2025-11-18 21:21:39 - lottery_ai - ERROR - logger.py:138 - Error finding predictions by model: name 'Path' is not defined
+2025-11-18 21:21:39 - lottery_ai - ERROR - logger.py:138 - Error finding predictions by date: name 'Path' is not defined
+2025-11-18 21:22:11 - lottery_ai - ERROR - logger.py:138 - Error finding predictions by model: name 'Path' is not defined
+2025-11-18 21:22:11 - lottery_ai - ERROR - logger.py:138 - Error finding predictions by date: name 'Path' is not defined
+2025-11-18 21:22:14 - lottery_ai - ERROR - logger.py:138 - Error finding predictions by model: name 'Path' is not defined
+2025-11-18 21:22:14 - lottery_ai - ERROR - logger.py:138 - Error finding predictions by date: name 'Path' is not defined
+2025-11-18 21:22:19 - lottery_ai - ERROR - logger.py:138 - Error finding predictions by model: name 'Path' is not defined
+2025-11-18 21:22:19 - lottery_ai - ERROR - logger.py:138 - Error finding predictions by date: name 'Path' is not defined
+2025-11-19 21:25:55 - lottery_ai - ERROR - logger.py:138 - Error in incremental learning page: unsupported operand type(s) for |: 'list' and 'list'
+2025-11-19 21:30:47 - lottery_ai - ERROR - logger.py:138 - Error in incremental learning page: bar() got an unexpected keyword argument 'colorscale'
+2025-11-21 17:46:30 - lottery_ai - ERROR - logger.py:138 - Error rendering training page: name '_get_raw_csv_files' is not defined
+2025-11-21 17:58:12 - lottery_ai - ERROR - logger.py:138 - Model training error: name '_train_advanced_model' is not defined
+2025-11-21 18:22:52 - lottery_ai - ERROR - logger.py:138 - ❌ Model training error: XGBClassifier.fit() got an unexpected keyword argument 'early_stopping_rounds'
+2025-11-21 18:29:24 - lottery_ai - ERROR - logger.py:138 - ❌ Model training error: all the input array dimensions except for the concatenation axis must match exactly, but along dimension 0, the array at index 0 has size 1257 and the array at index 1 has size 1232
+2025-11-21 18:31:51 - lottery_ai - ERROR - logger.py:138 - ❌ Model training error: Invalid filepath extension for saving. Please add either a `.keras` extension for the native Keras format (recommended) or a `.h5` extension. Use `model.export(filepath)` if you want to export a SavedModel for use with TFLite/TFServing/etc. Received: filepath=models\lotto_max\lstm\lstm_lotto_max_20251121_183151.
+2025-11-21 21:26:12 - lottery_ai - ERROR - logger.py:138 - Transformer training failed: Graph execution error:
+
+Detected at node StatefulPartitionedCall/functional_1_1/multi_head_attention_4_1/transpose_2 defined at (most recent call last):
+<stack traces unavailable>
+OOM when allocating tensor with shape[64,8,1338,1338] and type float on /job:localhost/replica:0/task:0/device:CPU:0 by allocator mklcpu
+	 [[{{node StatefulPartitionedCall/functional_1_1/multi_head_attention_4_1/transpose_2}}]]
+Hint: If you want to see a list of allocated tensors when OOM happens, add report_tensor_allocations_upon_oom to RunOptions for current allocation info. This isn't available when running in Eager mode.
+ [Op:__inference_multi_step_on_iterator_60721]
+2025-11-21 21:37:09 - lottery_ai - ERROR - logger.py:138 - Transformer training failed: Inputs have incompatible shapes. Received shapes (64, 256) and (64, 128)
+2025-11-21 22:25:49 - lottery_ai - ERROR - logger.py:138 - Single model prediction error: Unknown model type: ensemble
+2025-11-21 22:27:31 - lottery_ai - ERROR - logger.py:138 - Single model prediction error: Unknown model type: xgboost
+2025-11-21 22:31:32 - lottery_ai - ERROR - logger.py:138 - Single model prediction error: No XGBoost model found for Lotto Max
+2025-11-21 22:34:02 - lottery_ai - ERROR - logger.py:138 - Single model prediction error: No XGBoost model found for Lotto Max
+2025-11-21 22:42:44 - lottery_ai - ERROR - logger.py:138 - Single model prediction error: Feature shape mismatch, expected: 85, got 1338
+2025-11-21 22:45:17 - lottery_ai - ERROR - logger.py:138 - Single model prediction error: Feature shape mismatch, expected: 85, got 78
+2025-11-21 22:47:13 - lottery_ai - ERROR - logger.py:138 - Single model prediction error: Feature shape mismatch, expected: 85, got 78
+2025-11-21 22:47:48 - lottery_ai - ERROR - logger.py:138 - Single model prediction error: Feature shape mismatch, expected: 85, got 77
+2025-11-24 17:59:23 - lottery_ai - ERROR - logger.py:138 - Error generating CatBoost features: 'numbers'
+2025-11-24 18:51:11 - lottery_ai - ERROR - logger.py:138 - ❌ Model training error: catboost/private/libs/options/catboost_options.cpp:794: Error: default bootstrap type (bayesian) doesn't support 'subsample' option
+2025-11-24 19:02:24 - lottery_ai - ERROR - logger.py:138 - ❌ Model training error: only one of the parameters min_data_in_leaf, min_child_samples should be initialized.
+2025-11-25 13:57:34 - lottery_ai - ERROR - logger.py:138 - CNN training failed: cannot access local variable 'x' where it is not associated with a value
+2025-11-25 18:22:26 - lottery_ai - ERROR - logger.py:138 - CNN training failed: cannot access local variable 'x' where it is not associated with a value
+2025-11-25 18:22:26 - lottery_ai - ERROR - logger.py:138 - CNN Error traceback: Traceback (most recent call last):
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\streamlit_app\services\advanced_model_training.py", line 2013, in train_ensemble
+    cnn_model, cnn_metrics = self.train_cnn(X_cnn, y, metadata, config, progress_callback)
+                             ~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\streamlit_app\services\advanced_model_training.py", line 1835, in train_cnn
+    x = layers.Dense(256, activation='relu', name='dense_1')(x)
+                                                             ^
+UnboundLocalError: cannot access local variable 'x' where it is not associated with a value
+
+2025-11-25 18:45:13 - lottery_ai - ERROR - logger.py:138 - 🟩 CNN training failed: cannot access local variable 'x' where it is not associated with a value
+2025-11-25 18:45:13 - lottery_ai - ERROR - logger.py:138 - 🟩 CNN Error traceback: Traceback (most recent call last):
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\streamlit_app\services\advanced_model_training.py", line 2023, in train_ensemble
+    cnn_model, cnn_metrics = self.train_cnn(X_cnn, y, metadata, config, progress_callback)
+                             ~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\streamlit_app\services\advanced_model_training.py", line 1835, in train_cnn
+    x = layers.Dense(256, activation='relu', name='dense_1')(x)
+                                                             ^
+UnboundLocalError: cannot access local variable 'x' where it is not associated with a value
+
+2025-11-25 19:04:21 - lottery_ai - ERROR - logger.py:138 - 🟩 CNN training failed: cannot access local variable 'x' where it is not associated with a value
+2025-11-25 19:04:21 - lottery_ai - ERROR - logger.py:138 - 🟩 CNN Error traceback: Traceback (most recent call last):
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\streamlit_app\services\advanced_model_training.py", line 2023, in train_ensemble
+    cnn_model, cnn_metrics = self.train_cnn(X_cnn, y, metadata, config, progress_callback)
+                             ~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\streamlit_app\services\advanced_model_training.py", line 1835, in train_cnn
+    x = layers.Dense(256, activation='relu', name='dense_1')(x)
+                                                             ^
+UnboundLocalError: cannot access local variable 'x' where it is not associated with a value
+
+2025-11-25 19:17:55 - lottery_ai - ERROR - logger.py:138 - 🟩 CNN training failed: cannot access local variable 'x' where it is not associated with a value
+2025-11-25 19:17:55 - lottery_ai - ERROR - logger.py:138 - 🟩 CNN Error traceback: Traceback (most recent call last):
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\streamlit_app\services\advanced_model_training.py", line 2069, in train_ensemble
+    cnn_model, cnn_metrics = self.train_cnn(X_cnn, y, metadata, config, progress_callback)
+                             ~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\streamlit_app\services\advanced_model_training.py", line 1835, in train_cnn
+    x = layers.Dense(256, activation='relu', name='dense_1')(x)
+                                                             ^
+UnboundLocalError: cannot access local variable 'x' where it is not associated with a value
+
+2025-11-25 19:34:08 - lottery_ai - ERROR - logger.py:138 - CNN training failed: cannot access local variable 'x' where it is not associated with a value
+2025-11-25 22:18:16 - lottery_ai - ERROR - logger.py:138 - Single model prediction error: catboost/libs/data/model_dataset_compatibility.cpp:72: Feature 77 is present in model but not in pool.
+2025-11-25 23:02:08 - lottery_ai - ERROR - logger.py:138 - Single model prediction error: 'Series' object has no attribute 'select_dtypes'
+2025-11-25 23:03:38 - lottery_ai - ERROR - logger.py:138 - Single model prediction error: X has 10 features, but StandardScaler is expecting 85 features as input.
+2025-11-25 23:06:35 - lottery_ai - ERROR - logger.py:138 - Error generating predictions: cannot access local variable 'np' where it is not associated with a value
+2025-11-25 23:08:09 - lottery_ai - ERROR - logger.py:138 - Single model prediction error: object of type 'int' has no len()
+2025-11-25 23:10:20 - lottery_ai - ERROR - logger.py:138 - Single model prediction error: Input 0 of layer "functional" is incompatible with the layer: expected shape=(None, 72, 1), found shape=(1, 77)
+2025-11-26 10:41:40 - lottery_ai - ERROR - logger.py:138 - Single model prediction error: X has 64 features, but StandardScaler is expecting 77 features as input.
+2025-11-26 10:47:47 - lottery_ai - ERROR - logger.py:138 - Single model prediction error: Input 0 of layer "functional" is incompatible with the layer: expected shape=(None, 72, 1), found shape=(1, 64)
+2025-11-26 10:51:40 - lottery_ai - ERROR - logger.py:138 - Single model prediction error: Unknown model type: Ensemble
+2025-11-26 10:55:41 - lottery_ai - ERROR - logger.py:138 - Single model prediction error: Ensemble mode should use _generate_ensemble_predictions, not _generate_single_model_predictions
+2025-11-26 10:57:17 - lottery_ai - ERROR - logger.py:138 - Single model prediction error: Unknown model type: Ensemble
+2025-11-26 10:58:51 - lottery_ai - ERROR - logger.py:138 - Single model prediction error: Unknown model type: Ensemble
+2025-11-26 11:20:16 - lottery_ai - ERROR - logger.py:138 - Single model prediction error: Unknown model type: Ensemble
+2025-11-26 12:51:08 - lottery_ai - ERROR - logger.py:138 - Ensemble prediction error: float division by zero
+2025-11-27 13:54:14 - lottery_ai - ERROR - logger.py:138 - Single model prediction error: Input 0 of layer "functional" is incompatible with the layer: expected shape=(None, 1133), found shape=(1, 25, 45)
+2025-11-27 13:54:39 - lottery_ai - ERROR - logger.py:138 - Single model prediction error: Unknown model type: Transformer
+2025-11-27 13:54:52 - lottery_ai - ERROR - logger.py:138 - Single model prediction error: Feature shape mismatch, expected: 85, got 77
+2025-11-27 15:58:32 - lottery_ai - ERROR - logger.py:138 - Single model prediction error: Input 0 of layer "functional" is incompatible with the layer: expected shape=(None, 1133), found shape=(1, 25, 45)
+2025-11-27 22:01:17 - lottery_ai - ERROR - logger.py:138 - Single model prediction error: Input 0 of layer "functional" is incompatible with the layer: expected shape=(None, 1133), found shape=(1, 1125)
+2025-11-27 22:08:07 - lottery_ai - ERROR - logger.py:138 - Single model prediction error: Unknown model type: Transformer
+2025-11-27 22:18:57 - lottery_ai - ERROR - logger.py:138 - Single model prediction error: Unknown model type: Transformer
+2025-11-27 22:22:25 - lottery_ai - ERROR - logger.py:138 - Single model prediction error: Feature shape mismatch, expected: 85, got 77
+2025-11-27 22:36:06 - lottery_ai - ERROR - logger.py:138 - Single model prediction error: Feature shape mismatch, expected: 85, got 77
+2025-11-27 22:43:56 - lottery_ai - ERROR - logger.py:138 - Single model prediction error: Feature shape mismatch, expected: 85, got 77
+2025-11-27 22:47:12 - lottery_ai - ERROR - logger.py:138 - Single model prediction error: Feature shape mismatch, expected: 85, got 77
+2025-11-27 22:47:21 - lottery_ai - ERROR - logger.py:138 - Single model prediction error: Feature shape mismatch, expected: 85, got 77
+2025-11-27 23:24:57 - lottery_ai - ERROR - logger.py:138 - Single model prediction error: Unknown model type: Ensemble
+2025-11-28 00:02:39 - lottery_ai - ERROR - logger.py:138 - Error in prediction_ai page: 'SuperIntelligentAIAnalyzer' object has no attribute 'calculate_optimal_sets_advanced'
+2025-11-28 08:27:57 - lottery_ai - ERROR - logger.py:138 - Error in prediction_ai page: can only concatenate list (not "float") to list
+2025-11-28 08:30:05 - lottery_ai - ERROR - logger.py:138 - Error in prediction_ai page: can only concatenate list (not "float") to list
+2025-11-28 13:09:50 - lottery_ai - ERROR - logger.py:138 - Error in prediction_ai page: can only concatenate list (not "float") to list
+2025-11-28 14:21:34 - lottery_ai - ERROR - logger.py:138 - Error in prediction_ai page: can only concatenate list (not "float") to list
+2025-11-28 14:21:34 - lottery_ai - ERROR - logger.py:138 - Traceback: Traceback (most recent call last):
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\streamlit_app\pages\prediction_ai.py", line 795, in render_prediction_ai_page
+    _render_model_configuration(analyzer)
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\streamlit_app\pages\prediction_ai.py", line 950, in _render_model_configuration
+    optimal = analyzer.calculate_optimal_sets_advanced(analysis)
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\streamlit_app\pages\prediction_ai.py", line 517, in calculate_optimal_sets_advanced
+    weighted_confidence = np.average(model_weights, weights=accuracies + 0.1)  # Avoid zero weights
+                                                            ~~~~~~~~~~~^~~~~
+TypeError: can only concatenate list (not "float") to list
+

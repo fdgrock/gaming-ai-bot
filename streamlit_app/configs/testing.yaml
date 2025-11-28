@@ -1,0 +1,86 @@
+# Testing Environment Configuration
+# Optimized for automated testing and CI/CD
+
+app_name: "Lottery Prediction System"
+version: "2.0.0"
+environment: "testing"
+debug: true
+timezone: "UTC"
+
+# Database Configuration - In-memory for testing
+database:
+  connection_string: "sqlite:///:memory:"  # In-memory database
+  pool_size: 1
+  pool_timeout: 10
+  echo: false
+  backup_enabled: false
+  backup_interval_hours: 24
+
+# Cache Configuration - Disabled for consistent testing
+cache:
+  enabled: false  # Disable caching for predictable tests
+  max_memory_mb: 64
+  default_ttl: 300
+  cache_dir: "cache_test"
+  cleanup_interval: 60
+  persistent_cache: false
+
+# Logging Configuration - Minimal logging for tests
+logging:
+  level: "ERROR"  # Only log errors during tests
+  format: "%(asctime)s - %(levelname)s - %(message)s"
+  file: null  # No log file for tests
+  max_file_size_mb: 1
+  backup_count: 1
+  console_output: false
+
+# API Configuration - Test server
+api:
+  host: "127.0.0.1"
+  port: 8502  # Different port for testing
+  debug: false
+  cors_enabled: false  # Disable CORS for testing
+  cors_origins: []
+  rate_limit_enabled: false
+  rate_limit_per_minute: 1000
+
+# Security Configuration - Minimal security for testing
+security:
+  secret_key: "test-secret-key-for-testing-only"
+  session_timeout: 300  # 5 minutes
+  password_min_length: 4
+  max_login_attempts: 100  # High limit for tests
+  lockout_duration: 1  # 1 second
+  encryption_enabled: false
+
+# AI Model Configuration - Fast execution for tests
+ai:
+  ensemble_enabled: false  # Disable complex models
+  neural_network_enabled: false
+  quantum_enabled: false
+  pattern_enabled: true  # Keep only simple pattern matching
+  model_timeout: 5  # Short timeout
+  prediction_cache_ttl: 60
+  retrain_interval_hours: 1000  # Disable retraining
+  confidence_threshold: 0.0  # Accept all predictions
+
+# Game Configuration - Test data
+game:
+  default_game: "test_game"
+  max_predictions: 100  # Allow many predictions for testing
+  historical_data_limit: 100
+  update_frequency_minutes: 1
+  supported_games:
+    - "test_game"
+    - "powerball"
+
+# Export Configuration - Minimal exports for testing
+export:
+  export_dir: "exports_test"
+  max_file_size_mb: 10
+  include_metadata: false
+  timestamp_files: false  # Consistent filenames for tests
+  cleanup_old_exports_days: 1
+  supported_formats:
+    - "json"  # Only JSON for testing
+    - "csv"

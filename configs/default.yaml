@@ -1,0 +1,71 @@
+ai:
+  confidence_threshold: 0.1
+  ensemble_enabled: true
+  model_timeout: 30
+  neural_network_enabled: true
+  pattern_enabled: true
+  prediction_cache_ttl: 1800
+  quantum_enabled: true
+  retrain_interval_hours: 24
+api:
+  cors_enabled: true
+  cors_origins:
+  - '*'
+  debug: false
+  host: 0.0.0.0
+  port: 8501
+  rate_limit_enabled: true
+  rate_limit_per_minute: 60
+app_name: Lottery Prediction System
+cache:
+  cache_dir: cache
+  cleanup_interval: 300
+  default_ttl: 3600
+  enabled: true
+  max_memory_mb: 500
+  persistent_cache: true
+database:
+  backup_enabled: true
+  backup_interval_hours: 24
+  connection_string: sqlite:///data/lottery.db
+  echo: false
+  pool_size: 10
+  pool_timeout: 30
+debug: true
+environment: development
+export:
+  cleanup_old_exports_days: 30
+  export_dir: exports
+  include_metadata: true
+  max_file_size_mb: 100
+  supported_formats:
+  - csv
+  - json
+  - excel
+  - pdf
+  timestamp_files: true
+game:
+  default_game: powerball
+  historical_data_limit: 1000
+  max_predictions: 10
+  supported_games:
+  - powerball
+  - mega_millions
+  - euromillions
+  update_frequency_minutes: 60
+logging:
+  backup_count: 5
+  console_output: true
+  file: logs/app.log
+  format: '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+  level: INFO
+  max_file_size_mb: 10
+security:
+  encryption_enabled: true
+  lockout_duration: 300
+  max_login_attempts: 5
+  password_min_length: 8
+  secret_key: lottery-prediction-secret-key-change-in-production
+  session_timeout: 3600
+timezone: UTC
+version: 2.0.0

@@ -1,0 +1,93 @@
+# Development Environment Configuration
+# Optimized for development and testing
+
+app_name: "Lottery Prediction System"
+version: "2.0.0"
+environment: "development"
+debug: true
+timezone: "UTC"
+
+# Database Configuration - Local SQLite
+database:
+  connection_string: "sqlite:///data/lottery_dev.db"
+  pool_size: 5
+  pool_timeout: 30
+  echo: true  # Enable SQL logging in development
+  backup_enabled: false  # Disable backups in dev
+  backup_interval_hours: 24
+
+# Cache Configuration - Reduced limits for development
+cache:
+  enabled: true
+  max_memory_mb: 256
+  default_ttl: 1800  # 30 minutes
+  cache_dir: "cache_dev"
+  cleanup_interval: 180  # 3 minutes
+  persistent_cache: true
+
+# Logging Configuration - Verbose logging
+logging:
+  level: "DEBUG"
+  format: "%(asctime)s - %(name)s - %(levelname)s - %(funcName)s:%(lineno)d - %(message)s"
+  file: "logs/dev.log"
+  max_file_size_mb: 5
+  backup_count: 3
+  console_output: true
+
+# API Configuration - Development server
+api:
+  host: "127.0.0.1"
+  port: 8501
+  debug: true
+  cors_enabled: true
+  cors_origins:
+    - "http://localhost:3000"
+    - "http://127.0.0.1:3000"
+    - "http://localhost:8501"
+  rate_limit_enabled: false  # Disable rate limiting in dev
+  rate_limit_per_minute: 1000
+
+# Security Configuration - Relaxed for development
+security:
+  secret_key: "dev-secret-key-not-for-production"
+  session_timeout: 7200  # 2 hours
+  password_min_length: 4  # Relaxed for testing
+  max_login_attempts: 10
+  lockout_duration: 60  # 1 minute
+  encryption_enabled: false  # Disable for easier debugging
+
+# AI Model Configuration - Faster training for development
+ai:
+  ensemble_enabled: true
+  neural_network_enabled: true
+  quantum_enabled: true
+  pattern_enabled: true
+  model_timeout: 15  # Shorter timeout
+  prediction_cache_ttl: 900  # 15 minutes
+  retrain_interval_hours: 1  # More frequent retraining
+  confidence_threshold: 0.05  # Lower threshold for testing
+
+# Game Configuration
+game:
+  default_game: "powerball"
+  max_predictions: 20  # Allow more predictions for testing
+  historical_data_limit: 500  # Smaller dataset for faster processing
+  update_frequency_minutes: 15  # More frequent updates
+  supported_games:
+    - "powerball"
+    - "mega_millions"
+    - "euromillions"
+    - "test_game"  # Test game for development
+
+# Export Configuration
+export:
+  export_dir: "exports_dev"
+  max_file_size_mb: 50
+  include_metadata: true
+  timestamp_files: true
+  cleanup_old_exports_days: 7  # Clean up more frequently
+  supported_formats:
+    - "csv"
+    - "json"
+    - "excel"
+    - "pdf"
