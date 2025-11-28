@@ -7640,3 +7640,13 @@ TypeError: can only concatenate list (not "float") to list
 2025-11-28 14:26:45 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
 2025-11-28 14:45:57 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
 2025-11-28 14:46:21 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
+2025-11-28 15:54:16 - lottery_ai - INFO - logger.py:138 - Dashboard rendered successfully
+2025-11-28 15:56:32 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
+2025-11-28 15:56:51 - lottery_ai - INFO - logger.py:138 - Loaded 85 CATBOOST features for Lotto Max from catboost_features_t20251125_223215.csv
+2025-11-28 15:56:51 - lottery_ai - INFO - logger.py:138 - Loaded engineered features from catboost_features_t20251125_223215.csv with shape (1258, 85)
+2025-11-28 15:56:52 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
+2025-11-28 15:57:17 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
+2025-11-28 15:57:24 - lottery_ai - INFO - logger.py:138 - Set-adjusted accuracies: {'XGBoost': 0.01}
+2025-11-28 15:57:24 - lottery_ai - INFO - logger.py:138 - Ensemble weights: {'XGBoost': 1.0}
+2025-11-28 15:57:25 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
+2025-11-28 15:57:41 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
