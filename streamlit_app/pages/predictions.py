@@ -3220,14 +3220,44 @@ def _generate_ensemble_predictions(game: str, count: int, models_dict: Dict[str,
         # Combined accuracy for metadata (use arithmetic mean of original accuracies)
         combined_accuracy = np.mean(list(model_accuracies.values()))
         
+        # Load training features for sampling (same as single model predictions)
+        training_features = None
+        actual_feature_dim = feature_dim
+        try:
+            # Try to load CSV features for sampling
+            feature_files = sorted(list((models_dir / "features").glob(f"*{game_folder}*.csv")))
+            if feature_files:
+                features_df = pd.read_csv(feature_files[-1])
+                numeric_cols = features_df.select_dtypes(include=[np.number]).columns
+                training_features = features_df[numeric_cols]
+                actual_feature_dim = len(numeric_cols)
+                app_logger.info(f"Loaded training features for ensemble sampling: shape {training_features.shape}")
+            else:
+                app_logger.warning(f"No training features found for ensemble, will use random features")
+        except Exception as e:
+            app_logger.warning(f"Could not load training features for ensemble: {e}")
+        
         # Generate predictions with ensemble voting
         for pred_set_idx in range(count):
             # Collect votes from all models
             all_votes = {}  # Number -> vote_strength
             model_predictions = {}
             
-            # Generate random input with correct dimensionality (using persistent RNG)
-            random_input = rng.randn(1, feature_dim)
+            # Generate input - sample from training data if available, otherwise random
+            if training_features is not None and len(training_features) > 0:
+                # Sample from training data and add noise (same as single model)
+                sample_idx = rng.randint(0, len(training_features))
+                sample = training_features.iloc[sample_idx]
+                feature_vector = sample.values.astype(float)
+                
+                # Add small random noise (±5%) for variation
+                noise = rng.normal(0, 0.05, size=feature_vector.shape)
+                random_input = feature_vector * (1 + noise)
+                random_input = random_input.reshape(1, -1)
+            else:
+                # Fallback to random features
+                random_input = rng.randn(1, actual_feature_dim)
+            
             random_input_scaled = scaler.transform(random_input)
             
             # Get predictions from each model
