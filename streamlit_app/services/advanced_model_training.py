@@ -406,7 +406,7 @@ class AdvancedModelTrainer:
             app_log(f"Unknown game '{game}', defaulting to 6 main numbers", "warning")
             return 6
         
-    def load_training_data(self, data_sources: Dict[str, List[Path]], disable_lag: bool = True) -> Tuple[np.ndarray, np.ndarray, Dict[str, Any]]:
+    def load_training_data(self, data_sources: Dict[str, List[Path]], disable_lag: bool = True, max_number: int = None) -> Tuple[np.ndarray, np.ndarray, Dict[str, Any]]:
         """
         Load and combine training data from multiple sources.
         
@@ -414,13 +414,23 @@ class AdvancedModelTrainer:
             data_sources: Dict with keys 'raw_csv', 'lstm', 'cnn', 'transformer', 'xgboost', 'catboost', 'lightgbm'
                          Each containing list of file paths
             disable_lag: If True (default), predict same draw (Feature[i] -> Target[i]). If False, predict next draw (Feature[i] -> Target[i+1])
+            max_number: Maximum lottery number (49 for Lotto 6/49, 50 for Lotto Max). If None, auto-detect from game.
         
         Returns:
             X: Feature matrix (num_samples, num_features)
-            y: Target array (num_samples,) - winning number predictions
+            y: Target array (num_samples,) - winning number predictions (0-based class indices: 0 to max_number-1)
             metadata: Dict with training info
         """
         app_log(f"Loading training data for {self.game}...", "info")
+        
+        # Auto-detect max_number if not provided
+        if max_number is None:
+            game_lower = self.game.lower()
+            if 'max' in game_lower:
+                max_number = 50  # Lotto Max: 1-50
+            else:
+                max_number = 49  # Lotto 6/49: 1-49
+            app_log(f"Auto-detected max_number={max_number} for game '{self.game}'", "info")
         
         # VALIDATION: If using pre-generated features (XGBoost/CatBoost/LightGBM), raw_csv must be included for targets
         has_generated_features = bool(data_sources.get("xgboost") or data_sources.get("catboost") or data_sources.get("lightgbm"))
@@ -517,7 +527,9 @@ class AdvancedModelTrainer:
         
         # CRITICAL: Extract targets from raw CSV (which is chronologically sorted)
         # This ensures consistency with all feature loaders which sort by date
-        y = self._extract_targets(data_sources.get("raw_csv", []), disable_lag=disable_lag)
+        # Now using improved target extraction: FIRST NUMBER DIRECTLY (0-based class index)
+        # This trains proper multi-class models instead of digit-based models
+        y = self._extract_targets(data_sources.get("raw_csv", []), disable_lag=disable_lag, max_number=max_number)
         
         if y is None or len(y) == 0:
             raise ValueError("Failed to extract targets - raw CSV data required")
@@ -862,75 +874,122 @@ class AdvancedModelTrainer:
             app_log(f"Error loading LightGBM features: {e}", "error")
             return None, 0
     
-    def _extract_targets(self, raw_csv_files: List[Path], disable_lag: bool = True) -> np.ndarray:
-        """Extract target values (winning numbers) from raw CSV - SYNCHRONIZED with feature loading.
+    def _extract_targets_digit_legacy(self, raw_csv_files: List[Path], disable_lag: bool = True) -> np.ndarray:
+        """DEPRECATED: Extract target as DIGIT only (0-9 from first number % 10).
         
-        Args:
-            raw_csv_files: List of paths to raw CSV files
-            disable_lag: If True (default), predicts SAME draw. If False, predicts NEXT draw (not recommended for lottery).
+        ⚠️  LEGACY METHOD - Use _extract_targets_proper() instead for better accuracy!
+        
+        This method trains 10-class models which requires digit-to-number conversion in predictions.
+        Kept for backward compatibility with existing models.
         """
         targets_with_dates = []
         try:
-            app_log(f"Extracting targets from {len(raw_csv_files)} raw CSV files", "info")
-            
             for filepath in raw_csv_files:
-                app_log(f"  Processing file: {filepath.name}", "info")
                 df = pd.read_csv(filepath)
-                
-                # CRITICAL: Sort by draw_date FIRST to match feature loading order
                 if "draw_date" in df.columns:
                     df = df.sort_values("draw_date", ascending=True).reset_index(drop=True)
-                    first_date = df['draw_date'].iloc[0] if len(df) > 0 else "N/A"
-                    last_date = df['draw_date'].iloc[-1] if len(df) > 0 else "N/A"
-                    app_log(f"    Sorted {len(df)} rows: {first_date} → {last_date}", "info")
                 
                 for idx, row in df.iterrows():
                     try:
-                        # Extract draw_date if available
                         draw_date = row.get("draw_date", None)
                         numbers = [int(n.strip()) for n in str(row.get("numbers", "")).split(",")]
                         if numbers:
-                            # Target: first number normalized to 0-9
+                            # LEGACY: Extract digit only
                             target = numbers[0] % 10
                             targets_with_dates.append((draw_date, target))
                     except:
                         continue
             
-            # CRITICAL: Sort by date to maintain chronological order with features
             if targets_with_dates:
-                app_log(f"Extracted {len(targets_with_dates)} targets (unsorted)", "info")
                 targets_with_dates.sort(key=lambda x: x[0] if x[0] is not None else "")
                 targets = np.array([t[1] for t in targets_with_dates])
                 
-                # Log sample of dates for debugging
-                first_5_dates = [t[0] for t in targets_with_dates[:5]]
-                last_5_dates = [t[0] for t in targets_with_dates[-5:]]
-                app_log(f"Sorted targets - First 5 dates: {first_5_dates}", "info")
-                app_log(f"Sorted targets - Last 5 dates: {last_5_dates}", "info")
-                
-                # 🚨 CRITICAL LAG FIX: Remove first row and shift to predict NEXT draw
-                # Features from draw N should predict the target from draw N+1
-                # We drop the first row because we can't predict before the first draw
-                # Result: targets[i] = original_targets[i+1]
-                
                 if disable_lag:
-                    app_log(f"⚠️  LAG DISABLED: Predicting SAME draw (Feature[i] -> Target[i])", "info")
-                    app_log(f"   Targets length: {len(targets)}", "info")
                     targets_final = targets
                 else:
-                    targets_final = targets[1:]  # Skip first, keeping rest
-                    app_log(f"⚠️  LAG APPLIED: Targets shifted to predict NEXT draw", "info")
-                    app_log(f"   Original targets length: {len(targets)}", "info")
-                    app_log(f"   Lagged targets length: {len(targets_final)}", "info")
-                    app_log(f"   Feature row 0 now predicts original row 1's target", "info")
-                    app_log(f"   Feature row N now predicts original row N+1's target", "info")
+                    targets_final = targets[1:]
                 
                 return targets_final
             
             return np.array([])
         except Exception as e:
-            app_log(f"Error extracting targets: {e}", "error")
+            app_log(f"Error extracting legacy digit targets: {e}", "error")
             return np.array([])
+    
+    def _extract_targets_proper(self, raw_csv_files: List[Path], disable_lag: bool = True, max_number: int = 49) -> np.ndarray:
+        """🎯 IMPROVED: Extract target as FIRST WINNING NUMBER (1-49 or 1-50).
+        
+        ✅ RECOMMENDED - This trains proper multi-class models (49-50 classes).
+        Predictions output direct number probabilities, no digit conversion needed.
+        
+        Args:
+            raw_csv_files: List of paths to raw CSV files
+            disable_lag: If True, predicts SAME draw. If False, predicts NEXT draw.
+            max_number: Maximum lottery number (49 for Lotto 6/49, 50 for Lotto Max)
+        
+        Returns:
+            Target array with values in range [0, max_number-1] (0-based class indices for numbers 1-max_number)
+        """
+        targets_with_dates = []
+        try:
+            app_log(f"🎯 PROPER: Extracting {max_number}-class targets from {len(raw_csv_files)} files", "info")
+            
+            for filepath in raw_csv_files:
+                df = pd.read_csv(filepath)
+                
+                if "draw_date" in df.columns:
+                    df = df.sort_values("draw_date", ascending=True).reset_index(drop=True)
+                    first_date = df['draw_date'].iloc[0] if len(df) > 0 else "N/A"
+                    last_date = df['draw_date'].iloc[-1] if len(df) > 0 else "N/A"
+                    app_log(f"  {filepath.name}: {first_date} → {last_date} ({len(df)} draws)", "info")
+                
+                for idx, row in df.iterrows():
+                    try:
+                        draw_date = row.get("draw_date", None)
+                        numbers = [int(n.strip()) for n in str(row.get("numbers", "")).split(",")]
+                        if numbers:
+                            # ✅ IMPROVED: Use first winning number directly as class
+                            # Class 0 = number 1, Class 1 = number 2, ..., Class 48 = number 49, Class 49 = number 50
+                            first_number = numbers[0]
+                            if 1 <= first_number <= max_number:
+                                target = first_number - 1  # Convert to 0-based index
+                                targets_with_dates.append((draw_date, target))
+                    except:
+                        continue
+            
+            if targets_with_dates:
+                app_log(f"  Extracted {len(targets_with_dates)} valid targets", "info")
+                targets_with_dates.sort(key=lambda x: x[0] if x[0] is not None else "")
+                targets = np.array([t[1] for t in targets_with_dates])
+                
+                # Show class distribution
+                unique_classes = len(np.unique(targets))
+                app_log(f"  Target classes found: {unique_classes} (expected {max_number})", "info")
+                app_log(f"  Range: [{np.min(targets)} - {np.max(targets)}] (should be [0 - {max_number-1}])", "info")
+                
+                if disable_lag:
+                    app_log(f"  ✅ LAG DISABLED: Predicting SAME draw", "info")
+                    targets_final = targets
+                else:
+                    targets_final = targets[1:]
+                    app_log(f"  ⚠️  LAG APPLIED: Targets shifted to NEXT draw", "info")
+                
+                return targets_final
+            
+            return np.array([])
+        except Exception as e:
+            app_log(f"Error extracting proper targets: {e}", "error")
+            return np.array([])
+    
+    def _extract_targets(self, raw_csv_files: List[Path], disable_lag: bool = True, max_number: int = 49) -> np.ndarray:
+        """Extract target values - AUTO SELECTS BEST METHOD.
+        
+        This is the main function that trains should use.
+        It automatically selects the appropriate extraction method.
+        """
+        # Use the PROPER method (49-50 classes) as default going forward
+        # This provides better accuracy than the legacy 10-class digit method
+        return self._extract_targets_proper(raw_csv_files, disable_lag=disable_lag, max_number=max_number)
     
     def _extract_targets_from_feature_csv(self, feature_files: List[Path]) -> np.ndarray:
         """Extract targets from feature CSV files which have draw_date column."""

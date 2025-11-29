@@ -297,14 +297,18 @@ def _render_prediction_generator() -> None:
                 st.subheader(model_type_name)
                 models = get_models_by_type(selected_game, model_type_name)
                 if models:
+                    # Add "N/A" option to exclude this model type from ensemble
+                    model_options = ["N/A"] + models
                     selected = st.selectbox(
                         f"Select {model_type_name}",
-                        models,
+                        model_options,
                         key=f"hybrid_{model_type_name.lower()}_selector",
                         label_visibility="collapsed"
                     )
-                    selected_models[model_type_name] = selected
-                    all_metadata[model_type_name] = get_model_metadata(selected_game, model_type_name, selected)
+                    # Only add to selected_models if not "N/A"
+                    if selected != "N/A":
+                        selected_models[model_type_name] = selected
+                        all_metadata[model_type_name] = get_model_metadata(selected_game, model_type_name, selected)
                 else:
                     st.warning(f"No {model_type_name} models available")
             col_idx += 1
@@ -602,6 +606,9 @@ def _render_prediction_generator() -> None:
                 ensemble_models_to_use = ensemble_default_models
             else:
                 ensemble_models_to_use = selected_models
+            
+            # Filter out any "N/A" entries that might still be in the dict
+            ensemble_models_to_use = {k: v for k, v in ensemble_models_to_use.items() if v != "N/A"}
             
             if len(ensemble_models_to_use) < 1:
                 st.error("Please select at least one model or use trained ensemble default")
@@ -1995,14 +2002,25 @@ def _generate_predictions(game: str, count: int, mode: str, confidence_threshold
         # ===== SINGLE MODEL PREDICTION =====
         if mode == "Hybrid Ensemble" and isinstance(model_name, dict):
             # INTELLIGENT ENSEMBLE: Combine 3 models with weighted voting
-            # Normalize model types in dict to capitalized form for consistency
+            # Normalize model types in dict to correct capitalization for consistency
             normalized_models_dict = {}
             for key, val in model_name.items():
-                # Normalize the key to proper capitalization
-                if key.lower() == "xgboost":
+                # Normalize the key to proper capitalization for each model type
+                key_lower = key.lower()
+                if key_lower == "xgboost":
                     normalized_models_dict["XGBoost"] = val
+                elif key_lower == "catboost":
+                    normalized_models_dict["CatBoost"] = val
+                elif key_lower == "lightgbm":
+                    normalized_models_dict["LightGBM"] = val
+                elif key_lower == "cnn":
+                    normalized_models_dict["CNN"] = val
+                elif key_lower == "lstm":
+                    normalized_models_dict["LSTM"] = val
+                elif key_lower == "transformer":
+                    normalized_models_dict["Transformer"] = val
                 else:
-                    normalized_models_dict[key.title()] = val
+                    normalized_models_dict[key] = val  # Pass through unknown types
             
             return _generate_ensemble_predictions(
                 game, count, normalized_models_dict, models_dir, config, scaler, 
@@ -2013,12 +2031,24 @@ def _generate_predictions(game: str, count: int, mode: str, confidence_threshold
             # Ensemble mode with model_type=None - treat as ensemble
             normalized_models_dict = {}
             for key, val in model_name.items():
-                # Normalize the key to proper capitalization
-                if key.lower() == "xgboost":
+                # Normalize the key to proper capitalization for each model type
+                key_lower = key.lower()
+                if key_lower == "xgboost":
                     normalized_models_dict["XGBoost"] = val
+                elif key_lower == "catboost":
+                    normalized_models_dict["CatBoost"] = val
+                elif key_lower == "lightgbm":
+                    normalized_models_dict["LightGBM"] = val
+                elif key_lower == "cnn":
+                    normalized_models_dict["CNN"] = val
+                elif key_lower == "lstm":
+                    normalized_models_dict["LSTM"] = val
+                elif key_lower == "transformer":
+                    normalized_models_dict["Transformer"] = val
                 else:
-                    normalized_models_dict[key.title()] = val
+                    normalized_models_dict[key] = val  # Pass through unknown types
             
+            app_logger.info(f"🔄 Generating custom ensemble with models: {list(normalized_models_dict.keys())}")
             return _generate_ensemble_predictions(
                 game, count, normalized_models_dict, models_dir, config, scaler, 
                 confidence_threshold, main_nums, game_folder, feature_dim
@@ -2809,15 +2839,60 @@ def _generate_single_model_predictions(game: str, count: int, mode: str, model_t
                     numbers = sorted(rng.choice(range(1, max_number + 1), main_nums, replace=False).tolist())
                     confidence = confidence_threshold
                 else:
-                    # Extract top numbers by probability
-                    # pred_probs represents probability for each class (lottery number)
-                    if len(pred_probs) > main_nums:
-                        top_indices = np.argsort(pred_probs)[-main_nums:]
-                        numbers = sorted((top_indices + 1).tolist())
-                        confidence = float(np.mean(np.sort(pred_probs)[-main_nums:]))
+                    # CRITICAL FIX: Handle 10-class digit model output
+                    # Models are trained to predict FIRST NUMBER DIGIT (0-9), not individual lottery numbers
+                    # So pred_probs has 10 elements (one per digit)
+                    if len(pred_probs) == 10:
+                        # This is a digit prediction model
+                        # Strategy: Get numbers ending in predicted digits, weighted by probability
+                        
+                        # Get top 3-4 most likely digits (ensure we have enough candidates)
+                        top_digit_count = min(4, len(pred_probs))
+                        top_digit_indices = np.argsort(pred_probs)[-top_digit_count:]
+                        top_digits = top_digit_indices  # 0-9
+                        
+                        # For each digit, generate candidates (numbers ending with that digit)
+                        candidates = []
+                        candidate_weights = []
+                        
+                        for digit in top_digits:
+                            digit_weight = pred_probs[digit]
+                            # Generate numbers ending with this digit (1-max_number)
+                            # If digit=0: numbers are 10, 20, 30, 40, ...
+                            # If digit=1: numbers are 1, 11, 21, 31, ...
+                            # If digit=5: numbers are 5, 15, 25, 35, ...
+                            for base in range(digit if digit > 0 else 10, max_number + 1, 10):
+                                candidates.append(base)
+                                # Weight by digit probability and by distance from base
+                                candidate_weights.append(digit_weight / (1 + np.log(base)))
+                        
+                        if candidates:
+                            # Sort by weight and pick top main_nums
+                            sorted_indices = np.argsort(candidate_weights)[-main_nums * 2:]  # Get 2x to have choices
+                            top_candidates = [candidates[i] for i in sorted_indices]
+                            # Remove duplicates and pick top
+                            top_candidates = sorted(list(set(top_candidates)))[-main_nums:]
+                            
+                            if len(top_candidates) >= main_nums:
+                                numbers = sorted(top_candidates[:main_nums])
+                                confidence = float(np.mean([pred_probs[digit] for digit in top_digits]))
+                            else:
+                                # Fallback
+                                numbers = sorted(rng.choice(range(1, max_number + 1), main_nums, replace=False).tolist())
+                                confidence = float(np.mean(pred_probs[top_digit_indices]))
+                        else:
+                            numbers = sorted(rng.choice(range(1, max_number + 1), main_nums, replace=False).tolist())
+                            confidence = np.mean(pred_probs)
+                    
                     else:
-                        numbers = sorted(rng.choice(range(1, max_number + 1), main_nums, replace=False).tolist())
-                        confidence = np.mean(pred_probs)
+                        # Normal case: pred_probs represents probability for each lottery number class (49-50 classes)
+                        if len(pred_probs) > main_nums:
+                            top_indices = np.argsort(pred_probs)[-main_nums:]
+                            numbers = sorted((top_indices + 1).tolist())
+                            confidence = float(np.mean(np.sort(pred_probs)[-main_nums:]))
+                        else:
+                            numbers = sorted(rng.choice(range(1, max_number + 1), main_nums, replace=False).tolist())
+                            confidence = np.mean(pred_probs)
             
             # Validate numbers before adding
             if _validate_prediction_numbers(numbers, max_number):
@@ -3110,15 +3185,32 @@ def _generate_ensemble_predictions(game: str, count: int, models_dict: Dict[str,
         # Load all three models
         models_loaded = {}
         model_accuracies = {}
+        load_errors = {}
+        
+        app_logger.info(f"🔄 Ensemble: Starting to load models from: {models_dir}")
+        app_logger.info(f"🔄 Ensemble: Models requested: {list(models_dict.keys())}")
+        app_logger.info(f"🔄 Ensemble: Game folder: {game_folder}")
+        
+        # Check if models_dir exists - if not, try to find alternatives
+        if not models_dir.exists():
+            app_logger.warning(f"⚠️  Models directory does not exist: {models_dir}")
+            app_logger.warning(f"⚠️  Available directories in parent: {list(models_dir.parent.iterdir()) if models_dir.parent.exists() else 'parent does not exist'}")
+            raise ValueError(f"Models directory not found for {game}. Path: {models_dir}\n\nPlease train models first before using custom ensemble.")
+        
+        app_logger.info(f"🔄 Models directory exists. Contents: {list(models_dir.iterdir())}")
         
         for model_type, model_name in models_dict.items():
             try:
                 model_path = None
                 default_accuracy = 0.5  # Conservative default
                 
+                app_logger.info(f"  Processing model_type='{model_type}', model_name='{model_name}'")
+                
                 if model_type == "Transformer":
                     # Find latest transformer model (direct .keras files)
-                    individual_paths = sorted(list((models_dir / "transformer").glob(f"transformer_{game_folder}_*.keras")))
+                    transformer_dir = models_dir / "transformer"
+                    individual_paths = sorted(list(transformer_dir.glob(f"transformer_{game_folder}_*.keras"))) if transformer_dir.exists() else []
+                    app_logger.info(f"  Transformer search in: {transformer_dir} - Found {len(individual_paths)} files")
                     if individual_paths:
                         model_path = individual_paths[-1]
                     default_accuracy = 0.35
@@ -3126,10 +3218,17 @@ def _generate_ensemble_predictions(game: str, count: int, models_dict: Dict[str,
                     if model_path:
                         models_loaded["Transformer"] = tf.keras.models.load_model(str(model_path))
                         model_accuracies["Transformer"] = get_model_metadata(game, "Transformer", model_name).get('accuracy', default_accuracy)
+                        app_logger.info(f"  ✓ Loaded Transformer from {model_path.name}")
+                    else:
+                        error_msg = f"Transformer: No model files found in {transformer_dir}"
+                        app_logger.warning(f"  ✗ {error_msg}")
+                        load_errors["Transformer"] = error_msg
                 
                 elif model_type == "LSTM":
                     # Find latest LSTM model (direct .keras files)
-                    individual_paths = sorted(list((models_dir / "lstm").glob(f"lstm_{game_folder}_*.keras")))
+                    lstm_dir = models_dir / "lstm"
+                    individual_paths = sorted(list(lstm_dir.glob(f"lstm_{game_folder}_*.keras"))) if lstm_dir.exists() else []
+                    app_logger.info(f"  LSTM search in: {lstm_dir} - Found {len(individual_paths)} files")
                     if individual_paths:
                         model_path = individual_paths[-1]
                     default_accuracy = 0.20
@@ -3137,10 +3236,17 @@ def _generate_ensemble_predictions(game: str, count: int, models_dict: Dict[str,
                     if model_path:
                         models_loaded["LSTM"] = tf.keras.models.load_model(str(model_path))
                         model_accuracies["LSTM"] = get_model_metadata(game, "LSTM", model_name).get('accuracy', default_accuracy)
+                        app_logger.info(f"  ✓ Loaded LSTM from {model_path.name}")
+                    else:
+                        error_msg = f"LSTM: No model files found in {lstm_dir}"
+                        app_logger.warning(f"  ✗ {error_msg}")
+                        load_errors["LSTM"] = error_msg
                 
                 elif model_type == "XGBoost":
                     # Find latest XGBoost model (direct .joblib files)
-                    individual_paths = sorted(list((models_dir / "xgboost").glob(f"xgboost_{game_folder}_*.joblib")))
+                    xgb_dir = models_dir / "xgboost"
+                    individual_paths = sorted(list(xgb_dir.glob(f"xgboost_{game_folder}_*.joblib"))) if xgb_dir.exists() else []
+                    app_logger.info(f"  XGBoost search in: {xgb_dir} - Found {len(individual_paths)} files")
                     if individual_paths:
                         model_path = individual_paths[-1]
                     default_accuracy = 0.98
@@ -3148,10 +3254,17 @@ def _generate_ensemble_predictions(game: str, count: int, models_dict: Dict[str,
                     if model_path:
                         models_loaded["XGBoost"] = joblib.load(str(model_path))
                         model_accuracies["XGBoost"] = get_model_metadata(game, "XGBoost", model_name).get('accuracy', default_accuracy)
+                        app_logger.info(f"  ✓ Loaded XGBoost from {model_path.name}")
+                    else:
+                        error_msg = f"XGBoost: No model files found in {xgb_dir}"
+                        app_logger.warning(f"  ✗ {error_msg}")
+                        load_errors["XGBoost"] = error_msg
                 
                 elif model_type == "CatBoost":
                     # Find latest CatBoost model
-                    individual_paths = sorted(list((models_dir / "catboost").glob(f"catboost_{game_folder}_*.joblib")))
+                    cb_dir = models_dir / "catboost"
+                    individual_paths = sorted(list(cb_dir.glob(f"catboost_{game_folder}_*.joblib"))) if cb_dir.exists() else []
+                    app_logger.info(f"  CatBoost search in: {cb_dir} - Found {len(individual_paths)} files")
                     if individual_paths:
                         model_path = individual_paths[-1]
                     default_accuracy = 0.85
@@ -3159,10 +3272,17 @@ def _generate_ensemble_predictions(game: str, count: int, models_dict: Dict[str,
                     if model_path:
                         models_loaded["CatBoost"] = joblib.load(str(model_path))
                         model_accuracies["CatBoost"] = get_model_metadata(game, "CatBoost", model_name).get('accuracy', default_accuracy)
+                        app_logger.info(f"  ✓ Loaded CatBoost from {model_path.name}")
+                    else:
+                        error_msg = f"CatBoost: No model files found in {cb_dir}"
+                        app_logger.warning(f"  ✗ {error_msg}")
+                        load_errors["CatBoost"] = error_msg
                 
                 elif model_type == "LightGBM":
                     # Find latest LightGBM model
-                    individual_paths = sorted(list((models_dir / "lightgbm").glob(f"lightgbm_{game_folder}_*.joblib")))
+                    lgb_dir = models_dir / "lightgbm"
+                    individual_paths = sorted(list(lgb_dir.glob(f"lightgbm_{game_folder}_*.joblib"))) if lgb_dir.exists() else []
+                    app_logger.info(f"  LightGBM search in: {lgb_dir} - Found {len(individual_paths)} files")
                     if individual_paths:
                         model_path = individual_paths[-1]
                     default_accuracy = 0.98
@@ -3170,10 +3290,17 @@ def _generate_ensemble_predictions(game: str, count: int, models_dict: Dict[str,
                     if model_path:
                         models_loaded["LightGBM"] = joblib.load(str(model_path))
                         model_accuracies["LightGBM"] = get_model_metadata(game, "LightGBM", model_name).get('accuracy', default_accuracy)
+                        app_logger.info(f"  ✓ Loaded LightGBM from {model_path.name}")
+                    else:
+                        error_msg = f"LightGBM: No model files found in {lgb_dir}"
+                        app_logger.warning(f"  ✗ {error_msg}")
+                        load_errors["LightGBM"] = error_msg
                 
                 elif model_type == "CNN":
                     # Find latest CNN model
-                    individual_paths = sorted(list((models_dir / "cnn").glob(f"cnn_{game_folder}_*.keras")))
+                    cnn_dir = models_dir / "cnn"
+                    individual_paths = sorted(list(cnn_dir.glob(f"cnn_{game_folder}_*.keras"))) if cnn_dir.exists() else []
+                    app_logger.info(f"  CNN search in: {cnn_dir} - Found {len(individual_paths)} files")
                     if individual_paths:
                         model_path = individual_paths[-1]
                     default_accuracy = 0.17
@@ -3181,12 +3308,27 @@ def _generate_ensemble_predictions(game: str, count: int, models_dict: Dict[str,
                     if model_path:
                         models_loaded["CNN"] = tf.keras.models.load_model(str(model_path))
                         model_accuracies["CNN"] = get_model_metadata(game, "CNN", model_name).get('accuracy', default_accuracy)
+                        app_logger.info(f"  ✓ Loaded CNN from {model_path.name}")
+                    else:
+                        error_msg = f"CNN: No model files found in {cnn_dir}"
+                        app_logger.warning(f"  ✗ {error_msg}")
+                        load_errors["CNN"] = error_msg
+                
+                else:
+                    error_msg = f"Unknown model type: '{model_type}'. Must be one of: Transformer, LSTM, XGBoost, CatBoost, LightGBM, CNN"
+                    app_logger.error(f"  ✗ {error_msg}")
+                    load_errors[model_type] = error_msg
             
             except Exception as e:
-                app_logger.warning(f"Could not load {model_type}: {str(e)}")
+                error_msg = f"❌ Could not load {model_type}: {str(e)}"
+                app_logger.error(error_msg, exc_info=True)
+                load_errors[model_type] = str(e)
         
         if not models_loaded:
-            raise ValueError("Could not load any ensemble models")
+            error_details = "\n".join([f"  - {k}: {v}" for k, v in load_errors.items()])
+            error_msg = f"Could not load any ensemble models. Details:\n{error_details}"
+            app_logger.error(f"❌ {error_msg}")
+            raise ValueError(error_msg)
         
         app_logger.info(f"Ensemble loaded {len(models_loaded)} models: {list(models_loaded.keys())}")
         app_logger.info(f"Model accuracies: {model_accuracies}")
@@ -3224,16 +3366,31 @@ def _generate_ensemble_predictions(game: str, count: int, models_dict: Dict[str,
         training_features = None
         actual_feature_dim = feature_dim
         try:
-            # Try to load CSV features for sampling
-            feature_files = sorted(list((models_dir / "features").glob(f"*{game_folder}*.csv")))
-            if feature_files:
-                features_df = pd.read_csv(feature_files[-1])
-                numeric_cols = features_df.select_dtypes(include=[np.number]).columns
-                training_features = features_df[numeric_cols]
-                actual_feature_dim = len(numeric_cols)
-                app_logger.info(f"Loaded training features for ensemble sampling: shape {training_features.shape}")
-            else:
-                app_logger.warning(f"No training features found for ensemble, will use random features")
+            # Features are stored in data/features/model_type/game_folder/ directory
+            # Try to load from XGBoost features (most complete)
+            data_dir = Path(__file__).parent.parent.parent / "data" / "features"
+            
+            # Try each model type to find features
+            feature_sources = [
+                data_dir / "xgboost" / game_folder,
+                data_dir / "catboost" / game_folder,
+                data_dir / "lightgbm" / game_folder,
+                data_dir / "transformer" / game_folder,
+            ]
+            
+            for feature_path in feature_sources:
+                if feature_path.exists():
+                    feature_files = sorted(list(feature_path.glob("*.csv")))
+                    if feature_files:
+                        features_df = pd.read_csv(feature_files[-1])
+                        numeric_cols = features_df.select_dtypes(include=[np.number]).columns
+                        training_features = features_df[numeric_cols]
+                        actual_feature_dim = len(numeric_cols)
+                        app_logger.info(f"Loaded training features from {feature_path.name}: shape {training_features.shape}")
+                        break
+            
+            if training_features is None:
+                app_logger.warning(f"No training features found for ensemble in {data_dir}, will use random features")
         except Exception as e:
             app_logger.warning(f"Could not load training features for ensemble: {e}")
         
@@ -3254,11 +3411,28 @@ def _generate_ensemble_predictions(game: str, count: int, models_dict: Dict[str,
                 noise = rng.normal(0, 0.05, size=feature_vector.shape)
                 random_input = feature_vector * (1 + noise)
                 random_input = random_input.reshape(1, -1)
+                app_logger.debug(f"Set {pred_set_idx}: Sampled from training data, shape={random_input.shape}")
             else:
                 # Fallback to random features
+                app_logger.warning(f"Set {pred_set_idx}: No training features available, using random")
                 random_input = rng.randn(1, actual_feature_dim)
             
-            random_input_scaled = scaler.transform(random_input)
+            # Ensure feature dimension matches scaler
+            if random_input.shape[1] != scaler.n_features_in_:
+                app_logger.warning(f"Feature dimension mismatch: input={random_input.shape[1]}, scaler expects={scaler.n_features_in_}")
+                if random_input.shape[1] < scaler.n_features_in_:
+                    # Pad with zeros
+                    padding = np.zeros((random_input.shape[0], scaler.n_features_in_ - random_input.shape[1]))
+                    random_input = np.hstack([random_input, padding])
+                else:
+                    # Truncate
+                    random_input = random_input[:, :scaler.n_features_in_]
+            
+            try:
+                random_input_scaled = scaler.transform(random_input)
+            except Exception as e:
+                app_logger.error(f"Scaling error in set {pred_set_idx}: {e}")
+                random_input_scaled = random_input  # Use unscaled as fallback
             
             # Get predictions from each model
             for model_type, model in models_loaded.items():
@@ -3299,23 +3473,41 @@ def _generate_ensemble_predictions(game: str, count: int, models_dict: Dict[str,
                     app_logger.debug(f"{model_type} raw probs: min={np.min(pred_probs):.4f}, max={np.max(pred_probs):.4f}, mean={np.mean(pred_probs):.4f}")
                     app_logger.debug(f"{model_type} normalized: min={np.min(pred_probs_normalized):.4f}, max={np.max(pred_probs_normalized):.4f}, mean={np.mean(pred_probs_normalized):.4f}")
                     
-                    # Get top predictions from this model (using normalized probs)
-                    model_votes = np.argsort(pred_probs_normalized)[-main_nums:]
-                    model_predictions[model_type] = (model_votes + 1).tolist()  # Convert to 1-based
-                    
-                    app_logger.debug(f"{model_type} predicted numbers: {model_predictions[model_type]}")
-                    
                     weight = ensemble_weights.get(model_type, 1.0 / len(models_loaded))
                     
-                    # Add weighted votes with bounds checking (using NORMALIZED probabilities)
-                    for idx, number in enumerate(model_votes + 1):
-                        number = int(number)
-                        # Validate number is within valid range and within prediction probability array
-                        if 1 <= number <= max_number and number - 1 < len(pred_probs_normalized):
-                            # Use normalized probability (0-1 scale) for fair voting
-                            vote_strength = float(pred_probs_normalized[number - 1]) * weight
-                            all_votes[number] = all_votes.get(number, 0) + vote_strength
-                            app_logger.debug(f"  {model_type} vote for {number}: {pred_probs_normalized[number-1]:.4f} * {weight:.4f} = {vote_strength:.4f}")
+                    # CRITICAL FIX: Handle 10-class digit model output
+                    if len(pred_probs_normalized) == 10:
+                        # This model predicts digits 0-9 (first number digit)
+                        # Extract predicted numbers ending in likely digits
+                        top_digit_indices = np.argsort(pred_probs_normalized)[-3:]  # Top 3 digits
+                        
+                        for digit in top_digit_indices:
+                            digit_weight = pred_probs_normalized[digit] * weight
+                            # Generate numbers ending with this digit
+                            for base in range(digit if digit > 0 else 10, max_number + 1, 10):
+                                if 1 <= base <= max_number:
+                                    all_votes[base] = all_votes.get(base, 0) + digit_weight / (1 + np.log(base))
+                        
+                        model_predictions[model_type] = sorted([base for digit in top_digit_indices 
+                                                                for base in range(digit if digit > 0 else 10, max_number + 1, 10)][:main_nums])
+                        app_logger.debug(f"{model_type} (digit model) predicted numbers: {model_predictions[model_type]}")
+                    
+                    else:
+                        # Normal case: Get top predictions from this model (using normalized probs)
+                        model_votes = np.argsort(pred_probs_normalized)[-main_nums:]
+                        model_predictions[model_type] = (model_votes + 1).tolist()  # Convert to 1-based
+                        
+                        app_logger.debug(f"{model_type} predicted numbers: {model_predictions[model_type]}")
+                        
+                        # Add weighted votes with bounds checking (using NORMALIZED probabilities)
+                        for idx, number in enumerate(model_votes + 1):
+                            number = int(number)
+                            # Validate number is within valid range and within prediction probability array
+                            if 1 <= number <= max_number and number - 1 < len(pred_probs_normalized):
+                                # Use normalized probability (0-1 scale) for fair voting
+                                vote_strength = float(pred_probs_normalized[number - 1]) * weight
+                                all_votes[number] = all_votes.get(number, 0) + vote_strength
+                                app_logger.debug(f"  {model_type} vote for {number}: {pred_probs_normalized[number-1]:.4f} * {weight:.4f} = {vote_strength:.4f}")
                 
                 except Exception as e:
                     app_logger.warning(f"Model {model_type} prediction failed: {str(e)}")
@@ -3432,10 +3624,13 @@ def _generate_ensemble_predictions(game: str, count: int, models_dict: Dict[str,
         }
     
     except Exception as e:
-        app_logger.error(f"Ensemble prediction error: {str(e)}")
+        error_msg = str(e)
+        app_logger.error(f"Ensemble prediction error: {error_msg}")
         import traceback
-        traceback.print_exc()
-        return {'error': str(e), 'sets': []}
+        full_traceback = traceback.format_exc()
+        app_logger.error(f"Traceback:\n{full_traceback}")
+        # Return error with more details
+        return {'error': f"{error_msg}\n\nFull error: {full_traceback}", 'sets': []}
 
 
 def _display_predictions(predictions: Union[Dict[str, Any], List[Dict[str, Any]]], game: str) -> None:
