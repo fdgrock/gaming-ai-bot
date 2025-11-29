@@ -860,7 +860,9 @@ def _render_performance_analysis() -> None:
                             st.metric("Match %", f"{accuracy:.1f}%")
                         
                         with col_confidence:
-                            conf = prediction_data.get('confidence', 'N/A')
+                            # Get per-set confidence from confidence_scores array (not single value)
+                            confidence_scores = prediction_data.get('confidence_scores', [])
+                            conf = confidence_scores[set_idx - 1] if set_idx - 1 < len(confidence_scores) else prediction_data.get('confidence', 'N/A')
                             if isinstance(conf, (int, float)):
                                 st.metric("Confidence", f"{conf:.1%}")
                             else:
@@ -1423,7 +1425,8 @@ def _render_prediction_history() -> None:
                             gen_time = pred.get('generation_time') or pred.get('timestamp', 'N/A')
                             st.markdown(f"**Generated:** {gen_time}")
                             # Handle both confidence_scores array and single confidence value
-                            conf = pred.get('confidence')
+                            conf_scores = pred.get('confidence_scores', [])
+                            conf = conf_scores[0] if conf_scores else pred.get('confidence')
                             if conf:
                                 st.markdown(f"**Confidence:** {conf:.2%}" if isinstance(conf, (int, float)) else f"**Confidence:** {conf}")
                         
@@ -2271,6 +2274,11 @@ def _generate_single_model_predictions(game: str, count: int, mode: str, model_t
         if training_features is not None and isinstance(training_features, pd.DataFrame) and len(training_features) > 0:
             numeric_cols = training_features.select_dtypes(include=[np.number]).columns
             training_features = training_features[numeric_cols]
+            app_logger.info(f"Using training features for {model_type_lower}: shape={training_features.shape}")
+        elif training_features is not None and isinstance(training_features, np.ndarray):
+            app_logger.info(f"Using training features for {model_type_lower}: shape={training_features.shape}")
+        else:
+            app_logger.warning(f"⚠️  No training features found for {model_type_lower} - will use random fallback. This may result in lower confidence scores.")
         
         # Generate predictions using real training data with controlled variations
         for i in range(count):
@@ -2820,9 +2828,11 @@ def _generate_single_model_predictions(game: str, count: int, mode: str, model_t
                     top_indices = np.argsort(pred_probs[0])[-main_nums:]
                     numbers = sorted((top_indices + 1).tolist())
                     confidence = float(np.mean(np.sort(pred_probs[0])[-main_nums:]))
+                    app_logger.debug(f"Prediction {i}: model output shape={pred_probs.shape}, top probs={np.sort(pred_probs[0])[-main_nums:]}, confidence={confidence:.4f}")
                 else:
                     numbers = sorted(rng.choice(range(1, max_number + 1), main_nums, replace=False).tolist())
                     confidence = np.mean(pred_probs[0]) if len(pred_probs[0]) > 0 else 0.5
+                    app_logger.debug(f"Prediction {i}: fallback case, shape={pred_probs.shape}, confidence={confidence:.4f}")
             
             else:  # XGBoost, CatBoost, LightGBM (all use predict_proba)
                 # Generate random input features WITHOUT resetting seed
@@ -3390,7 +3400,7 @@ def _generate_ensemble_predictions(game: str, count: int, models_dict: Dict[str,
                         break
             
             if training_features is None:
-                app_logger.warning(f"No training features found for ensemble in {data_dir}, will use random features")
+                app_logger.warning(f"⚠️  No training features found for ensemble in {data_dir} - will use random features. This may result in lower confidence scores.")
         except Exception as e:
             app_logger.warning(f"Could not load training features for ensemble: {e}")
         

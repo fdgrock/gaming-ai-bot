@@ -7650,3 +7650,250 @@ TypeError: can only concatenate list (not "float") to list
 2025-11-28 15:57:24 - lottery_ai - INFO - logger.py:138 - Ensemble weights: {'XGBoost': 1.0}
 2025-11-28 15:57:25 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
 2025-11-28 15:57:41 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
+2025-11-28 16:13:24 - lottery_ai - INFO - logger.py:138 - Dashboard rendered successfully
+2025-11-28 16:22:30 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
+2025-11-28 16:22:36 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
+2025-11-28 16:22:43 - lottery_ai - INFO - logger.py:138 - Ensemble loaded 1 models: ['XGBoost']
+2025-11-28 16:22:43 - lottery_ai - INFO - logger.py:138 - Model accuracies: {'XGBoost': 0.0}
+2025-11-28 16:22:43 - lottery_ai - INFO - logger.py:138 - Set-adjusted accuracies: {'XGBoost': 0.01}
+2025-11-28 16:22:43 - lottery_ai - INFO - logger.py:138 - Ensemble weights: {'XGBoost': 1.0}
+2025-11-28 16:22:43 - lottery_ai - WARNING - logger.py:138 - No training features found for ensemble, will use random features
+2025-11-28 16:22:43 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
+2025-11-28 17:34:23 - lottery_ai - INFO - logger.py:138 - Dashboard rendered successfully
+2025-11-28 17:34:31 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
+2025-11-28 17:34:42 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
+2025-11-28 17:34:46 - lottery_ai - INFO - logger.py:138 - Ensemble loaded 1 models: ['XGBoost']
+2025-11-28 17:34:46 - lottery_ai - INFO - logger.py:138 - Model accuracies: {'XGBoost': 0.0}
+2025-11-28 17:34:46 - lottery_ai - INFO - logger.py:138 - Set-adjusted accuracies: {'XGBoost': 0.01}
+2025-11-28 17:34:46 - lottery_ai - INFO - logger.py:138 - Ensemble weights: {'XGBoost': 1.0}
+2025-11-28 17:34:46 - lottery_ai - INFO - logger.py:138 - Loaded training features from lotto_max: shape (1258, 85)
+2025-11-28 17:34:46 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
+2025-11-28 17:35:00 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
+2025-11-28 17:36:24 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
+2025-11-28 17:36:26 - lottery_ai - INFO - logger.py:138 - Loaded 85 LIGHTGBM features for Lotto Max from lightgbm_features_t20251125_223229.csv
+2025-11-28 17:36:26 - lottery_ai - INFO - logger.py:138 - Loaded engineered features from lightgbm_features_t20251125_223229.csv with shape (1258, 85)
+2025-11-28 17:36:27 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
+2025-11-28 19:17:44 - lottery_ai - INFO - logger.py:138 - Dashboard rendered successfully
+2025-11-28 19:18:07 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
+2025-11-28 19:18:49 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
+2025-11-28 19:18:56 - lottery_ai - INFO - logger.py:138 - Ensemble loaded 1 models: ['XGBoost']
+2025-11-28 19:18:56 - lottery_ai - INFO - logger.py:138 - Model accuracies: {'XGBoost': 0.0}
+2025-11-28 19:18:56 - lottery_ai - INFO - logger.py:138 - Set-adjusted accuracies: {'XGBoost': 0.01}
+2025-11-28 19:18:56 - lottery_ai - INFO - logger.py:138 - Ensemble weights: {'XGBoost': 1.0}
+2025-11-28 19:18:56 - lottery_ai - INFO - logger.py:138 - Loaded training features from lotto_max: shape (1258, 85)
+2025-11-28 19:18:56 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
+2025-11-28 19:23:46 - lottery_ai - INFO - logger.py:138 - Dashboard rendered successfully
+2025-11-28 19:24:31 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
+2025-11-28 19:24:46 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
+2025-11-28 19:25:04 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
+2025-11-28 19:25:08 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
+2025-11-28 19:25:10 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
+2025-11-28 19:25:14 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
+2025-11-28 19:25:22 - lottery_ai - WARNING - logger.py:138 - Could not load model-specific features: No XGBoost model specified in ensemble
+2025-11-28 19:25:22 - lottery_ai - WARNING - logger.py:138 - Using fallback scaler with 77 features
+2025-11-28 19:25:22 - lottery_ai - ERROR - logger.py:138 - Ensemble prediction error: Could not load any ensemble models
+2025-11-28 19:25:22 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
+2025-11-28 19:28:35 - lottery_ai - INFO - logger.py:138 - Dashboard rendered successfully
+2025-11-28 19:28:51 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
+2025-11-28 19:28:58 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
+2025-11-28 19:29:01 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
+2025-11-28 19:29:03 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
+2025-11-28 19:29:09 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
+2025-11-28 19:29:17 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
+2025-11-28 19:29:22 - lottery_ai - WARNING - logger.py:138 - Could not load model-specific features: No XGBoost model specified in ensemble
+2025-11-28 19:29:22 - lottery_ai - WARNING - logger.py:138 - Using fallback scaler with 77 features
+2025-11-28 19:29:22 - lottery_ai - ERROR - logger.py:138 - Ensemble prediction error: Could not load any ensemble models
+2025-11-28 19:29:22 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
+2025-11-28 19:30:47 - lottery_ai - INFO - logger.py:138 - Dashboard rendered successfully
+2025-11-28 19:31:01 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
+2025-11-28 19:31:06 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
+2025-11-28 19:31:10 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
+2025-11-28 19:31:12 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
+2025-11-28 19:31:21 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
+2025-11-28 19:31:24 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
+2025-11-28 19:31:27 - lottery_ai - WARNING - logger.py:138 - Could not load model-specific features: No XGBoost model specified in ensemble
+2025-11-28 19:31:27 - lottery_ai - WARNING - logger.py:138 - Using fallback scaler with 77 features
+2025-11-28 19:31:27 - lottery_ai - INFO - logger.py:138 - 🔄 Ensemble: Starting to load models from: C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\models\lotto_max
+2025-11-28 19:31:27 - lottery_ai - INFO - logger.py:138 - 🔄 Ensemble: Models requested: ['Cnn', 'Catboost', 'Lightgbm']
+2025-11-28 19:31:27 - lottery_ai - ERROR - logger.py:138 - ❌ No models were successfully loaded from C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\models\lotto_max
+2025-11-28 19:31:27 - lottery_ai - ERROR - logger.py:138 - Ensemble prediction error: Could not load any ensemble models
+2025-11-28 19:31:27 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
+2025-11-28 19:38:14 - lottery_ai - INFO - logger.py:138 - Dashboard rendered successfully
+2025-11-28 19:38:19 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
+2025-11-28 19:38:27 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
+2025-11-28 19:38:31 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
+2025-11-28 19:38:33 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
+2025-11-28 19:38:35 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
+2025-11-28 19:38:38 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
+2025-11-28 19:38:43 - lottery_ai - WARNING - logger.py:138 - Could not load model-specific features: No XGBoost model specified in ensemble
+2025-11-28 19:38:43 - lottery_ai - WARNING - logger.py:138 - Using fallback scaler with 77 features
+2025-11-28 19:38:43 - lottery_ai - INFO - logger.py:138 - 🔄 Ensemble: Starting to load models from: C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\models\lotto_max
+2025-11-28 19:38:43 - lottery_ai - INFO - logger.py:138 - 🔄 Ensemble: Models requested: ['Cnn', 'Catboost', 'Lightgbm']
+2025-11-28 19:38:43 - lottery_ai - INFO - logger.py:138 - 🔄 Ensemble: Game folder: lotto_max
+2025-11-28 19:38:43 - lottery_ai - INFO - logger.py:138 - 🔄 Models directory contents: [WindowsPath('C:/Users/dian_/OneDrive/1 - My Documents/9 - Rocket Innovations Inc/gaming-ai-bot/models/lotto_max/catboost'), WindowsPath('C:/Users/dian_/OneDrive/1 - My Documents/9 - Rocket Innovations Inc/gaming-ai-bot/models/lotto_max/cnn'), WindowsPath('C:/Users/dian_/OneDrive/1 - My Documents/9 - Rocket Innovations Inc/gaming-ai-bot/models/lotto_max/ensemble'), WindowsPath('C:/Users/dian_/OneDrive/1 - My Documents/9 - Rocket Innovations Inc/gaming-ai-bot/models/lotto_max/lightgbm'), WindowsPath('C:/Users/dian_/OneDrive/1 - My Documents/9 - Rocket Innovations Inc/gaming-ai-bot/models/lotto_max/lstm'), WindowsPath('C:/Users/dian_/OneDrive/1 - My Documents/9 - Rocket Innovations Inc/gaming-ai-bot/models/lotto_max/transformer'), WindowsPath('C:/Users/dian_/OneDrive/1 - My Documents/9 - Rocket Innovations Inc/gaming-ai-bot/models/lotto_max/xgboost')]
+2025-11-28 19:38:43 - lottery_ai - ERROR - logger.py:138 - ❌ Could not load any ensemble models. Details:
+
+2025-11-28 19:38:43 - lottery_ai - ERROR - logger.py:138 - Ensemble prediction error: Could not load any ensemble models. Details:
+
+2025-11-28 19:38:43 - lottery_ai - ERROR - logger.py:138 - Traceback:
+Traceback (most recent call last):
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\streamlit_app\pages\predictions.py", line 3302, in _generate_ensemble_predictions
+    raise ValueError(error_msg)
+ValueError: Could not load any ensemble models. Details:
+
+
+2025-11-28 19:38:44 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
+2025-11-28 19:40:07 - lottery_ai - INFO - logger.py:138 - Dashboard rendered successfully
+2025-11-28 19:40:23 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
+2025-11-28 19:40:32 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
+2025-11-28 19:40:36 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
+2025-11-28 19:40:39 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
+2025-11-28 19:40:41 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
+2025-11-28 19:40:44 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
+2025-11-28 19:40:48 - lottery_ai - WARNING - logger.py:138 - Could not load model-specific features: No XGBoost model specified in ensemble
+2025-11-28 19:40:48 - lottery_ai - WARNING - logger.py:138 - Using fallback scaler with 77 features
+2025-11-28 19:40:48 - lottery_ai - INFO - logger.py:138 - 🔄 Ensemble: Starting to load models from: C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\models\lotto_max
+2025-11-28 19:40:48 - lottery_ai - INFO - logger.py:138 - 🔄 Ensemble: Models requested: ['Cnn', 'Catboost', 'Lightgbm']
+2025-11-28 19:40:48 - lottery_ai - INFO - logger.py:138 - 🔄 Ensemble: Game folder: lotto_max
+2025-11-28 19:40:48 - lottery_ai - INFO - logger.py:138 - 🔄 Models directory exists. Contents: [WindowsPath('C:/Users/dian_/OneDrive/1 - My Documents/9 - Rocket Innovations Inc/gaming-ai-bot/models/lotto_max/catboost'), WindowsPath('C:/Users/dian_/OneDrive/1 - My Documents/9 - Rocket Innovations Inc/gaming-ai-bot/models/lotto_max/cnn'), WindowsPath('C:/Users/dian_/OneDrive/1 - My Documents/9 - Rocket Innovations Inc/gaming-ai-bot/models/lotto_max/ensemble'), WindowsPath('C:/Users/dian_/OneDrive/1 - My Documents/9 - Rocket Innovations Inc/gaming-ai-bot/models/lotto_max/lightgbm'), WindowsPath('C:/Users/dian_/OneDrive/1 - My Documents/9 - Rocket Innovations Inc/gaming-ai-bot/models/lotto_max/lstm'), WindowsPath('C:/Users/dian_/OneDrive/1 - My Documents/9 - Rocket Innovations Inc/gaming-ai-bot/models/lotto_max/transformer'), WindowsPath('C:/Users/dian_/OneDrive/1 - My Documents/9 - Rocket Innovations Inc/gaming-ai-bot/models/lotto_max/xgboost')]
+2025-11-28 19:40:48 - lottery_ai - ERROR - logger.py:138 - ❌ Could not load any ensemble models. Details:
+
+2025-11-28 19:40:48 - lottery_ai - ERROR - logger.py:138 - Ensemble prediction error: Could not load any ensemble models. Details:
+
+2025-11-28 19:40:48 - lottery_ai - ERROR - logger.py:138 - Traceback:
+Traceback (most recent call last):
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\streamlit_app\pages\predictions.py", line 3302, in _generate_ensemble_predictions
+    raise ValueError(error_msg)
+ValueError: Could not load any ensemble models. Details:
+
+
+2025-11-28 19:40:48 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
+2025-11-28 19:42:13 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
+2025-11-28 19:42:23 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
+2025-11-28 19:42:27 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
+2025-11-28 19:42:29 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
+2025-11-28 19:42:34 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
+2025-11-28 19:42:37 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
+2025-11-28 19:42:41 - lottery_ai - WARNING - logger.py:138 - Could not load model-specific features: No XGBoost model specified in ensemble
+2025-11-28 19:42:41 - lottery_ai - WARNING - logger.py:138 - Using fallback scaler with 77 features
+2025-11-28 19:42:41 - lottery_ai - INFO - logger.py:138 - 🔄 Ensemble: Starting to load models from: C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\models\lotto_max
+2025-11-28 19:42:41 - lottery_ai - INFO - logger.py:138 - 🔄 Ensemble: Models requested: ['Cnn', 'Catboost', 'Lightgbm']
+2025-11-28 19:42:41 - lottery_ai - INFO - logger.py:138 - 🔄 Ensemble: Game folder: lotto_max
+2025-11-28 19:42:41 - lottery_ai - INFO - logger.py:138 - 🔄 Models directory exists. Contents: [WindowsPath('C:/Users/dian_/OneDrive/1 - My Documents/9 - Rocket Innovations Inc/gaming-ai-bot/models/lotto_max/catboost'), WindowsPath('C:/Users/dian_/OneDrive/1 - My Documents/9 - Rocket Innovations Inc/gaming-ai-bot/models/lotto_max/cnn'), WindowsPath('C:/Users/dian_/OneDrive/1 - My Documents/9 - Rocket Innovations Inc/gaming-ai-bot/models/lotto_max/ensemble'), WindowsPath('C:/Users/dian_/OneDrive/1 - My Documents/9 - Rocket Innovations Inc/gaming-ai-bot/models/lotto_max/lightgbm'), WindowsPath('C:/Users/dian_/OneDrive/1 - My Documents/9 - Rocket Innovations Inc/gaming-ai-bot/models/lotto_max/lstm'), WindowsPath('C:/Users/dian_/OneDrive/1 - My Documents/9 - Rocket Innovations Inc/gaming-ai-bot/models/lotto_max/transformer'), WindowsPath('C:/Users/dian_/OneDrive/1 - My Documents/9 - Rocket Innovations Inc/gaming-ai-bot/models/lotto_max/xgboost')]
+2025-11-28 19:42:41 - lottery_ai - INFO - logger.py:138 -   Processing model_type='Cnn', model_name='cnn_lotto_max_20251125_102854'
+2025-11-28 19:42:41 - lottery_ai - ERROR - logger.py:138 -   ✗ Unknown model type: 'Cnn'. Must be one of: Transformer, LSTM, XGBoost, CatBoost, LightGBM, CNN
+2025-11-28 19:42:41 - lottery_ai - INFO - logger.py:138 -   Processing model_type='Catboost', model_name='catboost_lotto_max_20251124_191054'
+2025-11-28 19:42:41 - lottery_ai - ERROR - logger.py:138 -   ✗ Unknown model type: 'Catboost'. Must be one of: Transformer, LSTM, XGBoost, CatBoost, LightGBM, CNN
+2025-11-28 19:42:41 - lottery_ai - INFO - logger.py:138 -   Processing model_type='Lightgbm', model_name='lightgbm_lotto_max_20251124_220628'
+2025-11-28 19:42:41 - lottery_ai - ERROR - logger.py:138 -   ✗ Unknown model type: 'Lightgbm'. Must be one of: Transformer, LSTM, XGBoost, CatBoost, LightGBM, CNN
+2025-11-28 19:42:41 - lottery_ai - ERROR - logger.py:138 - ❌ Could not load any ensemble models. Details:
+  - Cnn: Unknown model type: 'Cnn'. Must be one of: Transformer, LSTM, XGBoost, CatBoost, LightGBM, CNN
+  - Catboost: Unknown model type: 'Catboost'. Must be one of: Transformer, LSTM, XGBoost, CatBoost, LightGBM, CNN
+  - Lightgbm: Unknown model type: 'Lightgbm'. Must be one of: Transformer, LSTM, XGBoost, CatBoost, LightGBM, CNN
+2025-11-28 19:42:41 - lottery_ai - ERROR - logger.py:138 - Ensemble prediction error: Could not load any ensemble models. Details:
+  - Cnn: Unknown model type: 'Cnn'. Must be one of: Transformer, LSTM, XGBoost, CatBoost, LightGBM, CNN
+  - Catboost: Unknown model type: 'Catboost'. Must be one of: Transformer, LSTM, XGBoost, CatBoost, LightGBM, CNN
+  - Lightgbm: Unknown model type: 'Lightgbm'. Must be one of: Transformer, LSTM, XGBoost, CatBoost, LightGBM, CNN
+2025-11-28 19:42:41 - lottery_ai - ERROR - logger.py:138 - Traceback:
+Traceback (most recent call last):
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\streamlit_app\pages\predictions.py", line 3309, in _generate_ensemble_predictions
+    raise ValueError(error_msg)
+ValueError: Could not load any ensemble models. Details:
+  - Cnn: Unknown model type: 'Cnn'. Must be one of: Transformer, LSTM, XGBoost, CatBoost, LightGBM, CNN
+  - Catboost: Unknown model type: 'Catboost'. Must be one of: Transformer, LSTM, XGBoost, CatBoost, LightGBM, CNN
+  - Lightgbm: Unknown model type: 'Lightgbm'. Must be one of: Transformer, LSTM, XGBoost, CatBoost, LightGBM, CNN
+
+2025-11-28 19:42:42 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
+2025-11-28 19:44:09 - lottery_ai - INFO - logger.py:138 - Dashboard rendered successfully
+2025-11-28 19:44:19 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
+2025-11-28 19:44:24 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
+2025-11-28 19:44:27 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
+2025-11-28 19:44:29 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
+2025-11-28 19:44:34 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
+2025-11-28 19:44:36 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
+2025-11-28 19:44:39 - lottery_ai - WARNING - logger.py:138 - Could not load model-specific features: No XGBoost model specified in ensemble
+2025-11-28 19:44:39 - lottery_ai - WARNING - logger.py:138 - Using fallback scaler with 77 features
+2025-11-28 19:44:39 - lottery_ai - INFO - logger.py:138 - 🔄 Ensemble: Starting to load models from: C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\models\lotto_max
+2025-11-28 19:44:39 - lottery_ai - INFO - logger.py:138 - 🔄 Ensemble: Models requested: ['CNN', 'CatBoost', 'LightGBM']
+2025-11-28 19:44:39 - lottery_ai - INFO - logger.py:138 - 🔄 Ensemble: Game folder: lotto_max
+2025-11-28 19:44:39 - lottery_ai - INFO - logger.py:138 - 🔄 Models directory exists. Contents: [WindowsPath('C:/Users/dian_/OneDrive/1 - My Documents/9 - Rocket Innovations Inc/gaming-ai-bot/models/lotto_max/catboost'), WindowsPath('C:/Users/dian_/OneDrive/1 - My Documents/9 - Rocket Innovations Inc/gaming-ai-bot/models/lotto_max/cnn'), WindowsPath('C:/Users/dian_/OneDrive/1 - My Documents/9 - Rocket Innovations Inc/gaming-ai-bot/models/lotto_max/ensemble'), WindowsPath('C:/Users/dian_/OneDrive/1 - My Documents/9 - Rocket Innovations Inc/gaming-ai-bot/models/lotto_max/lightgbm'), WindowsPath('C:/Users/dian_/OneDrive/1 - My Documents/9 - Rocket Innovations Inc/gaming-ai-bot/models/lotto_max/lstm'), WindowsPath('C:/Users/dian_/OneDrive/1 - My Documents/9 - Rocket Innovations Inc/gaming-ai-bot/models/lotto_max/transformer'), WindowsPath('C:/Users/dian_/OneDrive/1 - My Documents/9 - Rocket Innovations Inc/gaming-ai-bot/models/lotto_max/xgboost')]
+2025-11-28 19:44:39 - lottery_ai - INFO - logger.py:138 -   Processing model_type='CNN', model_name='cnn_lotto_max_20251125_102854'
+2025-11-28 19:44:39 - lottery_ai - INFO - logger.py:138 -   CNN search in: C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\models\lotto_max\cnn - Found 2 files
+2025-11-28 19:44:40 - lottery_ai - INFO - logger.py:138 -   ✓ Loaded CNN from cnn_lotto_max_20251125_102854.keras
+2025-11-28 19:44:40 - lottery_ai - INFO - logger.py:138 -   Processing model_type='CatBoost', model_name='catboost_lotto_max_20251124_191054'
+2025-11-28 19:44:40 - lottery_ai - INFO - logger.py:138 -   CatBoost search in: C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\models\lotto_max\catboost - Found 1 files
+2025-11-28 19:44:40 - lottery_ai - INFO - logger.py:138 -   ✓ Loaded CatBoost from catboost_lotto_max_20251124_191054.joblib
+2025-11-28 19:44:40 - lottery_ai - INFO - logger.py:138 -   Processing model_type='LightGBM', model_name='lightgbm_lotto_max_20251124_220628'
+2025-11-28 19:44:40 - lottery_ai - INFO - logger.py:138 -   LightGBM search in: C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\models\lotto_max\lightgbm - Found 1 files
+2025-11-28 19:44:40 - lottery_ai - INFO - logger.py:138 -   ✓ Loaded LightGBM from lightgbm_lotto_max_20251124_220628.joblib
+2025-11-28 19:44:40 - lottery_ai - INFO - logger.py:138 - Ensemble loaded 3 models: ['CNN', 'CatBoost', 'LightGBM']
+2025-11-28 19:44:40 - lottery_ai - INFO - logger.py:138 - Model accuracies: {'CNN': 0.6963562753036437, 'CatBoost': 0.8492063492063492, 'LightGBM': 0.9722222222222222}
+2025-11-28 19:44:40 - lottery_ai - INFO - logger.py:138 - Set-adjusted accuracies: {'CNN': 0.9496145411994218, 'CatBoost': 0.97692007295753, 'LightGBM': 0.9959836760944588}
+2025-11-28 19:44:40 - lottery_ai - INFO - logger.py:138 - Ensemble weights: {'CNN': 0.3249302303315032, 'CatBoost': 0.33427338204049023, 'LightGBM': 0.34079638762800657}
+2025-11-28 19:44:40 - lottery_ai - INFO - logger.py:138 - Loaded training features from lotto_max: shape (1258, 85)
+2025-11-28 19:44:40 - lottery_ai - WARNING - logger.py:138 - Feature dimension mismatch: input=85, scaler expects=77
+2025-11-28 19:44:41 - lottery_ai - WARNING - logger.py:138 - Model CNN prediction failed: Input 0 of layer "functional" is incompatible with the layer: expected shape=(None, 72, 1), found shape=(1, 77)
+2025-11-28 19:44:41 - lottery_ai - WARNING - logger.py:138 - Model CatBoost prediction failed: catboost/libs/data/model_dataset_compatibility.cpp:72: Feature 77 is present in model but not in pool.
+2025-11-28 19:44:41 - lottery_ai - WARNING - logger.py:138 - Model LightGBM prediction failed: X has 77 features, but LGBMClassifier is expecting 85 features as input.
+2025-11-28 19:44:41 - lottery_ai - WARNING - logger.py:138 - Ensemble set 0: No votes received from any model, using random fallback
+2025-11-28 19:44:41 - lottery_ai - WARNING - logger.py:138 - Feature dimension mismatch: input=85, scaler expects=77
+2025-11-28 19:44:41 - lottery_ai - WARNING - logger.py:138 - Model CNN prediction failed: Input 0 of layer "functional" is incompatible with the layer: expected shape=(None, 72, 1), found shape=(1, 77)
+2025-11-28 19:44:41 - lottery_ai - WARNING - logger.py:138 - Model CatBoost prediction failed: catboost/libs/data/model_dataset_compatibility.cpp:72: Feature 77 is present in model but not in pool.
+2025-11-28 19:44:41 - lottery_ai - WARNING - logger.py:138 - Model LightGBM prediction failed: X has 77 features, but LGBMClassifier is expecting 85 features as input.
+2025-11-28 19:44:41 - lottery_ai - WARNING - logger.py:138 - Ensemble set 1: No votes received from any model, using random fallback
+2025-11-28 19:44:41 - lottery_ai - WARNING - logger.py:138 - Feature dimension mismatch: input=85, scaler expects=77
+2025-11-28 19:44:41 - lottery_ai - WARNING - logger.py:138 - Model CNN prediction failed: Input 0 of layer "functional" is incompatible with the layer: expected shape=(None, 72, 1), found shape=(1, 77)
+2025-11-28 19:44:41 - lottery_ai - WARNING - logger.py:138 - Model CatBoost prediction failed: catboost/libs/data/model_dataset_compatibility.cpp:72: Feature 77 is present in model but not in pool.
+2025-11-28 19:44:41 - lottery_ai - WARNING - logger.py:138 - Model LightGBM prediction failed: X has 77 features, but LGBMClassifier is expecting 85 features as input.
+2025-11-28 19:44:41 - lottery_ai - WARNING - logger.py:138 - Ensemble set 2: No votes received from any model, using random fallback
+2025-11-28 19:44:41 - lottery_ai - WARNING - logger.py:138 - Feature dimension mismatch: input=85, scaler expects=77
+2025-11-28 19:44:41 - lottery_ai - WARNING - logger.py:138 - Model CNN prediction failed: Input 0 of layer "functional" is incompatible with the layer: expected shape=(None, 72, 1), found shape=(1, 77)
+2025-11-28 19:44:41 - lottery_ai - WARNING - logger.py:138 - Model CatBoost prediction failed: catboost/libs/data/model_dataset_compatibility.cpp:72: Feature 77 is present in model but not in pool.
+2025-11-28 19:44:41 - lottery_ai - WARNING - logger.py:138 - Model LightGBM prediction failed: X has 77 features, but LGBMClassifier is expecting 85 features as input.
+2025-11-28 19:44:41 - lottery_ai - WARNING - logger.py:138 - Ensemble set 3: No votes received from any model, using random fallback
+2025-11-28 19:44:41 - lottery_ai - WARNING - logger.py:138 - Feature dimension mismatch: input=85, scaler expects=77
+2025-11-28 19:44:41 - lottery_ai - WARNING - logger.py:138 - Model CNN prediction failed: Input 0 of layer "functional" is incompatible with the layer: expected shape=(None, 72, 1), found shape=(1, 77)
+2025-11-28 19:44:41 - lottery_ai - WARNING - logger.py:138 - Model CatBoost prediction failed: catboost/libs/data/model_dataset_compatibility.cpp:72: Feature 77 is present in model but not in pool.
+2025-11-28 19:44:41 - lottery_ai - WARNING - logger.py:138 - Model LightGBM prediction failed: X has 77 features, but LGBMClassifier is expecting 85 features as input.
+2025-11-28 19:44:41 - lottery_ai - WARNING - logger.py:138 - Ensemble set 4: No votes received from any model, using random fallback
+2025-11-28 19:44:42 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
+2025-11-28 19:47:58 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
+2025-11-28 19:48:00 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
+2025-11-28 19:48:08 - lottery_ai - INFO - logger.py:138 - Dashboard rendered successfully
+2025-11-28 19:48:15 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
+2025-11-28 19:48:19 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
+2025-11-28 19:48:24 - lottery_ai - INFO - logger.py:138 - 🔄 Ensemble: Starting to load models from: C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\models\lotto_max
+2025-11-28 19:48:24 - lottery_ai - INFO - logger.py:138 - 🔄 Ensemble: Models requested: ['XGBoost', 'XGBoost_accuracy', 'CatBoost', 'CatBoost_accuracy', 'LightGBM', 'LightGBM_accuracy', 'CNN', 'CNN_accuracy']
+2025-11-28 19:48:24 - lottery_ai - INFO - logger.py:138 - 🔄 Ensemble: Game folder: lotto_max
+2025-11-28 19:48:24 - lottery_ai - INFO - logger.py:138 - 🔄 Models directory exists. Contents: [WindowsPath('C:/Users/dian_/OneDrive/1 - My Documents/9 - Rocket Innovations Inc/gaming-ai-bot/models/lotto_max/catboost'), WindowsPath('C:/Users/dian_/OneDrive/1 - My Documents/9 - Rocket Innovations Inc/gaming-ai-bot/models/lotto_max/cnn'), WindowsPath('C:/Users/dian_/OneDrive/1 - My Documents/9 - Rocket Innovations Inc/gaming-ai-bot/models/lotto_max/ensemble'), WindowsPath('C:/Users/dian_/OneDrive/1 - My Documents/9 - Rocket Innovations Inc/gaming-ai-bot/models/lotto_max/lightgbm'), WindowsPath('C:/Users/dian_/OneDrive/1 - My Documents/9 - Rocket Innovations Inc/gaming-ai-bot/models/lotto_max/lstm'), WindowsPath('C:/Users/dian_/OneDrive/1 - My Documents/9 - Rocket Innovations Inc/gaming-ai-bot/models/lotto_max/transformer'), WindowsPath('C:/Users/dian_/OneDrive/1 - My Documents/9 - Rocket Innovations Inc/gaming-ai-bot/models/lotto_max/xgboost')]
+2025-11-28 19:48:24 - lottery_ai - INFO - logger.py:138 -   Processing model_type='XGBoost', model_name='xgboost_model'
+2025-11-28 19:48:24 - lottery_ai - INFO - logger.py:138 -   XGBoost search in: C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\models\lotto_max\xgboost - Found 1 files
+2025-11-28 19:48:24 - lottery_ai - INFO - logger.py:138 -   ✓ Loaded XGBoost from xgboost_lotto_max_20251124_191556.joblib
+2025-11-28 19:48:24 - lottery_ai - INFO - logger.py:138 -   Processing model_type='XGBoost_accuracy', model_name='0.979757085020243'
+2025-11-28 19:48:24 - lottery_ai - ERROR - logger.py:138 -   ✗ Unknown model type: 'XGBoost_accuracy'. Must be one of: Transformer, LSTM, XGBoost, CatBoost, LightGBM, CNN
+2025-11-28 19:48:24 - lottery_ai - INFO - logger.py:138 -   Processing model_type='CatBoost', model_name='catboost_model'
+2025-11-28 19:48:24 - lottery_ai - INFO - logger.py:138 -   CatBoost search in: C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\models\lotto_max\catboost - Found 1 files
+2025-11-28 19:48:24 - lottery_ai - INFO - logger.py:138 -   ✓ Loaded CatBoost from catboost_lotto_max_20251124_191054.joblib
+2025-11-28 19:48:24 - lottery_ai - INFO - logger.py:138 -   Processing model_type='CatBoost_accuracy', model_name='0.854251012145749'
+2025-11-28 19:48:24 - lottery_ai - ERROR - logger.py:138 -   ✗ Unknown model type: 'CatBoost_accuracy'. Must be one of: Transformer, LSTM, XGBoost, CatBoost, LightGBM, CNN
+2025-11-28 19:48:24 - lottery_ai - INFO - logger.py:138 -   Processing model_type='LightGBM', model_name='lightgbm_model'
+2025-11-28 19:48:24 - lottery_ai - INFO - logger.py:138 -   LightGBM search in: C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\models\lotto_max\lightgbm - Found 1 files
+2025-11-28 19:48:24 - lottery_ai - INFO - logger.py:138 -   ✓ Loaded LightGBM from lightgbm_lotto_max_20251124_220628.joblib
+2025-11-28 19:48:24 - lottery_ai - INFO - logger.py:138 -   Processing model_type='LightGBM_accuracy', model_name='0.9757085020242915'
+2025-11-28 19:48:24 - lottery_ai - ERROR - logger.py:138 -   ✗ Unknown model type: 'LightGBM_accuracy'. Must be one of: Transformer, LSTM, XGBoost, CatBoost, LightGBM, CNN
+2025-11-28 19:48:24 - lottery_ai - INFO - logger.py:138 -   Processing model_type='CNN', model_name='cnn_model'
+2025-11-28 19:48:24 - lottery_ai - INFO - logger.py:138 -   CNN search in: C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\models\lotto_max\cnn - Found 2 files
+2025-11-28 19:48:25 - lottery_ai - INFO - logger.py:138 -   ✓ Loaded CNN from cnn_lotto_max_20251125_102854.keras
+2025-11-28 19:48:25 - lottery_ai - INFO - logger.py:138 -   Processing model_type='CNN_accuracy', model_name='0.1700404858299595'
+2025-11-28 19:48:25 - lottery_ai - ERROR - logger.py:138 -   ✗ Unknown model type: 'CNN_accuracy'. Must be one of: Transformer, LSTM, XGBoost, CatBoost, LightGBM, CNN
+2025-11-28 19:48:25 - lottery_ai - INFO - logger.py:138 - Ensemble loaded 4 models: ['XGBoost', 'CatBoost', 'LightGBM', 'CNN']
+2025-11-28 19:48:25 - lottery_ai - INFO - logger.py:138 - Model accuracies: {'XGBoost': 0.0, 'CatBoost': 0.0, 'LightGBM': 0.0, 'CNN': 0.0}
+2025-11-28 19:48:25 - lottery_ai - INFO - logger.py:138 - Set-adjusted accuracies: {'XGBoost': 0.01, 'CatBoost': 0.01, 'LightGBM': 0.01, 'CNN': 0.01}
+2025-11-28 19:48:25 - lottery_ai - INFO - logger.py:138 - Ensemble weights: {'XGBoost': 0.25, 'CatBoost': 0.25, 'LightGBM': 0.25, 'CNN': 0.25}
+2025-11-28 19:48:25 - lottery_ai - INFO - logger.py:138 - Loaded training features from lotto_max: shape (1258, 85)
+2025-11-28 19:48:25 - lottery_ai - WARNING - logger.py:138 - Model CNN prediction failed: Input 0 of layer "functional" is incompatible with the layer: expected shape=(None, 72, 1), found shape=(1, 85)
+2025-11-28 19:48:25 - lottery_ai - WARNING - logger.py:138 - Model CNN prediction failed: Input 0 of layer "functional" is incompatible with the layer: expected shape=(None, 72, 1), found shape=(1, 85)
+2025-11-28 19:48:25 - lottery_ai - WARNING - logger.py:138 - Model CNN prediction failed: Input 0 of layer "functional" is incompatible with the layer: expected shape=(None, 72, 1), found shape=(1, 85)
+2025-11-28 19:48:25 - lottery_ai - WARNING - logger.py:138 - Model CNN prediction failed: Input 0 of layer "functional" is incompatible with the layer: expected shape=(None, 72, 1), found shape=(1, 85)
+2025-11-28 19:48:25 - lottery_ai - WARNING - logger.py:138 - Model CNN prediction failed: Input 0 of layer "functional" is incompatible with the layer: expected shape=(None, 72, 1), found shape=(1, 85)
+2025-11-28 19:48:26 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
