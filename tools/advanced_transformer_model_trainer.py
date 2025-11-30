@@ -39,8 +39,20 @@ from sklearn.metrics import log_loss
 from scipy.stats import entropy
 
 warnings.filterwarnings("ignore")
-logging.basicConfig(level=logging.INFO, format="%(message)s")
+
+# Configure logging to output to stdout for real-time monitoring
+import sys
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(message)s",
+    stream=sys.stdout,
+    force=True  # Override any existing handlers
+)
 logger = logging.getLogger(__name__)
+
+# VERIFY SCRIPT IS RUNNING
+print("[ADVANCED_TRANSFORMER_MODEL_TRAINER] Script started and imports successful", flush=True)
+sys.stdout.flush()
 
 
 @dataclass

@@ -1,0 +1,498 @@
+================================================================================
+Training started: Phase 2A - Tree Models
+Game: Lotto 6/49
+Time: 2025-11-30 14:58:02
+================================================================================
+
+Starting process: C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\venv\Scripts\python.exe C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\tools\advanced_tree_model_trainer.py --game Lotto 6/49
+Working directory: C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot
+Process will output below:
+================================================================================
+
+[ADVANCED_TREE_MODEL_TRAINER] Script started and imports successful
+[DEBUG] Parsed arguments: game=Lotto 6/49
+[DEBUG] Training lotto_6_49
+Initialized trainer for lotto_6_49
+  Data directory: C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\data\features\advanced\lotto_6_49
+  Models directory: C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\models\advanced\lotto_6_49
+
+============================================================
+Starting Advanced Tree Model Training
+Game: lotto_6_49
+Positions: 6
+Numbers: 49
+============================================================
+
+Loading engineered features from C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\data\features\advanced\lotto_6_49
+Feature shape: (102018, 6)
+Train shape: (71412, 6), Unique classes: 49
+Val shape: (15302, 6), Unique classes: 49
+Test shape: (15304, 6), Unique classes: 49
+
+************************************************************
+Position 1/6
+************************************************************
+Training XGBoost model (hyperparameter tuning with 15 trials)...
+
+=== XGBoost Position 1 ===
+  Trial 1/15: Score=0.1502
+--- Logging error ---
+Traceback (most recent call last):
+  File "C:\Python313\Lib\logging\__init__.py", line 1154, in emit
+    stream.write(msg + self.terminator)
+    ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Python313\Lib\encodings\cp1252.py", line 19, in encode
+    return codecs.charmap_encode(input,self.errors,encoding_table)[0]
+           ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+UnicodeEncodeError: 'charmap' codec can't encode character '\u2713' in position 4: character maps to <undefined>
+Call stack:
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\tools\advanced_tree_model_trainer.py", line 678, in <module>
+    trainer.train_all_models(n_trials=15)
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\tools\advanced_tree_model_trainer.py", line 553, in train_all_models
+    xgb_result = self.train_xgboost_model(X_train, X_val, X_test, y_train, y_val, y_test,
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\tools\advanced_tree_model_trainer.py", line 337, in train_xgboost_model
+    study.optimize(objective, n_trials=n_trials, callbacks=[trial_callback], show_progress_bar=False)
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\venv\Lib\site-packages\optuna\study\study.py", line 490, in optimize
+    _optimize(
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\venv\Lib\site-packages\optuna\study\_optimize.py", line 67, in _optimize
+    _optimize_sequential(
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\venv\Lib\site-packages\optuna\study\_optimize.py", line 176, in _optimize_sequential
+    callback(study, copy.deepcopy(frozen_trial))
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\tools\advanced_tree_model_trainer.py", line 335, in trial_callback
+    logger.info(f"    \u2713 NEW BEST! Score: {trial.value:.4f}")
+Message: '    \u2713 NEW BEST! Score: 0.1502'
+Arguments: ()
+  Trial 2/15: Score=0.4445
+--- Logging error ---
+Traceback (most recent call last):
+  File "C:\Python313\Lib\logging\__init__.py", line 1154, in emit
+    stream.write(msg + self.terminator)
+    ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Python313\Lib\encodings\cp1252.py", line 19, in encode
+    return codecs.charmap_encode(input,self.errors,encoding_table)[0]
+           ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+UnicodeEncodeError: 'charmap' codec can't encode character '\u2713' in position 4: character maps to <undefined>
+Call stack:
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\tools\advanced_tree_model_trainer.py", line 678, in <module>
+    trainer.train_all_models(n_trials=15)
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\tools\advanced_tree_model_trainer.py", line 553, in train_all_models
+    xgb_result = self.train_xgboost_model(X_train, X_val, X_test, y_train, y_val, y_test,
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\tools\advanced_tree_model_trainer.py", line 337, in train_xgboost_model
+    study.optimize(objective, n_trials=n_trials, callbacks=[trial_callback], show_progress_bar=False)
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\venv\Lib\site-packages\optuna\study\study.py", line 490, in optimize
+    _optimize(
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\venv\Lib\site-packages\optuna\study\_optimize.py", line 67, in _optimize
+    _optimize_sequential(
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\venv\Lib\site-packages\optuna\study\_optimize.py", line 176, in _optimize_sequential
+    callback(study, copy.deepcopy(frozen_trial))
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\tools\advanced_tree_model_trainer.py", line 335, in trial_callback
+    logger.info(f"    \u2713 NEW BEST! Score: {trial.value:.4f}")
+Message: '    \u2713 NEW BEST! Score: 0.4445'
+Arguments: ()
+  Trial 3/15: Score=0.1433
+  Trial 4/15: Score=0.0908
+  Trial 5/15: Score=0.2015
+  Trial 6/15: Score=0.0803
+  Trial 7/15: Score=0.0860
+  Trial 8/15: Score=0.0823
+  Trial 9/15: Score=0.0807
+  Trial 10/15: Score=0.1318
+  Trial 11/15: Score=0.4427
+  Trial 12/15: Score=0.4402
+  Trial 13/15: Score=0.4481
+--- Logging error ---
+Traceback (most recent call last):
+  File "C:\Python313\Lib\logging\__init__.py", line 1154, in emit
+    stream.write(msg + self.terminator)
+    ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Python313\Lib\encodings\cp1252.py", line 19, in encode
+    return codecs.charmap_encode(input,self.errors,encoding_table)[0]
+           ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+UnicodeEncodeError: 'charmap' codec can't encode character '\u2713' in position 4: character maps to <undefined>
+Call stack:
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\tools\advanced_tree_model_trainer.py", line 678, in <module>
+    trainer.train_all_models(n_trials=15)
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\tools\advanced_tree_model_trainer.py", line 553, in train_all_models
+    xgb_result = self.train_xgboost_model(X_train, X_val, X_test, y_train, y_val, y_test,
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\tools\advanced_tree_model_trainer.py", line 337, in train_xgboost_model
+    study.optimize(objective, n_trials=n_trials, callbacks=[trial_callback], show_progress_bar=False)
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\venv\Lib\site-packages\optuna\study\study.py", line 490, in optimize
+    _optimize(
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\venv\Lib\site-packages\optuna\study\_optimize.py", line 67, in _optimize
+    _optimize_sequential(
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\venv\Lib\site-packages\optuna\study\_optimize.py", line 176, in _optimize_sequential
+    callback(study, copy.deepcopy(frozen_trial))
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\tools\advanced_tree_model_trainer.py", line 335, in trial_callback
+    logger.info(f"    [BEST] NEW BEST! Score: {trial.value:.4f}")
+Message: '    \u2713 NEW BEST! Score: 0.4481'
+Arguments: ()
+  Trial 14/15: Score=0.3644
+  Trial 15/15: Score=0.2244
+Best composite score: 0.4481
+Best params: {'max_depth': 6, 'learning_rate': 0.010329551120615052, 'subsample': 0.9065063896883976, 'colsample_bytree': 0.9914195465222966, 'reg_alpha': 0.7230840546199888, 'reg_lambda': 0.4364297346150357, 'n_estimators': 104}
+Test Top-5 Accuracy: 0.0983
+Test KL-Divergence: 0.0742
+Test Composite Score: 0.4294
+Saved xgboost model: C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\models\advanced\lotto_6_49\xgboost\position_01.pkl
+--- Logging error ---
+Traceback (most recent call last):
+  File "C:\Python313\Lib\logging\__init__.py", line 1154, in emit
+    stream.write(msg + self.terminator)
+    ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Python313\Lib\encodings\cp1252.py", line 19, in encode
+    return codecs.charmap_encode(input,self.errors,encoding_table)[0]
+           ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+UnicodeEncodeError: 'charmap' codec can't encode character '\u2713' in position 0: character maps to <undefined>
+Call stack:
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\tools\advanced_tree_model_trainer.py", line 678, in <module>
+    trainer.train_all_models(n_trials=15)
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\tools\advanced_tree_model_trainer.py", line 557, in train_all_models
+    logger.info(f"\u2713 XGBoost complete. Test Score: {xgb_result['metrics'].composite_score:.4f}")
+Message: '\u2713 XGBoost complete. Test Score: 0.4294'
+Arguments: ()
+Training LightGBM model (hyperparameter tuning with 15 trials)...
+
+=== LightGBM Position 1 ===
+  Trial 1/15: Score=0.0818
+--- Logging error ---
+Traceback (most recent call last):
+  File "C:\Python313\Lib\logging\__init__.py", line 1154, in emit
+    stream.write(msg + self.terminator)
+    ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Python313\Lib\encodings\cp1252.py", line 19, in encode
+    return codecs.charmap_encode(input,self.errors,encoding_table)[0]
+           ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+UnicodeEncodeError: 'charmap' codec can't encode character '\u2713' in position 4: character maps to <undefined>
+Call stack:
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\tools\advanced_tree_model_trainer.py", line 678, in <module>
+    trainer.train_all_models(n_trials=15)
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\tools\advanced_tree_model_trainer.py", line 561, in train_all_models
+    lgb_result = self.train_lightgbm_model(X_train, X_val, X_test, y_train, y_val, y_test,
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\tools\advanced_tree_model_trainer.py", line 413, in train_lightgbm_model
+    study.optimize(objective, n_trials=n_trials, callbacks=[trial_callback], show_progress_bar=False)
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\venv\Lib\site-packages\optuna\study\study.py", line 490, in optimize
+    _optimize(
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\venv\Lib\site-packages\optuna\study\_optimize.py", line 67, in _optimize
+    _optimize_sequential(
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\venv\Lib\site-packages\optuna\study\_optimize.py", line 176, in _optimize_sequential
+    callback(study, copy.deepcopy(frozen_trial))
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\tools\advanced_tree_model_trainer.py", line 411, in trial_callback
+    logger.info(f"    [BEST] NEW BEST! Score: {trial.value:.4f}")
+Message: '    \u2713 NEW BEST! Score: 0.0818'
+Arguments: ()
+  Trial 2/15: Score=0.0838
+--- Logging error ---
+Traceback (most recent call last):
+  File "C:\Python313\Lib\logging\__init__.py", line 1154, in emit
+    stream.write(msg + self.terminator)
+    ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Python313\Lib\encodings\cp1252.py", line 19, in encode
+    return codecs.charmap_encode(input,self.errors,encoding_table)[0]
+           ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+UnicodeEncodeError: 'charmap' codec can't encode character '\u2713' in position 4: character maps to <undefined>
+Call stack:
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\tools\advanced_tree_model_trainer.py", line 678, in <module>
+    trainer.train_all_models(n_trials=15)
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\tools\advanced_tree_model_trainer.py", line 561, in train_all_models
+    lgb_result = self.train_lightgbm_model(X_train, X_val, X_test, y_train, y_val, y_test,
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\tools\advanced_tree_model_trainer.py", line 413, in train_lightgbm_model
+    study.optimize(objective, n_trials=n_trials, callbacks=[trial_callback], show_progress_bar=False)
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\venv\Lib\site-packages\optuna\study\study.py", line 490, in optimize
+    _optimize(
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\venv\Lib\site-packages\optuna\study\_optimize.py", line 67, in _optimize
+    _optimize_sequential(
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\venv\Lib\site-packages\optuna\study\_optimize.py", line 176, in _optimize_sequential
+    callback(study, copy.deepcopy(frozen_trial))
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\tools\advanced_tree_model_trainer.py", line 411, in trial_callback
+    logger.info(f"    [BEST] NEW BEST! Score: {trial.value:.4f}")
+Message: '    \u2713 NEW BEST! Score: 0.0838'
+Arguments: ()
+  Trial 3/15: Score=0.0897
+--- Logging error ---
+Traceback (most recent call last):
+  File "C:\Python313\Lib\logging\__init__.py", line 1154, in emit
+    stream.write(msg + self.terminator)
+    ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Python313\Lib\encodings\cp1252.py", line 19, in encode
+    return codecs.charmap_encode(input,self.errors,encoding_table)[0]
+           ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+UnicodeEncodeError: 'charmap' codec can't encode character '\u2713' in position 4: character maps to <undefined>
+Call stack:
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\tools\advanced_tree_model_trainer.py", line 678, in <module>
+    trainer.train_all_models(n_trials=15)
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\tools\advanced_tree_model_trainer.py", line 561, in train_all_models
+    lgb_result = self.train_lightgbm_model(X_train, X_val, X_test, y_train, y_val, y_test,
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\tools\advanced_tree_model_trainer.py", line 413, in train_lightgbm_model
+    study.optimize(objective, n_trials=n_trials, callbacks=[trial_callback], show_progress_bar=False)
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\venv\Lib\site-packages\optuna\study\study.py", line 490, in optimize
+    _optimize(
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\venv\Lib\site-packages\optuna\study\_optimize.py", line 67, in _optimize
+    _optimize_sequential(
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\venv\Lib\site-packages\optuna\study\_optimize.py", line 176, in _optimize_sequential
+    callback(study, copy.deepcopy(frozen_trial))
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\tools\advanced_tree_model_trainer.py", line 411, in trial_callback
+    logger.info(f"    [BEST] NEW BEST! Score: {trial.value:.4f}")
+Message: '    \u2713 NEW BEST! Score: 0.0897'
+Arguments: ()
+  Trial 4/15: Score=0.1846
+--- Logging error ---
+Traceback (most recent call last):
+  File "C:\Python313\Lib\logging\__init__.py", line 1154, in emit
+    stream.write(msg + self.terminator)
+    ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Python313\Lib\encodings\cp1252.py", line 19, in encode
+    return codecs.charmap_encode(input,self.errors,encoding_table)[0]
+           ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+UnicodeEncodeError: 'charmap' codec can't encode character '\u2713' in position 4: character maps to <undefined>
+Call stack:
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\tools\advanced_tree_model_trainer.py", line 678, in <module>
+    trainer.train_all_models(n_trials=15)
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\tools\advanced_tree_model_trainer.py", line 561, in train_all_models
+    lgb_result = self.train_lightgbm_model(X_train, X_val, X_test, y_train, y_val, y_test,
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\tools\advanced_tree_model_trainer.py", line 413, in train_lightgbm_model
+    study.optimize(objective, n_trials=n_trials, callbacks=[trial_callback], show_progress_bar=False)
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\venv\Lib\site-packages\optuna\study\study.py", line 490, in optimize
+    _optimize(
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\venv\Lib\site-packages\optuna\study\_optimize.py", line 67, in _optimize
+    _optimize_sequential(
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\venv\Lib\site-packages\optuna\study\_optimize.py", line 176, in _optimize_sequential
+    callback(study, copy.deepcopy(frozen_trial))
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\tools\advanced_tree_model_trainer.py", line 411, in trial_callback
+    logger.info(f"    [BEST] NEW BEST! Score: {trial.value:.4f}")
+Message: '    \u2713 NEW BEST! Score: 0.1846'
+Arguments: ()
+  Trial 5/15: Score=0.0808
+  Trial 6/15: Score=0.0849
+  Trial 7/15: Score=0.0805
+  Trial 8/15: Score=0.0823
+  Trial 9/15: Score=0.1050
+  Trial 10/15: Score=0.0799
+  Trial 11/15: Score=0.2350
+--- Logging error ---
+Traceback (most recent call last):
+  File "C:\Python313\Lib\logging\__init__.py", line 1154, in emit
+    stream.write(msg + self.terminator)
+    ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Python313\Lib\encodings\cp1252.py", line 19, in encode
+    return codecs.charmap_encode(input,self.errors,encoding_table)[0]
+           ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+UnicodeEncodeError: 'charmap' codec can't encode character '\u2713' in position 4: character maps to <undefined>
+Call stack:
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\tools\advanced_tree_model_trainer.py", line 678, in <module>
+    trainer.train_all_models(n_trials=15)
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\tools\advanced_tree_model_trainer.py", line 561, in train_all_models
+    lgb_result = self.train_lightgbm_model(X_train, X_val, X_test, y_train, y_val, y_test,
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\tools\advanced_tree_model_trainer.py", line 413, in train_lightgbm_model
+    study.optimize(objective, n_trials=n_trials, callbacks=[trial_callback], show_progress_bar=False)
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\venv\Lib\site-packages\optuna\study\study.py", line 490, in optimize
+    _optimize(
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\venv\Lib\site-packages\optuna\study\_optimize.py", line 67, in _optimize
+    _optimize_sequential(
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\venv\Lib\site-packages\optuna\study\_optimize.py", line 176, in _optimize_sequential
+    callback(study, copy.deepcopy(frozen_trial))
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\tools\advanced_tree_model_trainer.py", line 411, in trial_callback
+    logger.info(f"    [BEST] NEW BEST! Score: {trial.value:.4f}")
+Message: '    \u2713 NEW BEST! Score: 0.2350'
+Arguments: ()
+  Trial 12/15: Score=0.2850
+--- Logging error ---
+Traceback (most recent call last):
+  File "C:\Python313\Lib\logging\__init__.py", line 1154, in emit
+    stream.write(msg + self.terminator)
+    ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Python313\Lib\encodings\cp1252.py", line 19, in encode
+    return codecs.charmap_encode(input,self.errors,encoding_table)[0]
+           ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+UnicodeEncodeError: 'charmap' codec can't encode character '\u2713' in position 4: character maps to <undefined>
+Call stack:
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\tools\advanced_tree_model_trainer.py", line 678, in <module>
+    trainer.train_all_models(n_trials=15)
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\tools\advanced_tree_model_trainer.py", line 561, in train_all_models
+    lgb_result = self.train_lightgbm_model(X_train, X_val, X_test, y_train, y_val, y_test,
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\tools\advanced_tree_model_trainer.py", line 413, in train_lightgbm_model
+    study.optimize(objective, n_trials=n_trials, callbacks=[trial_callback], show_progress_bar=False)
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\venv\Lib\site-packages\optuna\study\study.py", line 490, in optimize
+    _optimize(
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\venv\Lib\site-packages\optuna\study\_optimize.py", line 67, in _optimize
+    _optimize_sequential(
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\venv\Lib\site-packages\optuna\study\_optimize.py", line 176, in _optimize_sequential
+    callback(study, copy.deepcopy(frozen_trial))
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\tools\advanced_tree_model_trainer.py", line 411, in trial_callback
+    logger.info(f"    [BEST] NEW BEST! Score: {trial.value:.4f}")
+Message: '    \u2713 NEW BEST! Score: 0.2850'
+Arguments: ()
+  Trial 13/15: Score=0.1263
+  Trial 14/15: Score=0.2807
+  Trial 15/15: Score=0.1178
+Best composite score: 0.2850
+Best params: {'num_leaves': 24, 'learning_rate': 0.01000567616335749, 'subsample': 0.7292705941682048, 'colsample_bytree': 0.9590350160872162, 'reg_alpha': 0.9885504167375654, 'reg_lambda': 0.5922719864044452, 'n_estimators': 276}
+Test Top-5 Accuracy: 0.0996
+Test KL-Divergence: 0.5032
+Test Composite Score: 0.2739
+Saved lightgbm model: C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\models\advanced\lotto_6_49\lightgbm\position_01.pkl
+--- Logging error ---
+Traceback (most recent call last):
+  File "C:\Python313\Lib\logging\__init__.py", line 1154, in emit
+    stream.write(msg + self.terminator)
+    ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Python313\Lib\encodings\cp1252.py", line 19, in encode
+    return codecs.charmap_encode(input,self.errors,encoding_table)[0]
+           ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+UnicodeEncodeError: 'charmap' codec can't encode character '\u2713' in position 0: character maps to <undefined>
+Call stack:
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\tools\advanced_tree_model_trainer.py", line 678, in <module>
+    trainer.train_all_models(n_trials=15)
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\tools\advanced_tree_model_trainer.py", line 565, in train_all_models
+    logger.info(f"\u2713 LightGBM complete. Test Score: {lgb_result['metrics'].composite_score:.4f}")
+Message: '\u2713 LightGBM complete. Test Score: 0.2739'
+Arguments: ()
+Training CatBoost model (hyperparameter tuning with 15 trials)...
+
+=== CatBoost Position 1 ===
+[W 2025-11-30 15:47:20,597] Trial 0 failed with parameters: {'depth': 4, 'learning_rate': 0.18647777755626774, 'subsample': 0.8444237581159771, 'l2_leaf_reg': 4.162781413312498, 'iterations': 385} because of the following error: CatBoostError("catboost/private/libs/options/catboost_options.cpp:794: Error: default bootstrap type (bayesian) doesn't support 'subsample' option").
+Traceback (most recent call last):
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\venv\Lib\site-packages\optuna\study\_optimize.py", line 205, in _run_trial
+    value_or_values = func(trial)
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\tools\advanced_tree_model_trainer.py", line 469, in objective
+    model.fit(X_train, y_train, verbose=False)
+    ~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\venv\Lib\site-packages\catboost\core.py", line 5245, in fit
+    self._fit(X, y, cat_features, text_features, embedding_features, None, graph, sample_weight, None, None, None, None, baseline, use_best_model,
+    ~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+              eval_set, verbose, logging_level, plot, plot_file, column_description, verbose_eval, metric_period,
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+              silent, early_stopping_rounds, save_snapshot, snapshot_file, snapshot_interval, init_model, callbacks, log_cout, log_cerr)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\venv\Lib\site-packages\catboost\core.py", line 2395, in _fit
+    train_params = self._prepare_train_params(
+        X=X, y=y, cat_features=cat_features, text_features=text_features, embedding_features=embedding_features,
+    ...<6 lines>...
+        callbacks=callbacks
+    )
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\venv\Lib\site-packages\catboost\core.py", line 2321, in _prepare_train_params
+    _check_train_params(params)
+    ~~~~~~~~~~~~~~~~~~~^^^^^^^^
+  File "_catboost.pyx", line 6601, in _catboost._check_train_params
+  File "_catboost.pyx", line 6623, in _catboost._check_train_params
+_catboost.CatBoostError: catboost/private/libs/options/catboost_options.cpp:794: Error: default bootstrap type (bayesian) doesn't support 'subsample' option
+[W 2025-11-30 15:47:20,742] Trial 0 failed with value None.
+
+[ERROR] Exception occurred in main: CatBoostError: catboost/private/libs/options/catboost_options.cpp:794: Error: default bootstrap type (bayesian) doesn't support 'subsample' option
+Traceback (most recent call last):
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\tools\advanced_tree_model_trainer.py", line 678, in <module>
+    trainer.train_all_models(n_trials=15)
+    ~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\tools\advanced_tree_model_trainer.py", line 569, in train_all_models
+    cb_result = self.train_catboost_model(X_train, X_val, X_test, y_train, y_val, y_test,
+                                           position, n_trials)
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\tools\advanced_tree_model_trainer.py", line 483, in train_catboost_model
+    study.optimize(objective, n_trials=n_trials, callbacks=[trial_callback], show_progress_bar=False)
+    ~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\venv\Lib\site-packages\optuna\study\study.py", line 490, in optimize
+    _optimize(
+    ~~~~~~~~~^
+        study=self,
+        ^^^^^^^^^^^
+    ...<7 lines>...
+        show_progress_bar=show_progress_bar,
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\venv\Lib\site-packages\optuna\study\_optimize.py", line 67, in _optimize
+    _optimize_sequential(
+    ~~~~~~~~~~~~~~~~~~~~^
+        study,
+        ^^^^^^
+    ...<8 lines>...
+        progress_bar=progress_bar,
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\venv\Lib\site-packages\optuna\study\_optimize.py", line 164, in _optimize_sequential
+    frozen_trial_id = _run_trial(study, func, catch)
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\venv\Lib\site-packages\optuna\study\_optimize.py", line 262, in _run_trial
+    raise func_err
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\venv\Lib\site-packages\optuna\study\_optimize.py", line 205, in _run_trial
+    value_or_values = func(trial)
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\tools\advanced_tree_model_trainer.py", line 469, in objective
+    model.fit(X_train, y_train, verbose=False)
+    ~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\venv\Lib\site-packages\catboost\core.py", line 5245, in fit
+    self._fit(X, y, cat_features, text_features, embedding_features, None, graph, sample_weight, None, None, None, None, baseline, use_best_model,
+    ~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+              eval_set, verbose, logging_level, plot, plot_file, column_description, verbose_eval, metric_period,
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+              silent, early_stopping_rounds, save_snapshot, snapshot_file, snapshot_interval, init_model, callbacks, log_cout, log_cerr)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\venv\Lib\site-packages\catboost\core.py", line 2395, in _fit
+    train_params = self._prepare_train_params(
+        X=X, y=y, cat_features=cat_features, text_features=text_features, embedding_features=embedding_features,
+    ...<6 lines>...
+        callbacks=callbacks
+    )
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\venv\Lib\site-packages\catboost\core.py", line 2321, in _prepare_train_params
+    _check_train_params(params)
+    ~~~~~~~~~~~~~~~~~~~^^^^^^^^
+  File "_catboost.pyx", line 6601, in _catboost._check_train_params
+  File "_catboost.pyx", line 6623, in _catboost._check_train_params
+_catboost.CatBoostError: catboost/private/libs/options/catboost_options.cpp:794: Error: default bootstrap type (bayesian) doesn't support 'subsample' option
+Traceback (most recent call last):
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\tools\advanced_tree_model_trainer.py", line 678, in <module>
+    trainer.train_all_models(n_trials=15)
+    ~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\tools\advanced_tree_model_trainer.py", line 569, in train_all_models
+    cb_result = self.train_catboost_model(X_train, X_val, X_test, y_train, y_val, y_test,
+                                           position, n_trials)
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\tools\advanced_tree_model_trainer.py", line 483, in train_catboost_model
+    study.optimize(objective, n_trials=n_trials, callbacks=[trial_callback], show_progress_bar=False)
+    ~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\venv\Lib\site-packages\optuna\study\study.py", line 490, in optimize
+    _optimize(
+    ~~~~~~~~~^
+        study=self,
+        ^^^^^^^^^^^
+    ...<7 lines>...
+        show_progress_bar=show_progress_bar,
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\venv\Lib\site-packages\optuna\study\_optimize.py", line 67, in _optimize
+    _optimize_sequential(
+    ~~~~~~~~~~~~~~~~~~~~^
+        study,
+        ^^^^^^
+    ...<8 lines>...
+        progress_bar=progress_bar,
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\venv\Lib\site-packages\optuna\study\_optimize.py", line 164, in _optimize_sequential
+    frozen_trial_id = _run_trial(study, func, catch)
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\venv\Lib\site-packages\optuna\study\_optimize.py", line 262, in _run_trial
+    raise func_err
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\venv\Lib\site-packages\optuna\study\_optimize.py", line 205, in _run_trial
+    value_or_values = func(trial)
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\tools\advanced_tree_model_trainer.py", line 469, in objective
+    model.fit(X_train, y_train, verbose=False)
+    ~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\venv\Lib\site-packages\catboost\core.py", line 5245, in fit
+    self._fit(X, y, cat_features, text_features, embedding_features, None, graph, sample_weight, None, None, None, None, baseline, use_best_model,
+    ~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+              eval_set, verbose, logging_level, plot, plot_file, column_description, verbose_eval, metric_period,
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+              silent, early_stopping_rounds, save_snapshot, snapshot_file, snapshot_interval, init_model, callbacks, log_cout, log_cerr)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\venv\Lib\site-packages\catboost\core.py", line 2395, in _fit
+    train_params = self._prepare_train_params(
+        X=X, y=y, cat_features=cat_features, text_features=text_features, embedding_features=embedding_features,
+    ...<6 lines>...
+        callbacks=callbacks
+    )
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\venv\Lib\site-packages\catboost\core.py", line 2321, in _prepare_train_params
+    _check_train_params(params)
+    ~~~~~~~~~~~~~~~~~~~^^^^^^^^
+  File "_catboost.pyx", line 6601, in _catboost._check_train_params
+  File "_catboost.pyx", line 6623, in _catboost._check_train_params
+_catboost.CatBoostError: catboost/private/libs/options/catboost_options.cpp:794: Error: default bootstrap type (bayesian) doesn't support 'subsample' option
+
+[Process output ended - 485 lines captured]

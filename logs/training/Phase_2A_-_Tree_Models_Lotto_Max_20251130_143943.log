@@ -1,0 +1,41 @@
+================================================================================
+Training started: Phase 2A - Tree Models
+Game: Lotto Max
+Time: 2025-11-30 14:39:43
+================================================================================
+
+Starting process: C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\venv\Scripts\python.exe C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\tools\advanced_tree_model_trainer.py --game Lotto Max
+Working directory: C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot
+Process will output below:
+================================================================================
+
+[ADVANCED_TREE_MODEL_TRAINER] Script started and imports successful
+[DEBUG] Parsed arguments: game=Lotto Max
+[DEBUG] Training lotto_max
+Initialized trainer for lotto_max
+  Data directory: C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\data\features\advanced\lotto_max
+  Models directory: C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\models\advanced\lotto_max
+
+============================================================
+Starting Advanced Tree Model Training
+Game: lotto_max
+Positions: 7
+Numbers: 50
+============================================================
+
+Loading engineered features from C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\data\features\advanced\lotto_max
+Feature shape: (58000, 6)
+Train shape: (40600, 6), Unique classes: 50
+Val shape: (8700, 6), Unique classes: 50
+Test shape: (8700, 6), Unique classes: 50
+
+************************************************************
+Position 1/7
+************************************************************
+
+=== XGBoost Position 1 ===
+[I 2025-11-30 14:39:51,410] A new study created in memory with name: no-name-6f8e75d6-f760-4ac4-b74b-73994a00afc4
+[I 2025-11-30 14:41:26,036] Trial 0 finished with value: 0.122077686435177 and parameters: {'max_depth': 3, 'learning_rate': 0.1083392390509115, 'subsample': 0.6533563856743952, 'colsample_bytree': 0.6962358479861395, 'reg_alpha': 0.3271390558111398, 'reg_lambda': 0.8591374909485977, 'n_estimators': 367}. Best is trial 0 with value: 0.122077686435177.
+[I 2025-11-30 14:42:15,366] Trial 1 finished with value: 0.4402178895370248 and parameters: {'max_depth': 7, 'learning_rate': 0.011201949678824201, 'subsample': 0.8934993185121132, 'colsample_bytree': 0.7579800073724023, 'reg_alpha': 0.8020471186286665, 'reg_lambda': 0.2544211258598793, 'n_estimators': 122}. Best is trial 1 with value: 0.4402178895370248.
+
+[Process output ended - 28 lines captured]

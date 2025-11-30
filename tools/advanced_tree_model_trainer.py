@@ -34,8 +34,23 @@ import catboost as cb
 from scipy.stats import entropy
 
 warnings.filterwarnings("ignore")
-logging.basicConfig(level=logging.INFO, format="%(message)s")
+
+# Configure logging to output to stdout for real-time monitoring
+import sys
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(message)s",
+    stream=sys.stdout,
+    force=True  # Override any existing handlers
+)
 logger = logging.getLogger(__name__)
+
+# Suppress Optuna's verbose logging
+optuna.logging.set_verbosity(optuna.logging.WARNING)
+
+# VERIFY SCRIPT IS RUNNING
+print("[ADVANCED_TREE_MODEL_TRAINER] Script started and imports successful", flush=True)
+sys.stdout.flush()
 
 
 @dataclass
@@ -312,7 +327,14 @@ class AdvancedTreeModelTrainer:
             
             return metrics.composite_score
         
-        study.optimize(objective, n_trials=n_trials, show_progress_bar=False)
+        # Callback to log trial progress
+        def trial_callback(study, trial):
+            if trial.state == optuna.trial.TrialState.COMPLETE:
+                logger.info(f"  Trial {trial.number + 1}/{n_trials}: Score={trial.value:.4f}")
+                if trial.value == study.best_value:
+                    logger.info(f"    [BEST] NEW BEST! Score: {trial.value:.4f}")
+        
+        study.optimize(objective, n_trials=n_trials, callbacks=[trial_callback], show_progress_bar=False)
         
         logger.info(f"Best composite score: {study.best_value:.4f}")
         logger.info(f"Best params: {study.best_params}")
@@ -328,8 +350,7 @@ class AdvancedTreeModelTrainer:
         })
         
         final_model = xgb.XGBClassifier(**best_params)
-        final_model.fit(X_train, y_train, eval_set=[(X_val, y_val)], 
-                       verbose=False, early_stopping_rounds=10)
+        final_model.fit(X_train, y_train, eval_set=[(X_val, y_val)], verbose=False)
         
         # Evaluate on test
         y_pred_probs = final_model.predict_proba(X_test)
@@ -382,7 +403,14 @@ class AdvancedTreeModelTrainer:
             
             return metrics.composite_score
         
-        study.optimize(objective, n_trials=n_trials, show_progress_bar=False)
+        # Callback to log trial progress
+        def trial_callback(study, trial):
+            if trial.state == optuna.trial.TrialState.COMPLETE:
+                logger.info(f"  Trial {trial.number + 1}/{n_trials}: Score={trial.value:.4f}")
+                if trial.value == study.best_value:
+                    logger.info(f"    [BEST] NEW BEST! Score: {trial.value:.4f}")
+        
+        study.optimize(objective, n_trials=n_trials, callbacks=[trial_callback], show_progress_bar=False)
         
         logger.info(f"Best composite score: {study.best_value:.4f}")
         logger.info(f"Best params: {study.best_params}")
@@ -445,7 +473,14 @@ class AdvancedTreeModelTrainer:
             
             return metrics.composite_score
         
-        study.optimize(objective, n_trials=n_trials, show_progress_bar=False)
+        # Callback to log trial progress
+        def trial_callback(study, trial):
+            if trial.state == optuna.trial.TrialState.COMPLETE:
+                logger.info(f"  Trial {trial.number + 1}/{n_trials}: Score={trial.value:.4f}")
+                if trial.value == study.best_value:
+                    logger.info(f"    [BEST] NEW BEST! Score: {trial.value:.4f}")
+        
+        study.optimize(objective, n_trials=n_trials, callbacks=[trial_callback], show_progress_bar=False)
         
         logger.info(f"Best composite score: {study.best_value:.4f}")
         logger.info(f"Best params: {study.best_params}")
@@ -514,22 +549,28 @@ class AdvancedTreeModelTrainer:
             logger.info(f"{'*'*60}")
             
             # XGBoost
+            logger.info(f"Training XGBoost model (hyperparameter tuning with {n_trials} trials)...")
             xgb_result = self.train_xgboost_model(X_train, X_val, X_test, y_train, y_val, y_test, 
                                                    position, n_trials)
             results["xgboost"].append(xgb_result)
             self._save_model(xgb_result, f"position_{position:02d}")
+            logger.info(f"✓ XGBoost complete. Test Score: {xgb_result['metrics'].composite_score:.4f}")
             
             # LightGBM
+            logger.info(f"Training LightGBM model (hyperparameter tuning with {n_trials} trials)...")
             lgb_result = self.train_lightgbm_model(X_train, X_val, X_test, y_train, y_val, y_test,
                                                     position, n_trials)
             results["lightgbm"].append(lgb_result)
             self._save_model(lgb_result, f"position_{position:02d}")
+            logger.info(f"✓ LightGBM complete. Test Score: {lgb_result['metrics'].composite_score:.4f}")
             
             # CatBoost
+            logger.info(f"Training CatBoost model (hyperparameter tuning with {n_trials} trials)...")
             cb_result = self.train_catboost_model(X_train, X_val, X_test, y_train, y_val, y_test,
                                                    position, n_trials)
             results["catboost"].append(cb_result)
             self._save_model(cb_result, f"position_{position:02d}")
+            logger.info(f"✓ CatBoost complete. Test Score: {cb_result['metrics'].composite_score:.4f}")
         
         self._save_training_summary(results)
         return results
@@ -621,18 +662,31 @@ def run_tree_model_training_pipeline():
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Train Phase 2A tree models")
-    parser.add_argument("--game", type=str, default=None, help="Game to train (lotto_6_49 or lotto_max, or All Games)")
-    args = parser.parse_args()
-    
-    if args.game and args.game != "All Games":
-        if "649" in args.game or args.game.lower() == "lotto 6/49":
-            config = GameConfig(name="lotto_6_49", num_balls=6, num_numbers=49, num_positions=6)
-            trainer = AdvancedTreeModelTrainer(config)
-            trainer.train_all_models(n_trials=15)
-        elif "max" in args.game.lower() or args.game.lower() == "lotto max":
-            config = GameConfig(name="lotto_max", num_balls=7, num_numbers=50, num_positions=7)
-            trainer = AdvancedTreeModelTrainer(config)
-            trainer.train_all_models(n_trials=15)
-    else:
-        run_tree_model_training_pipeline()
+    try:
+        parser = argparse.ArgumentParser(description="Train Phase 2A tree models")
+        parser.add_argument("--game", type=str, default=None, help="Game to train (lotto_6_49 or lotto_max, or All Games)")
+        args = parser.parse_args()
+        
+        print(f"[DEBUG] Parsed arguments: game={args.game}", flush=True)
+        sys.stdout.flush()
+        
+        if args.game and args.game != "All Games":
+            if "649" in args.game or args.game.lower() == "lotto 6/49":
+                print(f"[DEBUG] Training lotto_6_49", flush=True)
+                config = GameConfig(name="lotto_6_49", num_balls=6, num_numbers=49, num_positions=6)
+                trainer = AdvancedTreeModelTrainer(config)
+                trainer.train_all_models(n_trials=15)
+            elif "max" in args.game.lower() or args.game.lower() == "lotto max":
+                print(f"[DEBUG] Training lotto_max", flush=True)
+                config = GameConfig(name="lotto_max", num_balls=7, num_numbers=50, num_positions=7)
+                trainer = AdvancedTreeModelTrainer(config)
+                trainer.train_all_models(n_trials=15)
+        else:
+            print(f"[DEBUG] Training all games", flush=True)
+            run_tree_model_training_pipeline()
+    except Exception as e:
+        print(f"\n[ERROR] Exception occurred in main: {type(e).__name__}: {e}", flush=True)
+        import traceback
+        traceback.print_exc(file=sys.stdout)
+        sys.stdout.flush()
+        raise

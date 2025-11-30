@@ -1,0 +1,43 @@
+================================================================================
+Training started: Phase 2A - Tree Models
+Game: Lotto 6/49
+Time: 2025-11-30 15:05:33
+================================================================================
+
+Starting process: C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\venv\Scripts\python.exe C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\tools\advanced_tree_model_trainer.py --game Lotto 6/49
+Working directory: C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot
+Process will output below:
+================================================================================
+
+[ADVANCED_TREE_MODEL_TRAINER] Script started and imports successful
+[DEBUG] Parsed arguments: game=Lotto 6/49
+[DEBUG] Training lotto_6_49
+Initialized trainer for lotto_6_49
+  Data directory: C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\data\features\advanced\lotto_6_49
+  Models directory: C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\models\advanced\lotto_6_49
+
+============================================================
+Starting Advanced Tree Model Training
+Game: lotto_6_49
+Positions: 6
+Numbers: 49
+============================================================
+
+Loading engineered features from C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\data\features\advanced\lotto_6_49
+Feature shape: (102018, 6)
+Train shape: (71412, 6), Unique classes: 49
+Val shape: (15302, 6), Unique classes: 49
+Test shape: (15304, 6), Unique classes: 49
+
+************************************************************
+Position 1/6
+************************************************************
+Training XGBoost model (hyperparameter tuning with 15 trials)...
+
+=== XGBoost Position 1 ===
+  Trial 1/15: Score=0.1502
+    [BEST] NEW BEST! Score: 0.1502
+  Trial 2/15: Score=0.4445
+    [BEST] NEW BEST! Score: 0.4445
+
+[Process output ended - 30 lines captured]

@@ -28,10 +28,12 @@ if gpus:
     for gpu in gpus:
         tf.config.experimental.set_memory_growth(gpu, True)
 
-# Logging setup
+# Logging setup - output to stdout for real-time monitoring
 logging.basicConfig(
     level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    format='%(message)s',
+    stream=sys.stdout,
+    force=True
 )
 logger = logging.getLogger(__name__)
 

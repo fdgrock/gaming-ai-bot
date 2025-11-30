@@ -286,21 +286,41 @@ def start_training(trainer_name: str, game: str = None) -> bool:
             creationflags=0x08000000 if os_module.name == 'nt' else 0  # CREATE_NO_WINDOW on Windows
         )
         
+        # Create log file with initial message
+        with open(str(log_file), 'w', buffering=1) as f:
+            f.write(f"{'='*80}\n")
+            f.write(f"Training started: {trainer_name}\n")
+            f.write(f"Game: {game if game != 'All Games' else 'All Games'}\n")
+            f.write(f"Time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
+            f.write(f"{'='*80}\n\n")
+            f.write(f"Starting process: {' '.join(cmd)}\n")
+            f.write(f"Working directory: {str(PROJECT_ROOT)}\n")
+            f.write(f"Process will output below:\n")
+            f.write(f"{'='*80}\n\n")
+        
         # Start a thread to capture output and write to log file
         import threading
+        import time as time_module
         
         def capture_output():
             """Capture subprocess output and write to log file."""
             try:
-                with open(str(log_file), 'w', buffering=1) as f:
+                with open(str(log_file), 'a', buffering=1) as f:
                     # Read from stdout (which includes stderr)
+                    line_count = 0
                     for line in process.stdout:
-                        f.write(line)
-                        f.flush()
+                        if line:
+                            f.write(line)
+                            f.flush()
+                            line_count += 1
+                    
+                    # Write completion marker
+                    f.write(f"\n[Process output ended - {line_count} lines captured]\n")
+                    f.flush()
             except Exception as e:
                 try:
                     with open(str(log_file), 'a') as f:
-                        f.write(f"\n[Error capturing output: {e}]\n")
+                        f.write(f"\n[Error capturing output: {type(e).__name__}: {e}]\n")
                 except:
                     pass
         
@@ -432,10 +452,10 @@ def display_process_monitor(process_key: str):
         st.metric("Elapsed", f"{elapsed.seconds // 3600}h {(elapsed.seconds % 3600) // 60}m")
 
 
-def display_training_logs_window(process_key: str, height: int = 400):
+def display_training_logs_window(process_key: str, height: int = 500):
     """
-    Display real-time training logs by reading from log file.
-    This works reliably on Windows without socket/pipe issues.
+    Display real-time training logs using Streamlit placeholder for smooth updates without page refresh.
+    This function BOTH creates and updates the placeholder content.
     """
     if "training_processes" not in st.session_state or process_key not in st.session_state.training_processes:
         st.warning("Process information not found")
@@ -448,44 +468,100 @@ def display_training_logs_window(process_key: str, height: int = 400):
         st.info("No log file available for this training session")
         return
     
+    # Read logs from file
     log_output = ""
-    
     try:
         from pathlib import Path
         log_path = Path(log_file)
         
         if log_path.exists():
             try:
-                # Read the log file
-                with open(log_path, 'r', encoding='utf-8', errors='ignore') as f:
-                    content = f.read()
+                # Read the log file with retries
+                content = ""
+                for attempt in range(3):
+                    try:
+                        with open(log_path, 'r', encoding='utf-8', errors='ignore') as f:
+                            content = f.read()
+                        break
+                    except (IOError, OSError):
+                        if attempt < 2:
+                            import time as time_module
+                            time_module.sleep(0.1)
                 
                 if content.strip():
-                    # Show all content for better visibility
-                    lines = content.split('\n')
-                    # Show last 300 lines to have more context
-                    log_output = '\n'.join(lines[-300:]) if len(lines) > 300 else content
+                    log_output = content
                 else:
-                    log_output = "Waiting for training output...\n"
-            except (IOError, OSError):
-                log_output = "Log file is being written. Refresh to see updates.\n"
+                    log_output = "Training started, waiting for output...\n"
+            except (IOError, OSError) as e:
+                log_output = f"Reading log file ({str(e)})\n"
         else:
-            log_output = "Waiting for log file to be created...\n"
+            log_output = "Log file created, waiting for output...\n"
                 
     except Exception as e:
         log_output = f"Error reading log file: {e}\n"
     
-    # Display log output
     if not log_output.strip():
         log_output = "Waiting for training output...\n"
-        
-    st.text_area(
-        "📜 Training Output",
-        value=log_output,
-        height=height,
-        disabled=True,
-        key=f"training_log_{process_key}_{time.time()}"
-    )
+    
+    # Display using HTML with custom styling (like Data & Training page)
+    # Escape HTML and format logs
+    escaped_logs = log_output.replace("<", "&lt;").replace(">", "&gt;")
+    log_lines = escaped_logs.split('\n')
+    
+    st.markdown(f"""
+    <div style="
+        height: {height}px; 
+        overflow-y: auto; 
+        border: 1px solid #ddd; 
+        border-radius: 5px; 
+        padding: 10px; 
+        background-color: #f0f0f0;
+        font-family: 'Courier New', monospace;
+        font-size: 12px;
+        line-height: 1.5;
+        white-space: pre-wrap;
+        word-wrap: break-word;
+    ">
+    {"<br>".join(log_lines)}
+    </div>
+    """, unsafe_allow_html=True)
+    
+    # Add manual refresh button
+    col1, col2 = st.columns([20, 1])
+    with col2:
+        if st.button("🔄", key=f"refresh_log_{process_key}", help="Refresh logs", use_container_width=True):
+            st.rerun()
+
+
+# ============================================================================
+# Active Logs Update Function  
+# ============================================================================
+
+def update_all_active_training_logs():
+    """
+    Update all active training logs at page level to ensure they're always displayed.
+    This is called once per page render to refresh all active process logs.
+    """
+    if "training_processes" not in st.session_state:
+        return
+    
+    # Find any active training processes
+    for process_key, proc_info in st.session_state.training_processes.items():
+        if proc_info.get("process") and proc_info["process"].poll() is None:
+            # Process is still running - update its logs
+            log_content_key = f"training_log_content_{process_key}"
+            log_file = proc_info.get("log_file")
+            
+            if log_file:
+                try:
+                    from pathlib import Path
+                    log_path = Path(log_file)
+                    if log_path.exists():
+                        with open(log_path, 'r', encoding='utf-8', errors='ignore') as f:
+                            content = f.read()
+                        st.session_state[log_content_key] = content
+                except:
+                    pass
 
 
 # ============================================================================
@@ -552,19 +628,25 @@ def render_phase_2a_section(game_filter: str = None):
                         break
                 else:
                     # Process has ended - check return code
-                    if poll_result != 0:
-                        # Process failed - show error from log file
+                    was_terminated = proc_info.get("was_terminated", False)
+                    
+                    if poll_result != 0 and not was_terminated:
+                        # Process failed (and wasn't manually stopped) - show error from log file
                         log_file = proc_info.get("log_file")
                         error_msg = ""
                         if log_file:
                             try:
                                 with open(log_file, 'r', errors='ignore') as f:
-                                    error_msg = f.read()[-500:]  # Last 500 chars
+                                    content = f.read()
+                                    # Show last 1000 chars for more context
+                                    error_msg = content[-1000:] if len(content) > 1000 else content
                             except:
                                 pass
                         st.error(f"Previous training failed (exit code: {poll_result})")
                         if error_msg:
                             st.code(error_msg, language="text")
+                    elif was_terminated:
+                        st.info("✅ Training was stopped by user")
     
     # Training Control
     if not training_running:
@@ -581,6 +663,31 @@ def render_phase_2a_section(game_filter: str = None):
                     st.rerun()
     else:
         st.markdown("### 📊 Training in Progress...")
+        
+        # Add progress indicator
+        if running_process_key and "training_processes" in st.session_state:
+            proc_info = st.session_state.training_processes.get(running_process_key)
+            if proc_info:
+                log_file = proc_info.get("log_file")
+                if log_file:
+                    try:
+                        from pathlib import Path
+                        log_path = Path(log_file)
+                        if log_path.exists():
+                            with open(log_path, 'r', encoding='utf-8', errors='ignore') as f:
+                                log_content = f.read()
+                            
+                            # Extract position from logs (e.g., "Position 3/6")
+                            import re
+                            match = re.search(r'Position (\d+)/(\d+)', log_content)
+                            if match:
+                                current = int(match.group(1))
+                                total = int(match.group(2))
+                                progress = current / total
+                                st.progress(progress, text=f"Training position {current}/{total} ({int(progress*100)}%)")
+                    except:
+                        pass
+        
         col1, col2 = st.columns([3, 1])
         
         with col1:
@@ -594,10 +701,12 @@ def render_phase_2a_section(game_filter: str = None):
                     if proc_info:
                         try:
                             proc_info["process"].terminate()
+                            st.session_state.training_processes[running_process_key]["was_terminated"] = True
                             st.session_state.training_processes[running_process_key]["process"].wait(timeout=5)
                             st.success("✅ Training stopped")
                         except:
                             proc_info["process"].kill()
+                            st.session_state.training_processes[running_process_key]["was_terminated"] = True
                             st.success("✅ Training forcefully stopped")
                         st.rerun()
         
@@ -702,10 +811,12 @@ def render_phase_2b_section(game_filter: str = None):
                         if proc_info:
                             try:
                                 proc_info["process"].terminate()
+                                st.session_state.training_processes[lstm_training_key]["was_terminated"] = True
                                 st.session_state.training_processes[lstm_training_key]["process"].wait(timeout=5)
                                 st.success("✅ Training stopped")
                             except:
                                 proc_info["process"].kill()
+                                st.session_state.training_processes[lstm_training_key]["was_terminated"] = True
                                 st.success("✅ Training forcefully stopped")
                             st.rerun()
             
@@ -768,10 +879,12 @@ def render_phase_2b_section(game_filter: str = None):
                         if proc_info:
                             try:
                                 proc_info["process"].terminate()
+                                st.session_state.training_processes[transformer_training_key]["was_terminated"] = True
                                 st.session_state.training_processes[transformer_training_key]["process"].wait(timeout=5)
                                 st.success("✅ Training stopped")
                             except:
                                 proc_info["process"].kill()
+                                st.session_state.training_processes[transformer_training_key]["was_terminated"] = True
                                 st.success("✅ Training forcefully stopped")
                             st.rerun()
             
@@ -834,10 +947,12 @@ def render_phase_2b_section(game_filter: str = None):
                         if proc_info:
                             try:
                                 proc_info["process"].terminate()
+                                st.session_state.training_processes[cnn_training_key]["was_terminated"] = True
                                 st.session_state.training_processes[cnn_training_key]["process"].wait(timeout=5)
                                 st.success("✅ Training stopped")
                             except:
                                 proc_info["process"].kill()
+                                st.session_state.training_processes[cnn_training_key]["was_terminated"] = True
                                 st.success("✅ Training forcefully stopped")
                             st.rerun()
             
@@ -903,10 +1018,12 @@ def render_phase_2c_section(game_filter: str = None):
                         if proc_info:
                             try:
                                 proc_info["process"].terminate()
+                                st.session_state.training_processes[tf_variants_training_key]["was_terminated"] = True
                                 st.session_state.training_processes[tf_variants_training_key]["process"].wait(timeout=5)
                                 st.success("✅ Training stopped")
                             except:
                                 proc_info["process"].kill()
+                                st.session_state.training_processes[tf_variants_training_key]["was_terminated"] = True
                                 st.success("✅ Training forcefully stopped")
                             st.rerun()
             
@@ -965,10 +1082,12 @@ def render_phase_2c_section(game_filter: str = None):
                         if proc_info:
                             try:
                                 proc_info["process"].terminate()
+                                st.session_state.training_processes[lstm_variants_training_key]["was_terminated"] = True
                                 st.session_state.training_processes[lstm_variants_training_key]["process"].wait(timeout=5)
                                 st.success("✅ Training stopped")
                             except:
                                 proc_info["process"].kill()
+                                st.session_state.training_processes[lstm_variants_training_key]["was_terminated"] = True
                                 st.success("✅ Training forcefully stopped")
                             st.rerun()
             
@@ -1261,6 +1380,9 @@ def render_advanced_ml_training_page(services_registry=None, ai_engines=None, co
         st.title("🤖 Advanced ML Training - Phase 2")
         st.markdown("*Execute and monitor Phase 2 advanced model training pipeline*")
         
+        # Update all active training logs at page level
+        update_all_active_training_logs()
+        
         # Game Selection
         if "selected_ml_game" not in st.session_state:
             st.session_state.selected_ml_game = "All Games"
@@ -1363,6 +1485,23 @@ def render_advanced_ml_training_page(services_registry=None, ai_engines=None, co
                 st.markdown("### 📋 Recent Training History")
                 history_df = pd.DataFrame(st.session_state.training_history)
                 st.dataframe(history_df, use_container_width=True, hide_index=True)
+        
+        # Auto-refresh mechanism for logs - check if training is running and trigger rerun
+        if "training_processes" in st.session_state and st.session_state.training_processes:
+            has_running = any(
+                proc_info.get("process") and proc_info["process"].poll() is None
+                for proc_info in st.session_state.training_processes.values()
+            )
+            if has_running:
+                # Use Streamlit's polling mechanism to refresh logs every 2 seconds
+                # This is much faster than the default heartbeat but doesn't cause full-page flicker
+                # because we're only updating log display content, not the entire page structure
+                st.session_state._autorefresh_timer = st.session_state.get("_autorefresh_timer", 0) + 1
+                
+                # Rerun every 2 seconds (every ~50 iterations at 25ms per iteration)
+                if st.session_state._autorefresh_timer >= 80:
+                    st.session_state._autorefresh_timer = 0
+                    st.rerun()
         
         app_log("Advanced ML Training page rendered")
     

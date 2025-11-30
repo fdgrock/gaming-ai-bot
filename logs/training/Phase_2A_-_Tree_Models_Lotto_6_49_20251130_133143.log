@@ -1,0 +1,35 @@
+================================================================================
+Training started: Phase 2A - Tree Models
+Game: Lotto 6/49
+Time: 2025-11-30 13:31:43
+================================================================================
+
+Initialized trainer for lotto_6_49
+  Data directory: C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\data\features\advanced\lotto_6_49
+  Models directory: C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\models\advanced\lotto_6_49
+
+============================================================
+Starting Advanced Tree Model Training
+Game: lotto_6_49
+Positions: 6
+Numbers: 49
+============================================================
+
+Loading engineered features from C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\data\features\advanced\lotto_6_49
+Feature shape: (102018, 6)
+Train shape: (71412, 6), Unique classes: 49
+Val shape: (15302, 6), Unique classes: 49
+Test shape: (15304, 6), Unique classes: 49
+
+************************************************************
+Position 1/6
+************************************************************
+
+=== XGBoost Position 1 ===
+[I 2025-11-30 13:31:48,057] A new study created in memory with name: no-name-faf27db8-0991-4337-9862-bac5a5c1e4f0
+[I 2025-11-30 13:33:16,583] Trial 0 finished with value: 0.1502439127142126 and parameters: {'max_depth': 3, 'learning_rate': 0.1083392390509115, 'subsample': 0.6533563856743952, 'colsample_bytree': 0.6962358479861395, 'reg_alpha': 0.3271390558111398, 'reg_lambda': 0.8591374909485977, 'n_estimators': 367}. Best is trial 0 with value: 0.1502439127142126.
+[I 2025-11-30 13:34:01,990] Trial 1 finished with value: 0.444490761616774 and parameters: {'max_depth': 7, 'learning_rate': 0.011201949678824201, 'subsample': 0.8934993185121132, 'colsample_bytree': 0.7579800073724023, 'reg_alpha': 0.8020471186286665, 'reg_lambda': 0.2544211258598793, 'n_estimators': 122}. Best is trial 1 with value: 0.444490761616774.
+[I 2025-11-30 13:36:28,412] Trial 2 finished with value: 0.14329746741776966 and parameters: {'max_depth': 9, 'learning_rate': 0.023742236901921756, 'subsample': 0.7619957792189038, 'colsample_bytree': 0.7264385884072835, 'reg_alpha': 0.07666269999644726, 'reg_lambda': 0.8432246942297046, 'n_estimators': 440}. Best is trial 1 with value: 0.444490761616774.
+[I 2025-11-30 13:39:15,037] Trial 3 finished with value: 0.09084587485477012 and parameters: {'max_depth': 10, 'learning_rate': 0.04515894817205081, 'subsample': 0.9817952500434661, 'colsample_bytree': 0.7783033443358875, 'reg_alpha': 0.6697246517218077, 'reg_lambda': 0.08250004969715541, 'n_estimators': 459}. Best is trial 1 with value: 0.444490761616774.
+[I 2025-11-30 13:41:33,087] Trial 4 finished with value: 0.20148299659887456 and parameters: {'max_depth': 5, 'learning_rate': 0.027902815380338696, 'subsample': 0.6020518196257828, 'colsample_bytree': 0.8172810061121624, 'reg_alpha': 0.47559636700725316, 'reg_lambda': 0.6363736775715226, 'n_estimators': 492}. Best is trial 1 with value: 0.444490761616774.
+[I 2025-11-30 13:43:24,923] Trial 5 finished with value: 0.08034860042696945 and parameters: {'max_depth': 10, 'learning_rate': 0.3518218233950614, 'subsample': 0.8101022684428582, 'colsample_bytree': 0.6416075799419051, 'reg_alpha': 0.180914595257901, 'reg_lambda': 0.9530402209867416, 'n_estimators': 265}. Best is trial 1 with value: 0.444490761616774.

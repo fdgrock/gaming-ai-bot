@@ -1,0 +1,23 @@
+Initialized trainer for lotto_6_49
+  Data directory: C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\data\features\advanced\lotto_6_49
+  Models directory: C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\models\advanced\lotto_6_49
+
+============================================================
+Starting Advanced Tree Model Training
+Game: lotto_6_49
+Positions: 6
+Numbers: 49
+============================================================
+
+Loading engineered features from C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\data\features\advanced\lotto_6_49
+Feature shape: (102018, 6)
+Train shape: (71412, 6), Unique classes: 49
+Val shape: (15302, 6), Unique classes: 49
+Test shape: (15304, 6), Unique classes: 49
+
+************************************************************
+Position 1/6
+************************************************************
+
+=== XGBoost Position 1 ===
+[I 2025-11-30 13:28:14,773] A new study created in memory with name: no-name-29425d87-629c-462c-98c5-242f20eed3bf
