@@ -924,6 +924,61 @@ def _render_advanced_features():
     
     st.divider()
     
+    # Transformer Features Section
+    st.markdown("#### 🟦 Transformer Features - 20-Dimension Feature Engineering")
+    st.markdown("*Generates optimized 20-dimensional features for Transformer model input (CSV format)*")
+    
+    st.info("""
+    **Transformer Features (20 dimensions):**
+    - **Statistical** (5): sum, mean, std, skew, kurtosis - capture overall distribution
+    - **Distribution** (3): min, max, range - track number bounds
+    - **Parity** (2): even_count, odd_count - capture odd/even patterns
+    - **Spacing** (3): avg_gap, max_gap, consecutive_pairs - measure number distribution
+    - **Temporal** (3): days_since_last, day_of_week_sin, month_sin - time-based features
+    - **Bonus** (2): bonus_num, bonus_zscore - bonus number statistics
+    - **Pattern** (1): digit_pattern_score - captures digit-level patterns
+    
+    **Output: CSV with 20 numeric columns, normalized to 0-1 range**
+    """)
+    
+    if st.button("🚀 Generate Transformer Features", use_container_width=True, key="btn_transformer_gen"):
+        try:
+            with st.spinner("Generating 20-dimensional Transformer features..."):
+                transformer_features, transformer_metadata = feature_gen.generate_transformer_features_csv(
+                    raw_data,
+                    output_dim=20
+                )
+                
+                # Save
+                if feature_gen.save_transformer_features_csv(transformer_features, transformer_metadata):
+                    st.success(f"✅ Generated {len(transformer_features)} Transformer feature vectors")
+                    
+                    col_res1, col_res2, col_res3 = st.columns(3)
+                    with col_res1:
+                        st.metric("Feature Vectors", len(transformer_features))
+                    with col_res2:
+                        st.metric("Feature Dimensions", len(transformer_features.columns))
+                    with col_res3:
+                        st.metric("Format", "CSV")
+                    
+                    st.info(f"📊 Features: {', '.join(transformer_metadata['feature_columns'])}")
+                    st.info(f"📁 Saved to: `data/features/transformer/{feature_gen.game_folder}/`")
+                    
+                    # Show feature preview
+                    st.markdown("**Feature Preview (First 10 Rows):**")
+                    st.dataframe(
+                        transformer_features.head(10),
+                        use_container_width=True,
+                        height=300
+                    )
+                else:
+                    st.error("Failed to save Transformer features")
+        except Exception as e:
+            st.error(f"Error generating Transformer features: {e}")
+            app_log(f"Transformer generation error: {e}", "error")
+    
+    st.divider()
+    
     # XGBoost Advanced Features Section
     st.markdown("#### 🟨 Advanced Features - XGBoost Feature Engineering")
     st.markdown("*Comprehensive statistical, temporal, and pattern-based feature engineering (100+ features)*")
@@ -1439,7 +1494,7 @@ def _render_model_training():
         st.metric("🤖 Model Type", selected_model)
     
     with sum_col4:
-        st.metric("🎯 Data Sources", sum(1 for v in [use_raw_csv, use_lstm, use_cnn, use_xgboost_feat, use_catboost_feat, use_lightgbm_feat] if v))
+        st.metric("🎯 Data Sources", sum(1 for v in [use_raw_csv, use_lstm, use_cnn, use_transformer, use_xgboost_feat, use_catboost_feat, use_lightgbm_feat] if v))
     
     # Detailed file listing
     with st.expander("📋 View Data Sources Details", expanded=False):

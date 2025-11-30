@@ -727,14 +727,14 @@ class AdvancedModelTrainer:
             return None, 0
 
     def _load_transformer_embeddings(self, file_paths: List[Path]) -> Tuple[Optional[np.ndarray], int]:
-        """Load Transformer embeddings."""
+        """Load Transformer embeddings from NPZ or CSV files."""
         try:
             all_embeddings = []
             feature_count = None
             
             for filepath in file_paths:
-                if filepath.suffix == ".npz":
-                    try:
+                try:
+                    if filepath.suffix == ".npz":
                         data = np.load(filepath)
                         # Try multiple possible keys for embeddings
                         embeddings = data.get("embeddings", None)
@@ -764,9 +764,31 @@ class AdvancedModelTrainer:
                                     f"Skipping Transformer file {filepath.name}: feature mismatch ({flattened.shape[1]} vs {feature_count})",
                                     "warning"
                                 )
-                    except Exception as file_error:
-                        app_log(f"Error processing Transformer file {filepath.name}: {file_error}", "warning")
-                        continue
+                    
+                    elif filepath.suffix == ".csv":
+                        # Load CSV transformer features (20-dimensional)
+                        df = pd.read_csv(filepath)
+                        # CRITICAL: Sort by draw_date to maintain chronological order
+                        if "draw_date" in df.columns:
+                            df = df.sort_values("draw_date", ascending=True).reset_index(drop=True)
+                        # Drop non-numeric columns
+                        numeric_df = df.select_dtypes(include=[np.number])
+                        flattened = numeric_df.values
+                        
+                        # Ensure feature consistency
+                        if feature_count is None:
+                            feature_count = flattened.shape[1]
+                            all_embeddings.append(flattened)
+                        elif flattened.shape[1] == feature_count:
+                            all_embeddings.append(flattened)
+                        else:
+                            app_log(
+                                f"Skipping Transformer CSV file {filepath.name}: feature mismatch ({flattened.shape[1]} vs {feature_count})",
+                                "warning"
+                            )
+                except Exception as file_error:
+                    app_log(f"Error processing Transformer file {filepath.name}: {file_error}", "warning")
+                    continue
             
             if all_embeddings:
                 combined = np.vstack(all_embeddings)
@@ -1079,6 +1101,22 @@ class AdvancedModelTrainer:
         y_train = y[:split_idx]
         y_test = y[split_idx:]
         
+        # Ensure XGBoost sklearn wrapper sees all possible classes
+        # by adding one dummy sample per missing class
+        # Determine the expected class range from ALL data (not just training)
+        all_classes_in_data = np.unique(y)
+        max_class = int(np.max(all_classes_in_data))
+        all_possible_classes = np.arange(max_class + 1)  # 0 to max_class inclusive
+        
+        unique_in_train = np.unique(y_train)
+        missing_classes = np.setdiff1d(all_possible_classes, unique_in_train)
+        
+        if len(missing_classes) > 0:
+            # Create dummy samples for missing classes (with small random noise)
+            X_dummy = np.random.normal(0, 0.01, size=(len(missing_classes), X_train.shape[1]))
+            X_train = np.vstack([X_train, X_dummy])
+            y_train = np.concatenate([y_train, missing_classes])
+        
         if progress_callback:
             train_class_dist = dict(zip(*np.unique(y_train, return_counts=True)))
             test_class_dist = dict(zip(*np.unique(y_test, return_counts=True)))
@@ -1089,9 +1127,10 @@ class AdvancedModelTrainer:
             progress_callback(0.2, "Building advanced XGBoost model...")
         
         # Ultra-advanced XGBoost hyperparameters (deeper, more aggressive)
+        num_classes = len(all_possible_classes)
         xgb_params = {
-            "objective": "multi:softprob" if len(np.unique(y)) > 2 else "binary:logistic",
-            "num_class": len(np.unique(y)) if len(np.unique(y)) > 2 else 2,
+            "objective": "multi:softprob",
+            "num_class": num_classes,
             # Tree structure (deeper trees for complex patterns)
             "max_depth": 10,  # Increased from 7
             "min_child_weight": 0.5,  # Decreased for deeper splits
@@ -1111,7 +1150,7 @@ class AdvancedModelTrainer:
             "random_state": 42,
             "n_jobs": -1,
             "scale_pos_weight": 1,
-            "eval_metric": "mlogloss" if len(np.unique(y)) > 2 else "logloss"
+            "eval_metric": "mlogloss"
         }
         
         # Create XGBoost model with increased estimators
@@ -1136,7 +1175,7 @@ class AdvancedModelTrainer:
             model.fit(
                 X_train, y_train,
                 eval_set=[(X_train, y_train), (X_test, y_test)],
-                eval_metric="mlogloss" if len(np.unique(y)) > 2 else "logloss",
+                eval_metric="mlogloss",
                 early_stopping_rounds=20,  # Stop if no improvement for 20 rounds
                 verbose=0,
                 callbacks=callbacks_list
@@ -1295,6 +1334,21 @@ class AdvancedModelTrainer:
         X_seq = X_scaled
         y_seq = y
         
+        # Ensure LSTM sees all possible classes by adding dummy samples BEFORE split
+        # This prevents sparse class indices from causing issues
+        all_classes_in_data = np.unique(y_seq)
+        max_class = int(np.max(all_classes_in_data))
+        all_possible_classes = np.arange(max_class + 1)  # 0 to max_class inclusive
+        
+        unique_in_data = np.unique(y_seq)
+        missing_classes = np.setdiff1d(all_possible_classes, unique_in_data)
+        
+        if len(missing_classes) > 0:
+            # Create dummy samples for missing classes (with small random noise)
+            X_dummy = np.random.normal(0, 0.01, size=(len(missing_classes), X_seq.shape[1]))
+            X_seq = np.vstack([X_seq, X_dummy])
+            y_seq = np.concatenate([y_seq, missing_classes])
+        
         if len(X_seq) < 10:
             app_log("Insufficient data for training", "warning")
             return None, {}
@@ -1319,7 +1373,7 @@ class AdvancedModelTrainer:
             progress_callback(0.2, "Building model...")
         
         # Get dimensions
-        num_classes = len(np.unique(y_seq))
+        num_classes = len(all_possible_classes)  # Use the padded class range
         num_features = X_train.shape[1]
         
         # Build model using CNN's proven architecture (dense layers)
@@ -1504,6 +1558,21 @@ class AdvancedModelTrainer:
         y_train = y[:split_idx]
         y_test = y[split_idx:]
         
+        # Ensure CatBoost sees all possible classes
+        # by adding one dummy sample per missing class
+        all_classes_in_data = np.unique(y)
+        max_class = int(np.max(all_classes_in_data))
+        all_possible_classes = np.arange(max_class + 1)  # 0 to max_class inclusive
+        
+        unique_in_train = np.unique(y_train)
+        missing_classes = np.setdiff1d(all_possible_classes, unique_in_train)
+        
+        if len(missing_classes) > 0:
+            # Create dummy samples for missing classes (with small random noise)
+            X_dummy = np.random.normal(0, 0.01, size=(len(missing_classes), X_train.shape[1]))
+            X_train = np.vstack([X_train, X_dummy])
+            y_train = np.concatenate([y_train, missing_classes])
+        
         if progress_callback:
             train_class_dist = dict(zip(*np.unique(y_train, return_counts=True)))
             test_class_dist = dict(zip(*np.unique(y_test, return_counts=True)))
@@ -1514,6 +1583,7 @@ class AdvancedModelTrainer:
             progress_callback(0.2, "Building CatBoost model...")
         
         # CatBoost hyperparameters optimized for accuracy
+        num_classes = len(all_possible_classes)
         catboost_params = {
             "iterations": config.get("epochs", 2000),  # Increased from 1000 for more learning
             "learning_rate": config.get("learning_rate", 0.03),  # Decreased for finer learning steps
@@ -1526,7 +1596,7 @@ class AdvancedModelTrainer:
             "max_ctr_complexity": 3,  # Feature interactions (higher = more complex)
             "one_hot_max_size": 255,  # Use one-hot encoding for categorical features
             "verbose": False,
-            "loss_function": "MultiClass" if len(np.unique(y)) > 2 else "Logloss",
+            "loss_function": "MultiClass",
             "eval_metric": "Accuracy",
             "random_state": 42,
             "thread_count": -1,  # Use all CPU cores
@@ -1665,6 +1735,21 @@ class AdvancedModelTrainer:
         y_train = y[:split_idx]
         y_test = y[split_idx:]
         
+        # Ensure LightGBM sees all possible classes
+        # by adding one dummy sample per missing class
+        all_classes_in_data = np.unique(y)
+        max_class = int(np.max(all_classes_in_data))
+        all_possible_classes = np.arange(max_class + 1)  # 0 to max_class inclusive
+        
+        unique_in_train = np.unique(y_train)
+        missing_classes = np.setdiff1d(all_possible_classes, unique_in_train)
+        
+        if len(missing_classes) > 0:
+            # Create dummy samples for missing classes (with small random noise)
+            X_dummy = np.random.normal(0, 0.01, size=(len(missing_classes), X_train.shape[1]))
+            X_train = np.vstack([X_train, X_dummy])
+            y_train = np.concatenate([y_train, missing_classes])
+        
         if progress_callback:
             train_class_dist = dict(zip(*np.unique(y_train, return_counts=True)))
             test_class_dist = dict(zip(*np.unique(y_test, return_counts=True)))
@@ -1675,9 +1760,10 @@ class AdvancedModelTrainer:
             progress_callback(0.2, "Building LightGBM model...")
         
         # LightGBM hyperparameters optimized for accuracy
+        num_classes = len(all_possible_classes)
         lgb_params = {
-            "objective": "multiclass" if len(np.unique(y)) > 2 else "binary",
-            "num_class": len(np.unique(y)) if len(np.unique(y)) > 2 else 1,
+            "objective": "multiclass",
+            "num_class": num_classes,
             "boosting_type": "gbdt",
             "num_leaves": 31,  # Max leaves per tree
             "max_depth": 10,  # Max tree depth
@@ -1830,11 +1916,28 @@ class AdvancedModelTrainer:
         else:
             X_seq = X_scaled
         
-        # Train-test split
-        X_train, X_test, y_train, y_test = train_test_split(
-            X_seq, y, test_size=config.get("validation_split", 0.2),
-            random_state=42
-        )
+        # Ensure Transformer sees all possible classes by adding dummy samples BEFORE split
+        # This prevents sparse class indices from causing issues
+        all_classes_in_data = np.unique(y)
+        max_class = int(np.max(all_classes_in_data))
+        all_possible_classes = np.arange(max_class + 1)  # 0 to max_class inclusive
+        
+        unique_in_data = np.unique(y)
+        missing_classes = np.setdiff1d(all_possible_classes, unique_in_data)
+        
+        if len(missing_classes) > 0:
+            # Create dummy samples for missing classes (with small random noise)
+            X_dummy = np.random.normal(0, 0.01, size=(len(missing_classes), X_seq.shape[1], X_seq.shape[2]))
+            X_seq = np.vstack([X_seq, X_dummy])
+            y = np.concatenate([y, missing_classes])
+        
+        # Train-test split (chronological split for time-aware data)
+        test_size = config.get("validation_split", 0.2)
+        split_idx = int(len(X_seq) * (1 - test_size))
+        X_train = X_seq[:split_idx]
+        X_test = X_seq[split_idx:]
+        y_train = y[:split_idx]
+        y_test = y[split_idx:]
         
         if progress_callback:
             progress_callback(0.2, "Building Advanced Transformer model...")
@@ -1842,7 +1945,7 @@ class AdvancedModelTrainer:
         # Get dimensions
         seq_length = X_train.shape[1]
         input_dim = X_train.shape[2]
-        num_classes = len(np.unique(y))
+        num_classes = len(all_possible_classes)  # Use the padded class range
         
         # Build advanced transformer model with multiple components
         input_layer = layers.Input(shape=(seq_length, input_dim))
@@ -2046,6 +2149,21 @@ class AdvancedModelTrainer:
         else:
             X_cnn = X_scaled
         
+        # Ensure CNN sees all possible classes by adding dummy samples BEFORE split
+        # This prevents sparse class indices from causing issues
+        all_classes_in_data = np.unique(y)
+        max_class = int(np.max(all_classes_in_data))
+        all_possible_classes = np.arange(max_class + 1)  # 0 to max_class inclusive
+        
+        unique_in_data = np.unique(y)
+        missing_classes = np.setdiff1d(all_possible_classes, unique_in_data)
+        
+        if len(missing_classes) > 0:
+            # Create dummy samples for missing classes (with small random noise)
+            X_dummy = np.random.normal(0, 0.01, size=(len(missing_classes), X_cnn.shape[1], X_cnn.shape[2]))
+            X_cnn = np.vstack([X_cnn, X_dummy])
+            y = np.concatenate([y, missing_classes])
+        
         # Use TIME-AWARE split for lottery data (chronological, not random)
         # Test set contains ONLY the most recent data to prevent future data leakage
         test_size = config.get("validation_split", 0.2)
@@ -2068,7 +2186,7 @@ class AdvancedModelTrainer:
         # Get dimensions
         seq_length = X_train.shape[1]
         input_dim = X_train.shape[2]
-        num_classes = len(np.unique(y))
+        num_classes = len(all_possible_classes)  # Use the padded class range
         
         # Build multi-scale CNN model
         input_layer = layers.Input(shape=(seq_length, input_dim))

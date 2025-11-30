@@ -72,6 +72,98 @@ def _get_model_types_for_game(game: str) -> List[str]:
     return model_types if model_types else ["All"]
 
 
+def _get_model_size(model_path: str) -> str:
+    """Calculate model file/directory size and return formatted string."""
+    try:
+        path = Path(model_path)
+        if not path.exists():
+            return "N/A"
+        
+        total_size = 0
+        
+        if path.is_file():
+            total_size = path.stat().st_size
+        elif path.is_dir():
+            # For directories, sum all file sizes recursively
+            for item in path.rglob("*"):
+                if item.is_file():
+                    total_size += item.stat().st_size
+        
+        # Convert to human-readable format
+        if total_size < 1024:
+            return f"{total_size} B"
+        elif total_size < 1024 * 1024:
+            return f"{total_size / 1024:.1f} KB"
+        elif total_size < 1024 * 1024 * 1024:
+            return f"{total_size / (1024 * 1024):.1f} MB"
+        else:
+            return f"{total_size / (1024 * 1024 * 1024):.1f} GB"
+    except Exception as e:
+        app_log(f"Error calculating model size: {e}", "warning")
+        return "N/A"
+
+
+def _extract_accuracy_from_metadata(meta_data: dict) -> float:
+    """Extract accuracy from nested metadata structure.
+    
+    Metadata structure can be:
+    1. Nested: {"model_type": {"accuracy": 0.95, ...}}
+    2. Flat: {"accuracy": 0.95, ...}
+    """
+    if not isinstance(meta_data, dict):
+        return 0.0
+    
+    # First check if accuracy is at top level (flat structure)
+    if "accuracy" in meta_data:
+        return meta_data.get("accuracy", 0.0)
+    
+    # Otherwise, look for nested structure: {"xgboost": {"accuracy": ...}, "cnn": {"accuracy": ...}, etc}
+    # Common model types: xgboost, catboost, lightgbm, cnn, lstm, transformer, ensemble
+    model_type_keys = ["xgboost", "catboost", "lightgbm", "cnn", "lstm", "transformer", "ensemble"]
+    
+    for key in model_type_keys:
+        if key in meta_data and isinstance(meta_data[key], dict):
+            return meta_data[key].get("accuracy", 0.0)
+    
+    # If we can't find accuracy, return 0.0
+    return 0.0
+
+
+def _extract_created_date_from_metadata(meta_data: dict) -> str:
+    """Extract creation date from nested metadata structure.
+    
+    Metadata structure can be:
+    1. Nested: {"model_type": {"timestamp": "2025-11-28T21:09:54.909031", ...}}
+    2. Flat: {"timestamp": "2025-11-28T21:09:54.909031", ...}
+    3. Alternative: {"trained_on": "2025-11-28", ...}
+    """
+    if not isinstance(meta_data, dict):
+        return None
+    
+    # Check for trained_on at top level (older format)
+    if "trained_on" in meta_data and meta_data["trained_on"]:
+        return meta_data["trained_on"]
+    
+    # Check for timestamp at top level (flat structure)
+    if "timestamp" in meta_data and meta_data["timestamp"]:
+        return meta_data["timestamp"]
+    
+    # Otherwise, look for nested structure: {"xgboost": {"timestamp": ...}, etc}
+    model_type_keys = ["xgboost", "catboost", "lightgbm", "cnn", "lstm", "transformer", "ensemble"]
+    
+    for key in model_type_keys:
+        if key in meta_data and isinstance(meta_data[key], dict):
+            # Try timestamp first
+            if "timestamp" in meta_data[key] and meta_data[key]["timestamp"]:
+                return meta_data[key]["timestamp"]
+            # Try trained_on as fallback
+            if "trained_on" in meta_data[key] and meta_data[key]["trained_on"]:
+                return meta_data[key]["trained_on"]
+    
+    # If we can't find a date, return None
+    return None
+
+
 def _get_models_for_game_and_type(game: str, model_type: str) -> List[Dict[str, Any]]:
     """Get all models for a specific game and model type."""
     models_dir = _get_models_dir()
@@ -129,8 +221,8 @@ def _get_models_for_type_dir(type_dir: Path, model_type: str) -> List[Dict[str, 
                         meta_data = json.load(f)
                         if isinstance(meta_data, dict):
                             model_info.update({
-                                "accuracy": meta_data.get("accuracy", 0.0),
-                                "created": meta_data.get("trained_on", None),
+                                "accuracy": _extract_accuracy_from_metadata(meta_data),
+                                "created": _extract_created_date_from_metadata(meta_data),
                                 "version": meta_data.get("version", "1.0"),
                                 "metadata": meta_data
                             })
@@ -167,8 +259,8 @@ def _get_models_for_type_dir(type_dir: Path, model_type: str) -> List[Dict[str, 
                         meta_data = json.load(f)
                         if isinstance(meta_data, dict):
                             model_info.update({
-                                "accuracy": meta_data.get("accuracy", 0.0),
-                                "created": meta_data.get("trained_on", None),
+                                "accuracy": _extract_accuracy_from_metadata(meta_data),
+                                "created": _extract_created_date_from_metadata(meta_data),
                                 "version": meta_data.get("version", "1.0"),
                                 "metadata": meta_data
                             })
@@ -259,15 +351,25 @@ def _create_models_table(models: List[Dict[str, Any]]) -> pd.DataFrame:
     
     data = []
     for model in models:
+        # Format created date - extract first 10 chars (YYYY-MM-DD) from ISO timestamp
+        created_date = "Unknown"
+        if model["created"]:
+            try:
+                # Handle ISO format timestamps like "2025-11-28T21:09:54.909031"
+                created_date = model["created"][:10] if len(model["created"]) >= 10 else model["created"]
+            except:
+                created_date = "Unknown"
+        
         data.append({
             "Model Name": model["name"][:40],
             "Type": model["type"],
             "Accuracy": f"{model['accuracy']:.2%}" if isinstance(model['accuracy'], (int, float)) else "N/A",
-            "Created": model["created"][:10] if model["created"] else "Unknown",
+            "Created": created_date,
             "Path": model["path"][:50]
         })
     
     return pd.DataFrame(data)
+
 
 
 
@@ -370,14 +472,23 @@ def _render_model_registry(game: str):
         if selected_model:
             st.markdown("**Model Metadata**")
             
-            col1, col2, col3 = st.columns(3)
+            # Calculate model size
+            model_size = _get_model_size(selected_model["path"])
+            
+            # Create 2x2 grid layout: Model Name & Type on top, Accuracy & Size on bottom
+            col1, col2 = st.columns(2)
             with col1:
-                st.metric("Model Name", selected_model["name"][:30])
+                st.metric("Model Name", selected_model["name"][:35])
             with col2:
-                st.metric("Type", selected_model["type"])
+                st.metric("Type", selected_model["type"].upper())
+            
+            col3, col4 = st.columns(2)
             with col3:
                 st.metric("Accuracy", f"{selected_model['accuracy']:.2%}")
+            with col4:
+                st.metric("File Size", model_size)
             
+
             if selected_model["metadata"]:
                 with st.expander("View Full Metadata"):
                     st.json(selected_model["metadata"])

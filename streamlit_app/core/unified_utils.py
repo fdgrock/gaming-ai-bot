@@ -393,6 +393,7 @@ def get_models_by_type(game: str, model_type: str) -> List[str]:
     Handles both:
     - Ensemble models (stored as folders): models/game/ensemble/ensemble_name/
     - Individual models (stored as files): models/game/type/model_name.keras or .joblib
+    - Keras models (may be stored as directories): models/game/type/model_name.keras/
     """
     try:
         game_key = sanitize_game_name(game)
@@ -400,33 +401,72 @@ def get_models_by_type(game: str, model_type: str) -> List[str]:
         model_type_normalized = model_type.lower()
         type_dir = get_models_dir() / game_key / model_type_normalized
         
+        app_log.debug(f"Looking for {model_type_normalized} models in: {type_dir}")
+        app_log.debug(f"Directory exists: {type_dir.exists()}")
+        
         if not type_dir.exists():
             app_log.warning(f"Model directory not found: {type_dir}")
             return []
         
         models = set()  # Use set to avoid duplicates
         
-        # First check for subdirectories (ensemble models stored as folders)
-        for d in type_dir.iterdir():
-            if d.is_dir():
-                models.add(d.name)
+        # List all contents of the directory for debugging
+        try:
+            all_contents = list(type_dir.iterdir())
+            app_log.debug(f"Directory contents ({len(all_contents)} items): {[c.name for c in all_contents[:20]]}")
+        except Exception as e:
+            app_log.debug(f"Could not list directory contents: {e}")
+        
+        # First check for subdirectories (ensemble models stored as folders OR Keras models saved as directories)
+        try:
+            for d in type_dir.iterdir():
+                if d.is_dir():
+                    dir_name = d.name
+                    # Check if this is a Keras model directory (ends with .keras)
+                    if dir_name.endswith('.keras'):
+                        # This is a Keras model saved as a directory - strip the .keras extension
+                        model_name = dir_name[:-6]  # Remove '.keras' suffix
+                        models.add(model_name)
+                        app_log.debug(f"Found Keras model directory: {dir_name} -> {model_name}")
+                    else:
+                        # Regular subdirectory (ensemble component)
+                        models.add(dir_name)
+                        app_log.debug(f"Found model directory: {dir_name}")
+        except Exception as e:
+            app_log.debug(f"Error iterating directories in {type_dir}: {e}")
         
         # Check for individual model files (.keras, .joblib, .h5)
-        for model_file in type_dir.glob("*"):
-            if model_file.is_file() and model_file.suffix in ['.keras', '.joblib', '.h5']:
-                # Use the stem (filename without extension) as model name
-                models.add(model_file.stem)
+        try:
+            model_files = list(type_dir.glob("*"))
+            app_log.debug(f"Glob returned {len(model_files)} items")
+            for model_file in model_files:
+                if model_file.is_file() and model_file.suffix in ['.keras', '.joblib', '.h5']:
+                    # Use the stem (filename without extension) as model name
+                    model_name = model_file.stem
+                    models.add(model_name)
+                    app_log.debug(f"Found model file: {model_name} ({model_file.suffix}) - path: {model_file}")
+                elif model_file.is_file():
+                    app_log.debug(f"Skipping file {model_file.name} (extension: {model_file.suffix})")
+        except Exception as e:
+            app_log.debug(f"Error globbing files in {type_dir}: {e}")
         
         # If no models found yet, check for metadata files (fallback)
         if not models:
-            # Look for metadata files with the pattern *_metadata.json
-            metadata_files = list(type_dir.glob("*_metadata.json"))
-            for mf in metadata_files:
-                # Extract the model name by removing the _metadata.json suffix
-                model_name = mf.name.replace("_metadata.json", "")
-                models.add(model_name)
+            try:
+                # Look for metadata files with the pattern *_metadata.json
+                metadata_files = list(type_dir.glob("*_metadata.json"))
+                app_log.debug(f"Found {len(metadata_files)} metadata files")
+                for mf in metadata_files:
+                    # Extract the model name by removing the _metadata.json suffix
+                    model_name = mf.name.replace("_metadata.json", "")
+                    models.add(model_name)
+                    app_log.debug(f"Found model metadata: {model_name}")
+            except Exception as e:
+                app_log.debug(f"Error globbing metadata files in {type_dir}: {e}")
         
-        return sorted(list(models))
+        result = sorted(list(models))
+        app_log.info(f"get_models_by_type({game}, {model_type}): Found {len(result)} models: {result}")
+        return result
     
     except Exception as e:
         app_log.error(f"Error getting models for {game}/{model_type}: {e}")

@@ -681,6 +681,149 @@ class AdvancedFeatureGenerator:
             app_log(f"Error generating Transformer embeddings: {e}", "error")
             raise
     
+    def generate_transformer_features_csv(self, raw_data: pd.DataFrame,
+                                         output_dim: int = 20) -> Tuple[pd.DataFrame, Dict[str, Any]]:
+        """
+        Generate Transformer features optimized for CSV output with exactly 20 dimensions.
+        
+        Produces features suitable for Transformer model predictions.
+        Output shape: (N, 20) - 20 engineered features per draw.
+        Format: DataFrame saved as CSV
+        """
+        try:
+            app_log(f"Generating Transformer features for CSV export (output_dim={output_dim})", "info")
+            
+            data = self._parse_numbers(raw_data)
+            max_num = 50
+            
+            # Generate base features from each draw
+            features_list = []
+            for idx in range(len(data)):
+                draw_row = data.iloc[idx]
+                numbers = draw_row["numbers_list"]
+                
+                # Create feature dict with exactly 20 features
+                features = {}
+                
+                # Statistical features (5 features)
+                stats = self._calculate_statistical_moments(numbers)
+                features['sum'] = stats.get('sum', 0)
+                features['mean'] = stats.get('mean', 0)
+                features['std'] = stats.get('std', 0)
+                features['skew'] = stats.get('skew', 0)
+                features['kurtosis'] = stats.get('kurtosis', 0)
+                
+                # Distribution features (3 features)
+                dist = self._calculate_number_distribution_features(numbers, max_num)
+                features['min_num'] = dist.get('min', 0)
+                features['max_num'] = dist.get('max', 0)
+                features['range'] = dist.get('range', 0)
+                
+                # Parity features (2 features)
+                parity = self._calculate_parity_features(numbers)
+                features['even_count'] = parity.get('even_count', 0)
+                features['odd_count'] = parity.get('odd_count', 0)
+                
+                # Spacing features (3 features)
+                spacing = self._calculate_spacing_features(numbers)
+                features['avg_gap'] = spacing.get('avg_gap', 0)
+                features['max_gap'] = spacing.get('max_gap', 0)
+                features['consecutive_pairs'] = spacing.get('consecutive_pairs', 0)
+                
+                # Temporal features (3 features)
+                temporal = self._calculate_temporal_features(data, idx)
+                features['days_since_last'] = temporal.get('days_since_last_draw', 0)
+                features['day_of_week_sin'] = temporal.get('day_of_week_sin', 0)
+                features['month_sin'] = temporal.get('month_sin', 0)
+                
+                # Bonus features (2 features)
+                bonus = self._calculate_bonus_features(data, idx)
+                features['bonus_num'] = bonus.get('bonus_number', 0)
+                features['bonus_zscore'] = bonus.get('bonus_zscore', 0)
+                
+                # Additional pattern feature (1 feature)
+                # Sum of modulo 10 differences (captures digit patterns)
+                digit_pattern = sum(abs(numbers[i] % 10 - numbers[i+1] % 10) for i in range(len(numbers)-1)) / max(1, len(numbers)-1)
+                features['digit_pattern_score'] = digit_pattern
+                
+                # Ensure exactly 20 features by padding with zeros if needed
+                while len(features) < 20:
+                    features[f'padding_{len(features)}'] = 0.0
+                
+                # Truncate to exactly 20 if we have more
+                feature_keys = sorted(list(features.keys()))[:20]
+                features = {k: features[k] for k in feature_keys}
+                
+                features_list.append(features)
+            
+            # Convert to DataFrame
+            features_df = pd.DataFrame(features_list)
+            
+            # Ensure numeric types
+            features_df = features_df.astype(float)
+            
+            # Normalize features to 0-1 range for better Transformer input
+            scaler = MinMaxScaler()
+            features_normalized = scaler.fit_transform(features_df)
+            features_df = pd.DataFrame(features_normalized, columns=features_df.columns)
+            
+            metadata = {
+                "model_type": "transformer",
+                "game": self.game,
+                "processing_mode": "csv_export",
+                "feature_count": len(features_df.columns),
+                "draw_count": len(features_df),
+                "output_format": "CSV",
+                "output_dim": output_dim,
+                "timestamp": datetime.now().isoformat(),
+                "feature_columns": list(features_df.columns),
+                "feature_categories": [
+                    "statistical (5: sum, mean, std, skew, kurtosis)",
+                    "distribution (3: min, max, range)",
+                    "parity (2: even_count, odd_count)",
+                    "spacing (3: avg_gap, max_gap, consecutive_pairs)",
+                    "temporal (3: days_since_last, day_of_week_sin, month_sin)",
+                    "bonus (2: bonus_num, bonus_zscore)",
+                    "pattern (1: digit_pattern_score)"
+                ],
+                "params": {
+                    "output_dim": output_dim,
+                    "normalization": "MinMax (0-1)",
+                    "total_features": 20
+                },
+                "raw_files": [str(f) for f in self.get_raw_files()]
+            }
+            
+            app_log(f"✓ Generated {len(features_df)} Transformer feature vectors with shape {features_df.shape}", "info")
+            return features_df, metadata
+            
+        except Exception as e:
+            app_log(f"Error generating Transformer CSV features: {e}", "error")
+            raise
+    
+    def save_transformer_features_csv(self, features_df: pd.DataFrame, metadata: Dict[str, Any]) -> bool:
+        """Save Transformer features to CSV file."""
+        try:
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            filename = f"transformer_features_{timestamp}.csv"
+            filepath = self.transformer_dir / filename
+            
+            # Save CSV
+            features_df.to_csv(filepath, index=False)
+            
+            # Also save metadata
+            metadata_file = self.transformer_dir / f"transformer_metadata_{timestamp}.json"
+            with open(metadata_file, 'w') as f:
+                json.dump(metadata, f, indent=2, default=str)
+            
+            app_log(f"✓ Saved Transformer features to {filepath}", "info")
+            app_log(f"✓ Saved metadata to {metadata_file}", "info")
+            return True
+            
+        except Exception as e:
+            app_log(f"Error saving Transformer CSV features: {e}", "error")
+            return False
+    
     def generate_xgboost_features(self, raw_data: pd.DataFrame) -> Tuple[pd.DataFrame, Dict[str, Any]]:
         """
         Generate comprehensive XGBoost features from raw lottery data.

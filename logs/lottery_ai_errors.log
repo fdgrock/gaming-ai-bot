@@ -229,3 +229,92 @@ ValueError: Could not load any ensemble models. Details:
 2025-11-28 19:48:24 - lottery_ai - ERROR - logger.py:138 -   ✗ Unknown model type: 'CatBoost_accuracy'. Must be one of: Transformer, LSTM, XGBoost, CatBoost, LightGBM, CNN
 2025-11-28 19:48:24 - lottery_ai - ERROR - logger.py:138 -   ✗ Unknown model type: 'LightGBM_accuracy'. Must be one of: Transformer, LSTM, XGBoost, CatBoost, LightGBM, CNN
 2025-11-28 19:48:25 - lottery_ai - ERROR - logger.py:138 -   ✗ Unknown model type: 'CNN_accuracy'. Must be one of: Transformer, LSTM, XGBoost, CatBoost, LightGBM, CNN
+2025-11-28 20:42:42 - lottery_ai - ERROR - logger.py:138 - Error generating Transformer CSV features: Expected 20 features, got 19
+2025-11-28 20:42:42 - lottery_ai - ERROR - logger.py:138 - Transformer generation error: Expected 20 features, got 19
+2025-11-28 20:44:46 - lottery_ai - ERROR - logger.py:138 - Error generating Transformer CSV features: 'AdvancedFeatureGenerator' object has no attribute '_calculate_frequency_distribution'
+2025-11-28 20:44:46 - lottery_ai - ERROR - logger.py:138 - Transformer generation error: 'AdvancedFeatureGenerator' object has no attribute '_calculate_frequency_distribution'
+2025-11-28 20:46:21 - lottery_ai - ERROR - logger.py:138 - Error saving Transformer CSV features: 'AdvancedFeatureGenerator' object has no attribute 'get_feature_dir'
+2025-11-28 20:51:22 - lottery_ai - ERROR - logger.py:138 - ❌ Model training error: Invalid classes inferred from unique values of `y`.  Expected: [ 0  1  2  3  4  5  6  7  8  9 10 11 12 13 14 15 16 17 18 19 20 21 22 23
+ 24 25 26], got [ 0  1  2  3  4  5  6  7  8  9 10 11 12 13 14 15 16 17 18 19 20 21 22 24
+ 25 29 32]
+2025-11-28 20:58:17 - lottery_ai - ERROR - logger.py:138 - ❌ Model training error: Invalid classes inferred from unique values of `y`.  Expected: [ 0  1  2  3  4  5  6  7  8  9 10 11 12 13 14 15 16 17 18 19 20 21 22 23
+ 24 25 26], got [ 0  1  2  3  4  5  6  7  8  9 10 11 12 13 14 15 16 17 18 19 20 21 22 24
+ 25 26 27]
+2025-11-28 20:59:16 - lottery_ai - ERROR - logger.py:138 - ❌ Model training error: Invalid classes inferred from unique values of `y`.  Expected: [ 0  1  2  3  4  5  6  7  8  9 10 11 12 13 14 15 16 17 18 19 20 21 22 23
+ 24 25 26], got [ 0  1  2  3  4  5  6  7  8  9 10 11 12 13 14 15 16 17 18 19 20 21 22 24
+ 25 26 27]
+2025-11-28 21:02:10 - lottery_ai - ERROR - logger.py:138 - ❌ Model training error: Invalid classes inferred from unique values of `y`.  Expected: [ 0  1  2  3  4  5  6  7  8  9 10 11 12 13 14 15 16 17 18 19 20 21 22 23
+ 24 25 26 27 28], got [ 0  1  2  3  4  5  6  7  8  9 10 11 12 13 14 15 16 17 18 19 20 21 22 23
+ 24 25 26 29 32]
+2025-11-28 21:03:03 - lottery_ai - ERROR - logger.py:138 - ❌ Model training error: Invalid classes inferred from unique values of `y`.  Expected: [ 0  1  2  3  4  5  6  7  8  9 10 11 12 13 14 15 16 17 18 19 20 21 22 23
+ 24 25 26 27 28], got [ 0  1  2  3  4  5  6  7  8  9 10 11 12 13 14 15 16 17 18 19 20 21 22 23
+ 24 25 26 29 32]
+2025-11-28 21:57:59 - lottery_ai - ERROR - logger.py:138 - ❌ Model training error: Graph execution error:
+
+Detected at node compile_loss/sparse_categorical_crossentropy/SparseSoftmaxCrossEntropyWithLogits/SparseSoftmaxCrossEntropyWithLogits defined at (most recent call last):
+  File "C:\Python313\Lib\threading.py", line 1014, in _bootstrap
+
+  File "C:\Python313\Lib\threading.py", line 1043, in _bootstrap_inner
+
+  File "C:\Python313\Lib\threading.py", line 994, in run
+
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\venv\Lib\site-packages\streamlit\runtime\scriptrunner\script_runner.py", line 378, in _run_script_thread
+
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\venv\Lib\site-packages\streamlit\runtime\scriptrunner\script_runner.py", line 685, in _run_script
+
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\venv\Lib\site-packages\streamlit\runtime\scriptrunner\exec_code.py", line 128, in exec_func_with_error_handling
+
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\venv\Lib\site-packages\streamlit\runtime\scriptrunner\script_runner.py", line 669, in code_to_exec
+
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\app.py", line 482, in <module>
+
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\app.py", line 456, in main
+
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\app.py", line 194, in run
+
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\app.py", line 358, in _render_main_content
+
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\streamlit_app\registry\page_registry.py", line 818, in navigate_to_page
+
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\streamlit_app\registry\page_registry.py", line 878, in load_page
+
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\streamlit_app\pages\data_training.py", line 155, in render_data_training_page
+
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\streamlit_app\pages\data_training.py", line 1552, in _render_model_training
+
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\streamlit_app\pages\data_training.py", line 1790, in _train_advanced_model
+
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\streamlit_app\services\advanced_model_training.py", line 2185, in train_cnn
+
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\venv\Lib\site-packages\keras\src\utils\traceback_utils.py", line 117, in error_handler
+
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\venv\Lib\site-packages\keras\src\backend\tensorflow\trainer.py", line 377, in fit
+
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\venv\Lib\site-packages\keras\src\backend\tensorflow\trainer.py", line 220, in function
+
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\venv\Lib\site-packages\keras\src\backend\tensorflow\trainer.py", line 133, in multi_step_on_iterator
+
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\venv\Lib\site-packages\keras\src\backend\tensorflow\trainer.py", line 114, in one_step_on_data
+
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\venv\Lib\site-packages\keras\src\backend\tensorflow\trainer.py", line 61, in train_step
+
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\venv\Lib\site-packages\keras\src\trainers\trainer.py", line 383, in _compute_loss
+
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\venv\Lib\site-packages\keras\src\trainers\trainer.py", line 351, in compute_loss
+
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\venv\Lib\site-packages\keras\src\trainers\compile_utils.py", line 690, in __call__
+
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\venv\Lib\site-packages\keras\src\trainers\compile_utils.py", line 699, in call
+
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\venv\Lib\site-packages\keras\src\losses\loss.py", line 67, in __call__
+
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\venv\Lib\site-packages\keras\src\losses\losses.py", line 33, in call
+
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\venv\Lib\site-packages\keras\src\losses\losses.py", line 2330, in sparse_categorical_crossentropy
+
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\venv\Lib\site-packages\keras\src\ops\nn.py", line 2008, in sparse_categorical_crossentropy
+
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\venv\Lib\site-packages\keras\src\backend\tensorflow\nn.py", line 753, in sparse_categorical_crossentropy
+
+Received a label value of 32 which is outside the valid range of [0, 28).  Label values: 0 11 5 0 2 4 10 5 21 0 1 0 17 3 2 17 1 10 6 8 0 6 20 32 0 1 6 9 4 4 7 10 6 8 10 1 2 3 6 1 6 10 4 12 8 1 0 0 2 3 8 2 2 11 4 2 13 2 7 16 1 6 7 10
+	 [[{{node compile_loss/sparse_categorical_crossentropy/SparseSoftmaxCrossEntropyWithLogits/SparseSoftmaxCrossEntropyWithLogits}}]] [Op:__inference_multi_step_on_iterator_6847]
