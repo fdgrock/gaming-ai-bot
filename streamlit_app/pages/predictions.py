@@ -151,7 +151,7 @@ def _get_model_feature_count(models_dir: Path, model_type: str, game_folder: str
     
     Args:
         models_dir: Path to models directory
-        model_type: Model type (lowercase, e.g., 'xgboost', 'catboost')
+        model_type: Model type (lowercase, e.g., 'xgboost', 'catboost', 'transformer')
         game_folder: Game folder name (e.g., 'lotto_6_49')
     
     Returns:
@@ -163,7 +163,13 @@ def _get_model_feature_count(models_dir: Path, model_type: str, game_folder: str
             return None
         
         # Get the latest model
-        model_files = sorted(list(model_type_dir.glob(f"{model_type}_{game_folder}_*.joblib")))
+        # For deep learning models (transformer, cnn), look for .keras files
+        # For others (catboost, xgboost, lightgbm), look for .joblib files
+        if model_type in ["transformer", "cnn"]:
+            model_files = sorted(list(model_type_dir.glob(f"{model_type}_{game_folder}_*.keras")))
+        else:
+            model_files = sorted(list(model_type_dir.glob(f"{model_type}_{game_folder}_*.joblib")))
+        
         if not model_files:
             return None
         
@@ -2200,7 +2206,7 @@ def _generate_single_model_predictions(game: str, count: int, mode: str, model_t
                 training_features = None
         
         elif model_type_lower == "transformer":
-            # Transformer uses CSV features: (N, 20)
+            # Transformer uses CSV features: (N, 20) but model may expect different dim (28)
             feature_files = sorted(list(data_dir.glob(f"features/{model_type_lower}/{game_folder}/*.csv")))
             if feature_files:
                 try:
@@ -2208,14 +2214,17 @@ def _generate_single_model_predictions(game: str, count: int, mode: str, model_t
                     # Filter to numeric columns only
                     numeric_cols = features_df.select_dtypes(include=[np.number]).columns
                     training_features = features_df[numeric_cols]
-                    feature_dim = len(numeric_cols)
-                    app_logger.info(f"Loaded Transformer features from {feature_files[-1].name} with shape {training_features.shape}")
+                    # Get expected input dimension from model metadata (not from file columns)
+                    feature_dim = _get_model_feature_count(models_dir, model_type_lower, game_folder) or len(numeric_cols)
+                    app_logger.info(f"Loaded Transformer features from {feature_files[-1].name} with shape {training_features.shape}, using feature_dim={feature_dim}")
                 except Exception as e:
                     app_logger.warning(f"Could not load Transformer features: {e}, using random features")
                     training_features = None
+                    feature_dim = _get_model_feature_count(models_dir, model_type_lower, game_folder) or 28
             else:
                 app_logger.warning(f"No Transformer features found, using random fallback")
                 training_features = None
+                feature_dim = _get_model_feature_count(models_dir, model_type_lower, game_folder) or 28
         
         else:
             # Boosting models (CatBoost, LightGBM, XGBoost) use CSV feature files
@@ -2233,8 +2242,10 @@ def _generate_single_model_predictions(game: str, count: int, mode: str, model_t
                     # Filter to numeric columns only
                     numeric_cols = features_df.select_dtypes(include=[np.number]).columns
                     training_features = features_df[numeric_cols]
-                    feature_dim = len(numeric_cols)  # Use actual number of numeric columns
-                    app_logger.info(f"Loaded engineered features from {feature_files[-1].name} with shape {training_features.shape}")
+                    # Use model's expected feature count, not the file's column count
+                    # (padding will be applied if feature file has fewer columns than model expects)
+                    feature_dim = _get_model_feature_count(models_dir, model_type_lower, game_folder) or len(numeric_cols)
+                    app_logger.info(f"Loaded engineered features from {feature_files[-1].name} with shape {training_features.shape}, using feature_dim={feature_dim}")
                 except Exception as e:
                     app_logger.warning(f"Could not load engineered features: {e}, using random features")
                     training_features = None
@@ -2364,8 +2375,10 @@ def _generate_single_model_predictions(game: str, count: int, mode: str, model_t
                     # Fallback to random if no training data
                     if model_type_lower == "lstm":
                         random_input = rng.randn(1, 25, 45)
+                        feature_vector = rng.randn(25 * 45)  # Flatten for noise generation
                     else:
                         random_input = rng.randn(1, feature_dim)
+                        feature_vector = rng.randn(feature_dim)  # Create feature vector for noise generation
                 
                 # Scale input (but handle each model type appropriately)
                 if model_type_lower == "lstm":
@@ -2391,8 +2404,17 @@ def _generate_single_model_predictions(game: str, count: int, mode: str, model_t
                     # Reshape to (1, 72, 1) for model input
                     random_input_scaled = cnn_input.reshape(1, 72, 1)
                 elif model_type_lower == "transformer":
-                    # Transformer embeddings are already normalized
-                    random_input_scaled = random_input
+                    # Transformer expects (1, feature_dim, 1) - need to pad features and reshape
+                    transformer_input = random_input.copy()  # Shape: (1, current_features)
+                    if transformer_input.shape[1] < feature_dim:
+                        # Pad with zeros to reach expected feature dimension
+                        padding = np.zeros((transformer_input.shape[0], feature_dim - transformer_input.shape[1]))
+                        transformer_input = np.hstack([transformer_input, padding])
+                    elif transformer_input.shape[1] > feature_dim:
+                        # Truncate to expected feature dimension
+                        transformer_input = transformer_input[:, :feature_dim]
+                    # Reshape to (1, feature_dim, 1) for model input
+                    random_input_scaled = transformer_input.reshape(1, feature_dim, 1)
                 else:
                     # Boosting models need scaling
                     random_input_scaled = active_scaler.transform(random_input)
@@ -2432,8 +2454,17 @@ def _generate_single_model_predictions(game: str, count: int, mode: str, model_t
                                 attempt_input = attempt_input[:, :72]
                             # CNN embeddings are already normalized, no scaling needed
                             attempt_scaled = attempt_input.reshape(1, 72, 1)
+                        elif model_type_lower == "transformer":
+                            # Transformer expects (1, feature_dim, 1) - need to pad and reshape
+                            attempt_input = attempt_input.reshape(1, -1)
+                            if attempt_input.shape[1] < feature_dim:
+                                padding = np.zeros((attempt_input.shape[0], feature_dim - attempt_input.shape[1]))
+                                attempt_input = np.hstack([attempt_input, padding])
+                            elif attempt_input.shape[1] > feature_dim:
+                                attempt_input = attempt_input[:, :feature_dim]
+                            attempt_scaled = attempt_input.reshape(1, feature_dim, 1)
                         else:
-                            # Transformer - already normalized
+                            # Other models (boosting) - already scaled
                             attempt_input = attempt_input.reshape(1, -1)
                             attempt_scaled = attempt_input
                         
@@ -2500,6 +2531,7 @@ def _generate_single_model_predictions(game: str, count: int, mode: str, model_t
                 else:
                     # Fallback to random if no training data
                     random_input = rng.randn(1, feature_dim)
+                    feature_vector = random_input.flatten()  # Create feature vector for noise generation in loops
                 
                 # Scale the input (scaler was fit on actual feature dimensions)
                 try:
