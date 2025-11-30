@@ -333,6 +333,16 @@ class EnhancedPageRegistry:
                     'render_function': 'render_data_training_page',
                     'icon': '🎓',
                     'tags': ['training', 'data', 'pipeline']
+                },
+                {
+                    'name': 'advanced_ml_training',
+                    'title': '🤖 Advanced ML Training',
+                    'description': 'Phase 2 model training: Tree Models, Neural Networks, Ensemble Variants',
+                    'category': PageCategory.COMPLEX,
+                    'module_path': 'streamlit_app.pages.advanced_ml_training',
+                    'render_function': 'render_advanced_ml_training_page',
+                    'icon': '🤖',
+                    'tags': ['advanced', 'ml', 'training', 'phase2', 'neural', 'ensemble']
                 }
             ]
             
