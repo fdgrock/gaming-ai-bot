@@ -470,7 +470,7 @@ if __name__ == "__main__":
     
     if args.game and args.game != "All Games":
         if "649" in args.game or args.game.lower() == "lotto 6/49":
-            config = GameConfig(name="lotto_649", num_balls=6, num_numbers=49, num_positions=6)
+            config = GameConfig(name="lotto_6_49", num_balls=6, num_numbers=49, num_positions=6)
             trainer = AdvancedTransformerModel(config)
             trainer.train_model(epochs=30, batch_size=32)
         elif "max" in args.game.lower() or args.game.lower() == "lotto max":

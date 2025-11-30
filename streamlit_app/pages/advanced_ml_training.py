@@ -10,6 +10,7 @@ import numpy as np
 from typing import Optional, Dict, Any, List
 from pathlib import Path
 import os
+import sys
 from datetime import datetime
 import subprocess
 import json
@@ -258,15 +259,53 @@ def start_training(trainer_name: str, game: str = None) -> bool:
         if game and game != "All Games":
             cmd.extend(["--game", game])
         
-        # Start process via subprocess
-        # On Windows, this will run in background
+        # Create log file for this training session
+        log_dir = PROJECT_ROOT / "logs" / "training"
+        log_dir.mkdir(parents=True, exist_ok=True)
+        
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        # Replace spaces and slashes to create valid filename
+        game_safe = game.replace(' ', '_').replace('/', '_') if game and game != "All Games" else "all_games"
+        game_suffix = f"_{game_safe}" if game and game != "All Games" else "_all_games"
+        log_file = log_dir / f"{trainer_name.replace(' ', '_')}{game_suffix}_{timestamp}.log"
+        
+        # Use subprocess.Popen with file redirection for better Windows compatibility
+        import os as os_module
+        env = os_module.environ.copy()
+        env['PYTHONUNBUFFERED'] = '1'
+        
+        # Use PIPE instead of file handle - we'll read from it in a thread
         process = subprocess.Popen(
             cmd,
             cwd=str(PROJECT_ROOT),
             stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True
+            stderr=subprocess.STDOUT,  # Merge stderr into stdout
+            text=True,
+            env=env,
+            bufsize=1,  # Line buffered
+            creationflags=0x08000000 if os_module.name == 'nt' else 0  # CREATE_NO_WINDOW on Windows
         )
+        
+        # Start a thread to capture output and write to log file
+        import threading
+        
+        def capture_output():
+            """Capture subprocess output and write to log file."""
+            try:
+                with open(str(log_file), 'w', buffering=1) as f:
+                    # Read from stdout (which includes stderr)
+                    for line in process.stdout:
+                        f.write(line)
+                        f.flush()
+            except Exception as e:
+                try:
+                    with open(str(log_file), 'a') as f:
+                        f.write(f"\n[Error capturing output: {e}]\n")
+                except:
+                    pass
+        
+        capture_thread = threading.Thread(target=capture_output, daemon=True)
+        capture_thread.start()
         
         # Store process info - only store serializable data (PID, not process object)
         if "training_processes" not in st.session_state:
@@ -282,6 +321,7 @@ def start_training(trainer_name: str, game: str = None) -> bool:
             "game": game,
             "started_at": datetime.now().isoformat(),
             "script": str(script_path),
+            "log_file": str(log_file),  # Path to log file for reading output
             "process": process  # Keep reference for immediate use in this run
         }
         
@@ -392,6 +432,62 @@ def display_process_monitor(process_key: str):
         st.metric("Elapsed", f"{elapsed.seconds // 3600}h {(elapsed.seconds % 3600) // 60}m")
 
 
+def display_training_logs_window(process_key: str, height: int = 400):
+    """
+    Display real-time training logs by reading from log file.
+    This works reliably on Windows without socket/pipe issues.
+    """
+    if "training_processes" not in st.session_state or process_key not in st.session_state.training_processes:
+        st.warning("Process information not found")
+        return
+    
+    proc_info = st.session_state.training_processes[process_key]
+    log_file = proc_info.get("log_file")
+    
+    if not log_file:
+        st.info("No log file available for this training session")
+        return
+    
+    log_output = ""
+    
+    try:
+        from pathlib import Path
+        log_path = Path(log_file)
+        
+        if log_path.exists():
+            try:
+                # Read the log file
+                with open(log_path, 'r', encoding='utf-8', errors='ignore') as f:
+                    content = f.read()
+                
+                if content.strip():
+                    # Show all content for better visibility
+                    lines = content.split('\n')
+                    # Show last 300 lines to have more context
+                    log_output = '\n'.join(lines[-300:]) if len(lines) > 300 else content
+                else:
+                    log_output = "Waiting for training output...\n"
+            except (IOError, OSError):
+                log_output = "Log file is being written. Refresh to see updates.\n"
+        else:
+            log_output = "Waiting for log file to be created...\n"
+                
+    except Exception as e:
+        log_output = f"Error reading log file: {e}\n"
+    
+    # Display log output
+    if not log_output.strip():
+        log_output = "Waiting for training output...\n"
+        
+    st.text_area(
+        "📜 Training Output",
+        value=log_output,
+        height=height,
+        disabled=True,
+        key=f"training_log_{process_key}_{time.time()}"
+    )
+
+
 # ============================================================================
 # UI Rendering Functions
 # ============================================================================
@@ -443,12 +539,32 @@ def render_phase_2a_section(game_filter: str = None):
     running_process_key = None
     if "training_processes" in st.session_state:
         for process_key, proc_info in st.session_state.training_processes.items():
-            if "Phase 2A" in proc_info["trainer_name"] and proc_info["process"].poll() is None:
-                # Filter by game if specified
-                if game_filter is None or game_filter == "All Games" or proc_info.get("game") == game_filter:
-                    training_running = True
-                    running_process_key = process_key
-                    break
+            if "Phase 2A" in proc_info["trainer_name"]:
+                process = proc_info["process"]
+                poll_result = process.poll()
+                
+                # If process has exited, check if it was successful or failed
+                if poll_result is None:
+                    # Process still running
+                    if game_filter is None or game_filter == "All Games" or proc_info.get("game") == game_filter:
+                        training_running = True
+                        running_process_key = process_key
+                        break
+                else:
+                    # Process has ended - check return code
+                    if poll_result != 0:
+                        # Process failed - show error from log file
+                        log_file = proc_info.get("log_file")
+                        error_msg = ""
+                        if log_file:
+                            try:
+                                with open(log_file, 'r', errors='ignore') as f:
+                                    error_msg = f.read()[-500:]  # Last 500 chars
+                            except:
+                                pass
+                        st.error(f"Previous training failed (exit code: {poll_result})")
+                        if error_msg:
+                            st.code(error_msg, language="text")
     
     # Training Control
     if not training_running:
@@ -484,6 +600,11 @@ def render_phase_2a_section(game_filter: str = None):
                             proc_info["process"].kill()
                             st.success("✅ Training forcefully stopped")
                         st.rerun()
+        
+        # Show training logs
+        st.divider()
+        if running_process_key:
+            display_training_logs_window(running_process_key, height=500)
     
     st.divider()
     
@@ -514,11 +635,7 @@ def render_phase_2a_section(game_filter: str = None):
         else:
             st.info(f"No data available for {game_filter}")
     
-    # Auto-refresh every 5 seconds while training
-    if training_running:
-        st.markdown("*Refreshing every 5 seconds...* ⟳")
-        time.sleep(5)
-        st.rerun()
+    # Note: Auto-refresh removed - real-time logs now provide sufficient visibility
 
 
 def render_phase_2b_section(game_filter: str = None):
@@ -535,97 +652,199 @@ def render_phase_2b_section(game_filter: str = None):
         st.markdown("### Encoder-Decoder LSTM with Luong Attention")
         st.markdown("Multi-task learning with 100-draw lookback sequences")
         
-        col1, col2, col3, col4 = st.columns(4)
+        # Check if LSTM training is running
+        lstm_training_key = None
+        if "training_processes" in st.session_state:
+            for key, proc_info in st.session_state.training_processes.items():
+                if "Phase 2B - LSTM" in key and proc_info["status"] == "running":
+                    lstm_training_key = key
+                    break
         
-        with col1:
-            st.metric(
-                "✅ Trained",
-                f"{nn_status['lstm']['trained']}/{nn_status['lstm']['total']}",
-                help="LSTM models completed"
-            )
-        
-        with col2:
-            st.metric("⏱️ Time", "30-45 min", help="Training duration")
-        
-        with col3:
-            st.metric("💾 Size", "~150MB", help="Per model size")
-        
-        with col4:
-            st.metric("💻 GPU", "Required", help="GPU memory needed")
-        
-        st.divider()
-        
-        col1, col2 = st.columns([3, 1])
-        with col1:
-            st.markdown("Start LSTM training for all games")
-        with col2:
-            if st.button("▶️ Start LSTM", key="start_lstm", use_container_width=True):
-                if start_training("Phase 2B - LSTM with Attention", game_filter):
-                    st.rerun()
+        if not lstm_training_key:
+            col1, col2, col3, col4 = st.columns(4)
+            
+            with col1:
+                st.metric(
+                    "✅ Trained",
+                    f"{nn_status['lstm']['trained']}/{nn_status['lstm']['total']}",
+                    help="LSTM models completed"
+                )
+            
+            with col2:
+                st.metric("⏱️ Time", "30-45 min", help="Training duration")
+            
+            with col3:
+                st.metric("💾 Size", "~150MB", help="Per model size")
+            
+            with col4:
+                st.metric("💻 GPU", "Required", help="GPU memory needed")
+            
+            st.divider()
+            
+            col1, col2 = st.columns([3, 1])
+            with col1:
+                st.markdown("Start LSTM training for all games")
+            with col2:
+                if st.button("▶️ Start LSTM", key="start_lstm", use_container_width=True):
+                    if start_training("Phase 2B - LSTM with Attention", game_filter):
+                        st.rerun()
+        else:
+            st.markdown("### 📊 Training in Progress...")
+            col1, col2 = st.columns([3, 1])
+            
+            with col1:
+                display_process_monitor(lstm_training_key)
+            
+            with col2:
+                if st.button("⏹️ Stop Training", key="stop_lstm", use_container_width=True):
+                    if lstm_training_key and "training_processes" in st.session_state:
+                        proc_info = st.session_state.training_processes.get(lstm_training_key)
+                        if proc_info:
+                            try:
+                                proc_info["process"].terminate()
+                                st.session_state.training_processes[lstm_training_key]["process"].wait(timeout=5)
+                                st.success("✅ Training stopped")
+                            except:
+                                proc_info["process"].kill()
+                                st.success("✅ Training forcefully stopped")
+                            st.rerun()
+            
+            # Show training logs
+            st.divider()
+            if lstm_training_key:
+                display_training_logs_window(lstm_training_key, height=500)
     
     with tab2:
         st.markdown("### Decoder-Only Transformer (GPT-like)")
         st.markdown("4-layer transformer with 8-head multi-attention")
         
-        col1, col2, col3, col4 = st.columns(4)
+        # Check if Transformer training is running
+        transformer_training_key = None
+        if "training_processes" in st.session_state:
+            for key, proc_info in st.session_state.training_processes.items():
+                if "Phase 2B - Transformer" in key and proc_info["status"] == "running":
+                    transformer_training_key = key
+                    break
         
-        with col1:
-            st.metric(
-                "✅ Trained",
-                f"{nn_status['transformer']['trained']}/{nn_status['transformer']['total']}",
-                help="Transformer models completed"
-            )
-        
-        with col2:
-            st.metric("⏱️ Time", "45-60 min", help="Training duration")
-        
-        with col3:
-            st.metric("💾 Size", "~180MB", help="Per model size")
-        
-        with col4:
-            st.metric("💻 GPU", "Required", help="GPU memory needed")
-        
-        st.divider()
-        
-        col1, col2 = st.columns([3, 1])
-        with col1:
-            st.markdown("Start Transformer training for all games")
-        with col2:
-            if st.button("▶️ Start Transformer", key="start_transformer", use_container_width=True):
-                if start_training("Phase 2B - Transformer", game_filter):
-                    st.rerun()
+        if not transformer_training_key:
+            col1, col2, col3, col4 = st.columns(4)
+            
+            with col1:
+                st.metric(
+                    "✅ Trained",
+                    f"{nn_status['transformer']['trained']}/{nn_status['transformer']['total']}",
+                    help="Transformer models completed"
+                )
+            
+            with col2:
+                st.metric("⏱️ Time", "45-60 min", help="Training duration")
+            
+            with col3:
+                st.metric("💾 Size", "~180MB", help="Per model size")
+            
+            with col4:
+                st.metric("💻 GPU", "Required", help="GPU memory needed")
+            
+            st.divider()
+            
+            col1, col2 = st.columns([3, 1])
+            with col1:
+                st.markdown("Start Transformer training for all games")
+            with col2:
+                if st.button("▶️ Start Transformer", key="start_transformer", use_container_width=True):
+                    if start_training("Phase 2B - Transformer", game_filter):
+                        st.rerun()
+        else:
+            st.markdown("### 📊 Training in Progress...")
+            col1, col2 = st.columns([3, 1])
+            
+            with col1:
+                display_process_monitor(transformer_training_key)
+            
+            with col2:
+                if st.button("⏹️ Stop Training", key="stop_transformer", use_container_width=True):
+                    if transformer_training_key and "training_processes" in st.session_state:
+                        proc_info = st.session_state.training_processes.get(transformer_training_key)
+                        if proc_info:
+                            try:
+                                proc_info["process"].terminate()
+                                st.session_state.training_processes[transformer_training_key]["process"].wait(timeout=5)
+                                st.success("✅ Training stopped")
+                            except:
+                                proc_info["process"].kill()
+                                st.success("✅ Training forcefully stopped")
+                            st.rerun()
+            
+            # Show training logs
+            st.divider()
+            if transformer_training_key:
+                display_training_logs_window(transformer_training_key, height=500)
     
     with tab3:
         st.markdown("### 1D Convolutional Neural Network")
         st.markdown("Progressive convolution blocks (64→128→256 filters)")
         
-        col1, col2, col3, col4 = st.columns(4)
+        # Check if CNN training is running
+        cnn_training_key = None
+        if "training_processes" in st.session_state:
+            for key, proc_info in st.session_state.training_processes.items():
+                if "Phase 2B - CNN" in key and proc_info["status"] == "running":
+                    cnn_training_key = key
+                    break
         
-        with col1:
-            st.metric(
-                "✅ Trained",
-                f"{nn_status['cnn']['trained']}/{nn_status['cnn']['total']}",
-                help="CNN models completed"
-            )
-        
-        with col2:
-            st.metric("⏱️ Time", "15-25 min", help="Training duration")
-        
-        with col3:
-            st.metric("💾 Size", "~120MB", help="Per model size")
-        
-        with col4:
-            st.metric("💻 CPU", "Sufficient", help="GPU optional")
-        
-        st.divider()
-        
-        col1, col2 = st.columns([3, 1])
-        with col1:
-            st.markdown("Start CNN training for all games")
-        with col2:
-            if st.button("▶️ Start CNN", key="start_cnn", use_container_width=True):
-                if start_training("Phase 2B - CNN", game_filter):
-                    st.rerun()
+        if not cnn_training_key:
+            col1, col2, col3, col4 = st.columns(4)
+            
+            with col1:
+                st.metric(
+                    "✅ Trained",
+                    f"{nn_status['cnn']['trained']}/{nn_status['cnn']['total']}",
+                    help="CNN models completed"
+                )
+            
+            with col2:
+                st.metric("⏱️ Time", "15-25 min", help="Training duration")
+            
+            with col3:
+                st.metric("💾 Size", "~120MB", help="Per model size")
+            
+            with col4:
+                st.metric("💻 CPU", "Sufficient", help="GPU optional")
+            
+            st.divider()
+            
+            col1, col2 = st.columns([3, 1])
+            with col1:
+                st.markdown("Start CNN training for all games")
+            with col2:
+                if st.button("▶️ Start CNN", key="start_cnn", use_container_width=True):
+                    if start_training("Phase 2B - CNN", game_filter):
+                        st.rerun()
+        else:
+            st.markdown("### 📊 Training in Progress...")
+            col1, col2 = st.columns([3, 1])
+            
+            with col1:
+                display_process_monitor(cnn_training_key)
+            
+            with col2:
+                if st.button("⏹️ Stop Training", key="stop_cnn", use_container_width=True):
+                    if cnn_training_key and "training_processes" in st.session_state:
+                        proc_info = st.session_state.training_processes.get(cnn_training_key)
+                        if proc_info:
+                            try:
+                                proc_info["process"].terminate()
+                                st.session_state.training_processes[cnn_training_key]["process"].wait(timeout=5)
+                                st.success("✅ Training stopped")
+                            except:
+                                proc_info["process"].kill()
+                                st.success("✅ Training forcefully stopped")
+                            st.rerun()
+            
+            # Show training logs
+            st.divider()
+            if cnn_training_key:
+                display_training_logs_window(cnn_training_key, height=500)
 
 
 def render_phase_2c_section(game_filter: str = None):
@@ -638,57 +857,125 @@ def render_phase_2c_section(game_filter: str = None):
     
     # Transformer Variants
     with st.expander("🔀 **Transformer Variants** - 5 instances per game", expanded=True):
-        st.markdown("**Description:** 5 Transformer instances with different random seeds and bootstrap sampling")
+        # Check if Transformer Variants training is running
+        tf_variants_training_key = None
+        if "training_processes" in st.session_state:
+            for key, proc_info in st.session_state.training_processes.items():
+                if "Ensemble Variants - Transformer" in key and proc_info["status"] == "running":
+                    tf_variants_training_key = key
+                    break
         
-        tf_col1, tf_col2, tf_col3, tf_col4 = st.columns(4)
-        
-        with tf_col1:
-            st.metric(
-                "✅ Trained",
-                f"{ensemble_status['transformer_variants']['trained']}/{ensemble_status['transformer_variants']['total']}",
-            )
-        
-        with tf_col2:
-            st.metric("⏱️ Estimated Time", "90-120 min")
-        
-        with tf_col3:
-            st.metric("💾 Total Size", "~900MB")
-        
-        with tf_col4:
-            st.metric("💻 Compute", "GPU Required")
-        
-        st.write("")
-        if st.button("▶️ Start Transformer Variants Training", key="start_tf_variants", use_container_width=True):
-            if start_training("Ensemble Variants - Transformer", game_filter):
-                st.rerun()
+        if not tf_variants_training_key:
+            st.markdown("**Description:** 5 Transformer instances with different random seeds and bootstrap sampling")
+            
+            tf_col1, tf_col2, tf_col3, tf_col4 = st.columns(4)
+            
+            with tf_col1:
+                st.metric(
+                    "✅ Trained",
+                    f"{ensemble_status['transformer_variants']['trained']}/{ensemble_status['transformer_variants']['total']}",
+                )
+            
+            with tf_col2:
+                st.metric("⏱️ Estimated Time", "90-120 min")
+            
+            with tf_col3:
+                st.metric("💾 Total Size", "~900MB")
+            
+            with tf_col4:
+                st.metric("💻 Compute", "GPU Required")
+            
+            st.write("")
+            if st.button("▶️ Start Transformer Variants Training", key="start_tf_variants", use_container_width=True):
+                if start_training("Ensemble Variants - Transformer", game_filter):
+                    st.rerun()
+        else:
+            st.markdown("### 📊 Training in Progress...")
+            col1, col2 = st.columns([3, 1])
+            
+            with col1:
+                display_process_monitor(tf_variants_training_key)
+            
+            with col2:
+                if st.button("⏹️ Stop Training", key="stop_tf_variants", use_container_width=True):
+                    if tf_variants_training_key and "training_processes" in st.session_state:
+                        proc_info = st.session_state.training_processes.get(tf_variants_training_key)
+                        if proc_info:
+                            try:
+                                proc_info["process"].terminate()
+                                st.session_state.training_processes[tf_variants_training_key]["process"].wait(timeout=5)
+                                st.success("✅ Training stopped")
+                            except:
+                                proc_info["process"].kill()
+                                st.success("✅ Training forcefully stopped")
+                            st.rerun()
+            
+            # Show training logs
+            st.divider()
+            if tf_variants_training_key:
+                display_training_logs_window(tf_variants_training_key, height=500)
     
     st.write("")
     
     # LSTM Variants
     with st.expander("🔗 **LSTM Variants** - 3 instances per game", expanded=True):
-        st.markdown("**Description:** 3 LSTM instances with different random seeds and bootstrap sampling")
+        # Check if LSTM Variants training is running
+        lstm_variants_training_key = None
+        if "training_processes" in st.session_state:
+            for key, proc_info in st.session_state.training_processes.items():
+                if "Ensemble Variants - LSTM" in key and proc_info["status"] == "running":
+                    lstm_variants_training_key = key
+                    break
         
-        lstm_col1, lstm_col2, lstm_col3, lstm_col4 = st.columns(4)
-        
-        with lstm_col1:
-            st.metric(
-                "✅ Trained",
-                f"{ensemble_status['lstm_variants']['trained']}/{ensemble_status['lstm_variants']['total']}",
-            )
-        
-        with lstm_col2:
-            st.metric("⏱️ Estimated Time", "60-90 min")
-        
-        with lstm_col3:
-            st.metric("💾 Total Size", "~450MB")
-        
-        with lstm_col4:
-            st.metric("💻 Compute", "GPU Required")
-        
-        st.write("")
-        if st.button("▶️ Start LSTM Variants Training", key="start_lstm_variants", use_container_width=True):
-            if start_training("Ensemble Variants - LSTM", game_filter):
-                st.rerun()
+        if not lstm_variants_training_key:
+            st.markdown("**Description:** 3 LSTM instances with different random seeds and bootstrap sampling")
+            
+            lstm_col1, lstm_col2, lstm_col3, lstm_col4 = st.columns(4)
+            
+            with lstm_col1:
+                st.metric(
+                    "✅ Trained",
+                    f"{ensemble_status['lstm_variants']['trained']}/{ensemble_status['lstm_variants']['total']}",
+                )
+            
+            with lstm_col2:
+                st.metric("⏱️ Estimated Time", "60-90 min")
+            
+            with lstm_col3:
+                st.metric("💾 Total Size", "~450MB")
+            
+            with lstm_col4:
+                st.metric("💻 Compute", "GPU Required")
+            
+            st.write("")
+            if st.button("▶️ Start LSTM Variants Training", key="start_lstm_variants", use_container_width=True):
+                if start_training("Ensemble Variants - LSTM", game_filter):
+                    st.rerun()
+        else:
+            st.markdown("### 📊 Training in Progress...")
+            col1, col2 = st.columns([3, 1])
+            
+            with col1:
+                display_process_monitor(lstm_variants_training_key)
+            
+            with col2:
+                if st.button("⏹️ Stop Training", key="stop_lstm_variants", use_container_width=True):
+                    if lstm_variants_training_key and "training_processes" in st.session_state:
+                        proc_info = st.session_state.training_processes.get(lstm_variants_training_key)
+                        if proc_info:
+                            try:
+                                proc_info["process"].terminate()
+                                st.session_state.training_processes[lstm_variants_training_key]["process"].wait(timeout=5)
+                                st.success("✅ Training stopped")
+                            except:
+                                proc_info["process"].kill()
+                                st.success("✅ Training forcefully stopped")
+                            st.rerun()
+            
+            # Show training logs
+            st.divider()
+            if lstm_variants_training_key:
+                display_training_logs_window(lstm_variants_training_key, height=500)
 
 
 def render_training_summary(game_filter: str = None):
@@ -743,6 +1030,229 @@ def render_training_summary(game_filter: str = None):
     st.markdown("**⚠️ Note:** Phases can run in parallel if GPU resources are sufficient.")
 
 
+def render_phase_1_section(game_filter: str = None):
+    """Render Phase 1 - Feature Generation section."""
+    st.markdown("## ⚙️ Phase 1: Advanced Feature Generation")
+    
+    st.markdown("""
+    Advanced features have been generated for all lottery games. These include:
+    - **Temporal Features**: Time-series patterns and dependencies
+    - **Global Features**: Statistical aggregations and distributions
+    - **Distribution Targets**: Target encodings for distribution positions
+    - **Skipgram Targets**: Sequence prediction targets
+    """)
+    
+    col1, col2 = st.columns([3, 1])
+    
+    with col1:
+        st.markdown("### 📊 Feature Status")
+        st.markdown("Checking feature availability for all games...")
+    
+    with col2:
+        # Check if features exist for all games
+        games_to_check = {
+            "lotto_6_49": "Lotto 6/49",
+            "lotto_max": "Lotto Max"
+        }
+        
+        features_status = {}
+        all_features = ["temporal_features.parquet", "global_features.parquet", 
+                       "distribution_targets.parquet", "skipgram_targets.parquet"]
+        
+        for game_short, game_name in games_to_check.items():
+            features_dir = PROJECT_ROOT / "data" / "features" / "advanced" / game_short
+            all_exist = all((features_dir / f).exists() for f in all_features)
+            features_status[game_name] = all_exist
+        
+        all_complete = all(features_status.values())
+        if all_complete:
+            st.success("✅ All features exist")
+        else:
+            missing = [g for g, exists in features_status.items() if not exists]
+            st.warning(f"⚠️ Missing features for: {', '.join(missing)}")
+    
+    st.divider()
+    
+    # Feature status table
+    st.markdown("### 📋 Feature Details")
+    
+    status_data = []
+    for game_short, game_name in games_to_check.items():
+        features_dir = PROJECT_ROOT / "data" / "features" / "advanced" / game_short
+        status_data.append({
+            "Game": game_name,
+            "Temporal": "✅" if (features_dir / "temporal_features.parquet").exists() else "❌",
+            "Global": "✅" if (features_dir / "global_features.parquet").exists() else "❌",
+            "Distribution": "✅" if (features_dir / "distribution_targets.parquet").exists() else "❌",
+            "Skipgram": "✅" if (features_dir / "skipgram_targets.parquet").exists() else "❌",
+            "Status": "🟢 Ready" if all((features_dir / f).exists() for f in all_features) else "🔴 Incomplete"
+        })
+    
+    df_status = pd.DataFrame(status_data)
+    st.dataframe(df_status, use_container_width=True, hide_index=True)
+    
+    st.divider()
+    
+    # Training control
+    if "feature_generation_processes" not in st.session_state:
+        st.session_state.feature_generation_processes = {}
+    
+    feature_gen_running = False
+    running_process_key = None
+    
+    if "feature_generation_processes" in st.session_state:
+        for process_key, proc_info in st.session_state.feature_generation_processes.items():
+            process = proc_info["process"]
+            poll_result = process.poll()
+            
+            if poll_result is None:
+                feature_gen_running = True
+                running_process_key = process_key
+                break
+            else:
+                if poll_result != 0:
+                    log_file = proc_info.get("log_file")
+                    error_msg = ""
+                    if log_file and Path(log_file).exists():
+                        try:
+                            with open(log_file, 'r', errors='ignore') as f:
+                                error_msg = f.read()[-500:]
+                        except:
+                            pass
+                    st.error(f"Feature generation failed (exit code: {poll_result})")
+                    if error_msg:
+                        st.code(error_msg, language="text")
+    
+    if not feature_gen_running:
+        # Show regenerate button if features exist, else show "Generate"
+        all_complete = all(features_status.values())
+        
+        col1, col2 = st.columns([3, 1])
+        
+        with col1:
+            if all_complete:
+                st.markdown("### ✅ Features Ready")
+                st.markdown("All advanced features have been generated. You can proceed to training phases.")
+            else:
+                st.markdown("### 🚀 Generate Features")
+                st.markdown("Generate missing advanced features for model training.")
+        
+        with col2:
+            button_text = "🔄 Regenerate" if all_complete else "▶️ Generate"
+            if st.button(button_text, key="start_feature_gen", use_container_width=True):
+                # Generate for the selected game or all games
+                games_to_gen = ["Lotto 6/49", "Lotto Max"] if game_filter == "All Games" else [game_filter]
+                
+                cmd = [sys.executable, str(PROJECT_ROOT / "regenerate_features.py")]
+                
+                log_dir = PROJECT_ROOT / "logs" / "training"
+                log_dir.mkdir(parents=True, exist_ok=True)
+                
+                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                log_file = log_dir / f"feature_generation_{timestamp}.log"
+                
+                import os as os_module
+                env = os_module.environ.copy()
+                env['PYTHONUNBUFFERED'] = '1'
+                
+                process = subprocess.Popen(
+                    cmd,
+                    cwd=str(PROJECT_ROOT),
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.STDOUT,
+                    text=True,
+                    env=env,
+                    bufsize=1,
+                    creationflags=0x08000000 if os_module.name == 'nt' else 0
+                )
+                
+                import threading
+                
+                def capture_output():
+                    try:
+                        with open(str(log_file), 'w', buffering=1) as f:
+                            for line in process.stdout:
+                                f.write(line)
+                                f.flush()
+                    except Exception as e:
+                        try:
+                            with open(str(log_file), 'a') as f:
+                                f.write(f"\n[Error: {e}]\n")
+                        except:
+                            pass
+                
+                capture_thread = threading.Thread(target=capture_output, daemon=True)
+                capture_thread.start()
+                
+                if "feature_generation_processes" not in st.session_state:
+                    st.session_state.feature_generation_processes = {}
+                
+                process_key = f"features_{datetime.now().timestamp()}"
+                st.session_state.feature_generation_processes[process_key] = {
+                    "pid": process.pid,
+                    "process": process,
+                    "log_file": str(log_file),
+                    "started_at": datetime.now().isoformat(),
+                    "command": " ".join(cmd)
+                }
+                
+                st.success("✅ Feature generation started")
+                st.rerun()
+    
+    else:
+        st.markdown("### 📊 Feature Generation in Progress...")
+        
+        if running_process_key:
+            proc_info = st.session_state.feature_generation_processes[running_process_key]
+            
+            col1, col2, col3 = st.columns(3)
+            with col1:
+                st.metric("Status", "🟢 Running")
+            with col2:
+                st.metric("Process ID", proc_info["pid"])
+            with col3:
+                started_at = datetime.fromisoformat(proc_info["started_at"])
+                elapsed = datetime.now() - started_at
+                st.metric("Elapsed", f"{elapsed.seconds // 60}m {elapsed.seconds % 60}s")
+            
+            # Display logs
+            log_file = proc_info.get("log_file")
+            if log_file and Path(log_file).exists():
+                try:
+                    with open(log_file, 'r', encoding='utf-8', errors='ignore') as f:
+                        content = f.read()
+                    
+                    if content.strip():
+                        lines = content.split('\n')
+                        log_output = '\n'.join(lines[-300:]) if len(lines) > 300 else content
+                    else:
+                        log_output = "Waiting for output..."
+                except:
+                    log_output = "Reading log..."
+            else:
+                log_output = "No log file yet..."
+            
+            st.text_area(
+                "Feature Generation Output",
+                value=log_output,
+                height=400,
+                disabled=True,
+                key=f"feature_log_{running_process_key}_{int(time.time() * 1000) % 100000}"
+            )
+            
+            col1, col2 = st.columns([3, 1])
+            with col2:
+                if st.button("⏹️ Stop Generation", key="stop_feature_gen", use_container_width=True):
+                    try:
+                        proc_info["process"].terminate()
+                        proc_info["process"].wait(timeout=5)
+                        st.success("✅ Generation stopped")
+                    except:
+                        proc_info["process"].kill()
+                        st.success("✅ Generation force-stopped")
+                    st.rerun()
+
+
 def render_advanced_ml_training_page(services_registry=None, ai_engines=None, components=None) -> None:
     """Main render function for Advanced ML Training page."""
     try:
@@ -770,8 +1280,9 @@ def render_advanced_ml_training_page(services_registry=None, ai_engines=None, co
         st.divider()
         
         # Main tabs
-        tab_overview, tab_phase2a, tab_phase2b, tab_phase2c, tab_monitor = st.tabs([
+        tab_overview, tab_phase1, tab_phase2a, tab_phase2b, tab_phase2c, tab_monitor = st.tabs([
             "📊 Overview",
+            "⚙️ Phase 1",
             "🌳 Phase 2A",
             "🧠 Phase 2B",
             "🎯 Phase 2C",
@@ -780,6 +1291,9 @@ def render_advanced_ml_training_page(services_registry=None, ai_engines=None, co
         
         with tab_overview:
             render_training_summary(st.session_state.selected_ml_game)
+        
+        with tab_phase1:
+            render_phase_1_section(st.session_state.selected_ml_game)
         
         with tab_phase2a:
             render_phase_2a_section(st.session_state.selected_ml_game)

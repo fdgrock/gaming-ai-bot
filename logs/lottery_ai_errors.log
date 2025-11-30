@@ -330,3 +330,4 @@ Received a label value of 32 which is outside the valid range of [0, 28).  Label
 2025-11-30 10:34:25 - lottery_ai - ERROR - logger.py:138 - Error rendering Advanced ML Training page: No module named 'psutil'
 2025-11-30 10:36:16 - lottery_ai - ERROR - logger.py:138 - Error rendering Advanced ML Training page: No module named 'psutil'
 2025-11-30 10:37:10 - lottery_ai - ERROR - logger.py:138 - Error rendering Advanced ML Training page: No module named 'psutil'
+2025-11-30 11:44:55 - lottery_ai - ERROR - logger.py:138 - Error starting training: [Errno 2] No such file or directory: 'C:\\Users\\dian_\\OneDrive\\1 - My Documents\\9 - Rocket Innovations Inc\\gaming-ai-bot\\logs\\training\\Phase_2A_-_Tree_Models_Lotto_6\\49_20251130_114455.log'

@@ -10037,3 +10037,90 @@ Received a label value of 32 which is outside the valid range of [0, 28).  Label
 2025-11-30 11:15:49 - lottery_ai - INFO - logger.py:138 - Advanced ML Training page rendered
 2025-11-30 11:15:55 - lottery_ai - INFO - logger.py:138 - Advanced ML Training page rendered
 2025-11-30 11:15:58 - lottery_ai - INFO - logger.py:138 - Advanced ML Training page rendered
+2025-11-30 11:22:14 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
+2025-11-30 11:36:47 - lottery_ai - INFO - logger.py:138 - Dashboard rendered successfully
+2025-11-30 11:37:09 - lottery_ai - INFO - logger.py:138 - Advanced ML Training page rendered
+2025-11-30 11:38:07 - lottery_ai - INFO - logger.py:138 - Advanced ML Training page rendered
+2025-11-30 11:38:12 - lottery_ai - INFO - logger.py:138 - Started training process: Phase 2A - Tree Models - Lotto 6/49 (PID: 51980)
+2025-11-30 11:38:18 - lottery_ai - INFO - logger.py:138 - Advanced ML Training page rendered
+2025-11-30 11:38:25 - lottery_ai - INFO - logger.py:138 - Started training process: Phase 2A - Tree Models - Lotto 6/49 (PID: 48196)
+2025-11-30 11:38:31 - lottery_ai - INFO - logger.py:138 - Advanced ML Training page rendered
+2025-11-30 11:38:53 - lottery_ai - INFO - logger.py:138 - Started training process: Phase 2A - Tree Models - Lotto 6/49 (PID: 15280)
+2025-11-30 11:38:59 - lottery_ai - INFO - logger.py:138 - Advanced ML Training page rendered
+2025-11-30 11:39:10 - lottery_ai - INFO - logger.py:138 - Started training process: Phase 2A - Tree Models - Lotto 6/49 (PID: 24996)
+2025-11-30 11:39:16 - lottery_ai - INFO - logger.py:138 - Advanced ML Training page rendered
+2025-11-30 11:39:24 - lottery_ai - INFO - logger.py:138 - Started training process: Phase 2A - Tree Models - Lotto 6/49 (PID: 49012)
+2025-11-30 11:39:31 - lottery_ai - INFO - logger.py:138 - Advanced ML Training page rendered
+2025-11-30 11:39:43 - lottery_ai - INFO - logger.py:138 - Started training process: Phase 2A - Tree Models - Lotto 6/49 (PID: 8816)
+2025-11-30 11:39:49 - lottery_ai - INFO - logger.py:138 - Advanced ML Training page rendered
+2025-11-30 11:40:01 - lottery_ai - INFO - logger.py:138 - Started training process: Phase 2A - Tree Models - Lotto 6/49 (PID: 39368)
+2025-11-30 11:40:08 - lottery_ai - INFO - logger.py:138 - Advanced ML Training page rendered
+2025-11-30 11:44:22 - lottery_ai - INFO - logger.py:138 - Dashboard rendered successfully
+2025-11-30 11:44:44 - lottery_ai - INFO - logger.py:138 - Advanced ML Training page rendered
+2025-11-30 11:44:49 - lottery_ai - INFO - logger.py:138 - Advanced ML Training page rendered
+2025-11-30 11:44:55 - lottery_ai - ERROR - logger.py:138 - Error starting training: [Errno 2] No such file or directory: 'C:\\Users\\dian_\\OneDrive\\1 - My Documents\\9 - Rocket Innovations Inc\\gaming-ai-bot\\logs\\training\\Phase_2A_-_Tree_Models_Lotto_6\\49_20251130_114455.log'
+2025-11-30 11:44:55 - lottery_ai - INFO - logger.py:138 - Advanced ML Training page rendered
+2025-11-30 11:45:14 - lottery_ai - INFO - logger.py:138 - Advanced ML Training page rendered
+2025-11-30 11:45:19 - lottery_ai - INFO - logger.py:138 - Started training process: Phase 2A - Tree Models - Lotto Max (PID: 58248)
+2025-11-30 11:45:56 - lottery_ai - INFO - logger.py:138 - Advanced ML Training page rendered
+2025-11-30 12:17:45 - lottery_ai - INFO - logger.py:138 - Dashboard rendered successfully
+2025-11-30 12:18:09 - lottery_ai - INFO - logger.py:138 - Advanced ML Training page rendered
+2025-11-30 12:18:18 - lottery_ai - INFO - logger.py:138 - Advanced ML Training page rendered
+2025-11-30 12:18:27 - lottery_ai - INFO - logger.py:138 - Started training process: Phase 2A - Tree Models - Lotto 6/49 (PID: 37784)
+2025-11-30 12:18:27 - lottery_ai - INFO - logger.py:138 - Advanced ML Training page rendered
+2025-11-30 12:19:16 - lottery_ai - INFO - logger.py:138 - Advanced ML Training page rendered
+2025-11-30 12:19:20 - lottery_ai - INFO - logger.py:138 - Advanced ML Training page rendered
+2025-11-30 12:19:24 - lottery_ai - INFO - logger.py:138 - Started training process: Phase 2A - Tree Models - Lotto Max (PID: 51184)
+2025-11-30 12:19:24 - lottery_ai - INFO - logger.py:138 - Advanced ML Training page rendered
+2025-11-30 12:20:44 - lottery_ai - INFO - logger.py:138 - Advanced ML Training page rendered
+2025-11-30 12:23:07 - lottery_ai - INFO - logger.py:138 - Dashboard rendered successfully
+2025-11-30 12:25:03 - lottery_ai - INFO - logger.py:138 - Advanced ML Training page rendered
+2025-11-30 12:25:23 - lottery_ai - INFO - logger.py:138 - Advanced ML Training page rendered
+2025-11-30 12:25:29 - lottery_ai - INFO - logger.py:138 - Started training process: Phase 2A - Tree Models - Lotto 6/49 (PID: 61420)
+2025-11-30 12:25:30 - lottery_ai - INFO - logger.py:138 - Advanced ML Training page rendered
+2025-11-30 12:25:42 - lottery_ai - INFO - logger.py:138 - Advanced ML Training page rendered
+2025-11-30 12:26:12 - lottery_ai - INFO - logger.py:138 - Dashboard rendered successfully
+2025-11-30 12:26:21 - lottery_ai - INFO - logger.py:138 - Advanced ML Training page rendered
+2025-11-30 12:26:31 - lottery_ai - INFO - logger.py:138 - Advanced ML Training page rendered
+2025-11-30 12:26:35 - lottery_ai - INFO - logger.py:138 - Started training process: Phase 2A - Tree Models - Lotto 6/49 (PID: 30988)
+2025-11-30 12:26:36 - lottery_ai - INFO - logger.py:138 - Advanced ML Training page rendered
+2025-11-30 12:26:57 - lottery_ai - INFO - logger.py:138 - Advanced ML Training page rendered
+2025-11-30 12:43:01 - lottery_ai - INFO - logger.py:138 - Dashboard rendered successfully
+2025-11-30 12:43:10 - lottery_ai - INFO - logger.py:138 - Advanced ML Training page rendered
+2025-11-30 12:43:22 - lottery_ai - INFO - logger.py:138 - Advanced ML Training page rendered
+2025-11-30 12:43:25 - lottery_ai - INFO - logger.py:138 - Started training process: Phase 2A - Tree Models - Lotto 6/49 (PID: 5000)
+2025-11-30 12:43:26 - lottery_ai - INFO - logger.py:138 - Advanced ML Training page rendered
+2025-11-30 12:44:15 - lottery_ai - INFO - logger.py:138 - Advanced ML Training page rendered
+2025-11-30 12:46:04 - lottery_ai - INFO - logger.py:138 - Dashboard rendered successfully
+2025-11-30 12:46:16 - lottery_ai - INFO - logger.py:138 - Advanced ML Training page rendered
+2025-11-30 12:46:23 - lottery_ai - INFO - logger.py:138 - Advanced ML Training page rendered
+2025-11-30 12:46:26 - lottery_ai - INFO - logger.py:138 - Started training process: Phase 2A - Tree Models - Lotto 6/49 (PID: 40740)
+2025-11-30 12:46:27 - lottery_ai - INFO - logger.py:138 - Advanced ML Training page rendered
+2025-11-30 12:46:33 - lottery_ai - INFO - logger.py:138 - Started training process: Phase 2A - Tree Models - Lotto 6/49 (PID: 57612)
+2025-11-30 12:46:34 - lottery_ai - INFO - logger.py:138 - Advanced ML Training page rendered
+2025-11-30 12:46:46 - lottery_ai - INFO - logger.py:138 - Started training process: Phase 2A - Tree Models - Lotto 6/49 (PID: 30936)
+2025-11-30 12:46:47 - lottery_ai - INFO - logger.py:138 - Advanced ML Training page rendered
+2025-11-30 12:51:21 - lottery_ai - INFO - logger.py:138 - Dashboard rendered successfully
+2025-11-30 12:51:33 - lottery_ai - INFO - logger.py:138 - Advanced ML Training page rendered
+2025-11-30 12:51:44 - lottery_ai - INFO - logger.py:138 - Advanced ML Training page rendered
+2025-11-30 12:51:47 - lottery_ai - INFO - logger.py:138 - Started training process: Phase 2A - Tree Models - Lotto 6/49 (PID: 50004)
+2025-11-30 12:51:48 - lottery_ai - INFO - logger.py:138 - Advanced ML Training page rendered
+2025-11-30 12:53:45 - lottery_ai - INFO - logger.py:138 - Advanced ML Training page rendered
+2025-11-30 12:54:56 - lottery_ai - INFO - logger.py:138 - Dashboard rendered successfully
+2025-11-30 12:55:06 - lottery_ai - INFO - logger.py:138 - Advanced ML Training page rendered
+2025-11-30 12:55:17 - lottery_ai - INFO - logger.py:138 - Advanced ML Training page rendered
+2025-11-30 12:55:20 - lottery_ai - INFO - logger.py:138 - Started training process: Phase 2A - Tree Models - Lotto Max (PID: 712)
+2025-11-30 12:55:20 - lottery_ai - INFO - logger.py:138 - Advanced ML Training page rendered
+2025-11-30 12:55:31 - lottery_ai - INFO - logger.py:138 - Advanced ML Training page rendered
+2025-11-30 12:59:09 - lottery_ai - INFO - logger.py:138 - Dashboard rendered successfully
+2025-11-30 12:59:17 - lottery_ai - INFO - logger.py:138 - Advanced ML Training page rendered
+2025-11-30 12:59:23 - lottery_ai - INFO - logger.py:138 - Advanced ML Training page rendered
+2025-11-30 12:59:27 - lottery_ai - INFO - logger.py:138 - Started training process: Phase 2A - Tree Models - Lotto 6/49 (PID: 56168)
+2025-11-30 12:59:28 - lottery_ai - INFO - logger.py:138 - Advanced ML Training page rendered
+2025-11-30 12:59:43 - lottery_ai - INFO - logger.py:138 - Advanced ML Training page rendered
+2025-11-30 13:00:32 - lottery_ai - INFO - logger.py:138 - Advanced ML Training page rendered
+2025-11-30 13:00:38 - lottery_ai - INFO - logger.py:138 - Started training process: Phase 2A - Tree Models - Lotto Max (PID: 61016)
+2025-11-30 13:00:39 - lottery_ai - INFO - logger.py:138 - Advanced ML Training page rendered
+2025-11-30 13:00:46 - lottery_ai - INFO - logger.py:138 - Advanced ML Training page rendered
+2025-11-30 13:03:33 - lottery_ai - INFO - logger.py:138 - Dashboard rendered successfully
+2025-11-30 13:03:40 - lottery_ai - INFO - logger.py:138 - Advanced ML Training page rendered
