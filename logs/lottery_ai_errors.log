@@ -318,3 +318,15 @@ Detected at node compile_loss/sparse_categorical_crossentropy/SparseSoftmaxCross
 
 Received a label value of 32 which is outside the valid range of [0, 28).  Label values: 0 11 5 0 2 4 10 5 21 0 1 0 17 3 2 17 1 10 6 8 0 6 20 32 0 1 6 9 4 4 7 10 6 8 10 1 2 3 6 1 6 10 4 12 8 1 0 0 2 3 8 2 2 11 4 2 13 2 7 16 1 6 7 10
 	 [[{{node compile_loss/sparse_categorical_crossentropy/SparseSoftmaxCrossEntropyWithLogits/SparseSoftmaxCrossEntropyWithLogits}}]] [Op:__inference_multi_step_on_iterator_6847]
+2025-11-29 19:54:57 - lottery_ai - ERROR - logger.py:138 - Single model prediction error: catboost/libs/data/model_dataset_compatibility.cpp:72: Feature 85 is present in model but not in pool.
+2025-11-29 20:07:54 - lottery_ai - ERROR - logger.py:138 - Single model prediction error: catboost/libs/data/model_dataset_compatibility.cpp:72: Feature 85 is present in model but not in pool.
+2025-11-29 20:16:33 - lottery_ai - ERROR - logger.py:138 - Single model prediction error: Input 0 of layer "functional" is incompatible with the layer: expected shape=(None, 28, 1), found shape=(1, 20)
+2025-11-29 20:29:50 - lottery_ai - ERROR - logger.py:138 - Single model prediction error: Input 0 of layer "functional" is incompatible with the layer: expected shape=(None, 28, 1), found shape=(1, 20)
+2025-11-30 10:30:43 - lottery_ai - ERROR - logger.py:138 - Error rendering Advanced ML Training page: No module named 'psutil'
+2025-11-30 10:30:48 - lottery_ai - ERROR - logger.py:138 - Error rendering Advanced ML Training page: No module named 'psutil'
+2025-11-30 10:32:21 - lottery_ai - ERROR - logger.py:138 - Error rendering Advanced ML Training page: No module named 'psutil'
+2025-11-30 10:33:41 - lottery_ai - ERROR - logger.py:138 - Error rendering Advanced ML Training page: No module named 'psutil'
+2025-11-30 10:34:17 - lottery_ai - ERROR - logger.py:138 - Error rendering Advanced ML Training page: No module named 'psutil'
+2025-11-30 10:34:25 - lottery_ai - ERROR - logger.py:138 - Error rendering Advanced ML Training page: No module named 'psutil'
+2025-11-30 10:36:16 - lottery_ai - ERROR - logger.py:138 - Error rendering Advanced ML Training page: No module named 'psutil'
+2025-11-30 10:37:10 - lottery_ai - ERROR - logger.py:138 - Error rendering Advanced ML Training page: No module named 'psutil'

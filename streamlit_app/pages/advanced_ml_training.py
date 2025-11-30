@@ -18,6 +18,12 @@ from dataclasses import dataclass
 import logging
 
 try:
+    import psutil
+except ImportError:
+    st.error("psutil not installed. Please run: pip install psutil")
+    psutil = None
+
+try:
     from ..core import (
         get_available_games,
         get_session_value,
@@ -236,26 +242,36 @@ def start_training(trainer_name: str, game: str = None) -> bool:
             st.error(f"Trainer script not found: {script_path}")
             return False
         
+        # Build command with game parameter if specified
+        cmd = [sys.executable, str(script_path)]
+        if game and game != "All Games":
+            cmd.extend(["--game", game])
+        
         # Start process via subprocess
         # On Windows, this will run in background
         process = subprocess.Popen(
-            [sys.executable, str(script_path)],
+            cmd,
             cwd=str(PROJECT_ROOT),
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             text=True
         )
         
-        # Store process info
+        # Store process info - only store serializable data (PID, not process object)
         if "training_processes" not in st.session_state:
             st.session_state.training_processes = {}
         
         process_key = f"{trainer_name}_{datetime.now().timestamp()}"
+        display_name = f"{trainer_name}" + (f" - {game}" if game and game != "All Games" else "")
+        
         st.session_state.training_processes[process_key] = {
-            "process": process,
+            "pid": process.pid,
             "trainer_name": trainer_name,
-            "started_at": datetime.now(),
-            "script": str(script_path)
+            "display_name": display_name,
+            "game": game,
+            "started_at": datetime.now().isoformat(),
+            "script": str(script_path),
+            "process": process  # Keep reference for immediate use in this run
         }
         
         # Record in history
@@ -263,14 +279,16 @@ def start_training(trainer_name: str, game: str = None) -> bool:
             st.session_state.training_history = []
         
         st.session_state.training_history.append({
-            "trainer": trainer_name,
-            "started_at": datetime.now(),
+            "trainer": display_name,
+            "started_at": datetime.now().isoformat(),
             "status": "running",
-            "process_id": process_key
+            "process_id": process_key,
+            "game": game,
+            "pid": process.pid
         })
         
-        st.success(f"✅ Started {trainer_name} training (PID: {process.pid})")
-        app_log(f"Started training process: {trainer_name} (PID: {process.pid})", "info")
+        st.success(f"✅ Started {display_name} training (PID: {process.pid})")
+        app_log(f"Started training process: {display_name} (PID: {process.pid})", "info")
         
         return True
     
@@ -289,15 +307,52 @@ def get_process_status(process_key: str) -> Dict[str, Any]:
     if not proc_info:
         return {"status": "not_found"}
     
-    process = proc_info["process"]
+    # Try to get status from process object if available (same session)
+    if "process" in proc_info and proc_info["process"] is not None:
+        try:
+            is_running = proc_info["process"].poll() is None
+            return {
+                "status": "running" if is_running else "completed",
+                "trainer": proc_info["trainer_name"],
+                "started_at": proc_info.get("started_at"),
+                "pid": proc_info["pid"],
+                "return_code": proc_info["process"].returncode if not is_running else None
+            }
+        except:
+            pass
     
-    return {
-        "status": "running" if process.poll() is None else "completed",
-        "trainer": proc_info["trainer_name"],
-        "started_at": proc_info["started_at"],
-        "pid": process.pid,
-        "return_code": process.returncode if process.poll() is not None else None
-    }
+    # Fall back to checking PID with psutil
+    try:
+        pid = proc_info.get("pid")
+        if pid and psutil.pid_exists(pid):
+            try:
+                p = psutil.Process(pid)
+                return {
+                    "status": "running",
+                    "trainer": proc_info["trainer_name"],
+                    "started_at": proc_info.get("started_at"),
+                    "pid": pid,
+                    "return_code": None
+                }
+            except psutil.NoSuchProcess:
+                return {
+                    "status": "completed",
+                    "trainer": proc_info["trainer_name"],
+                    "started_at": proc_info.get("started_at"),
+                    "pid": pid,
+                    "return_code": -1
+                }
+        else:
+            return {
+                "status": "completed",
+                "trainer": proc_info["trainer_name"],
+                "started_at": proc_info.get("started_at"),
+                "pid": pid,
+                "return_code": -1
+            }
+    except Exception as e:
+        app_log(f"Error checking process status: {e}", "error")
+        return {"status": "error", "error": str(e)}
 
 
 def display_process_monitor(process_key: str):
@@ -318,7 +373,11 @@ def display_process_monitor(process_key: str):
         st.metric("Process ID", status["pid"])
     
     with col3:
-        elapsed = datetime.now() - status["started_at"]
+        # Handle both datetime objects and ISO format strings
+        started_at = status["started_at"]
+        if isinstance(started_at, str):
+            started_at = datetime.fromisoformat(started_at)
+        elapsed = datetime.now() - started_at
         st.metric("Elapsed", f"{elapsed.seconds // 3600}h {(elapsed.seconds % 3600) // 60}m")
 
 
@@ -326,7 +385,7 @@ def display_process_monitor(process_key: str):
 # UI Rendering Functions
 # ============================================================================
 
-def render_phase_2a_section():
+def render_phase_2a_section(game_filter: str = None):
     """Render Phase 2A - Tree Models section."""
     st.markdown("## 🌳 Phase 2A: Tree Models")
     st.markdown("Position-specific XGBoost, LightGBM, and CatBoost optimization")
@@ -367,15 +426,17 @@ def render_phase_2a_section():
     
     st.divider()
     
-    # Check if training is already running
+    # Check if training is already running for this game
     training_running = False
     running_process_key = None
-    if "training_history" in st.session_state:
+    if "training_processes" in st.session_state:
         for process_key, proc_info in st.session_state.training_processes.items():
             if "Phase 2A" in proc_info["trainer_name"] and proc_info["process"].poll() is None:
-                training_running = True
-                running_process_key = process_key
-                break
+                # Filter by game if specified
+                if game_filter is None or game_filter == "All Games" or proc_info.get("game") == game_filter:
+                    training_running = True
+                    running_process_key = process_key
+                    break
     
     # Training Control
     if not training_running:
@@ -387,7 +448,7 @@ def render_phase_2a_section():
         
         with col2:
             if st.button("▶️ Start Phase 2A", key="start_phase_2a", use_container_width=True):
-                if start_training("Phase 2A - Tree Models"):
+                if start_training("Phase 2A - Tree Models", game_filter):
                     st.session_state.ml_training_status["phase_2a_running"] = True
                     st.rerun()
     else:
@@ -414,33 +475,41 @@ def render_phase_2a_section():
     
     st.divider()
     
+    # Status breakdown by game (filtered) - always show, update live during training
+    if tree_status['models_by_game']:
+        st.markdown("### 📊 Status by Game")
+        
+        # Filter games based on selection
+        games_to_show = tree_status['models_by_game']
+        if game_filter and game_filter != "All Games":
+            games_to_show = {k: v for k, v in games_to_show.items() if k == game_filter}
+        
+        if games_to_show:
+            for game, models in games_to_show.items():
+                col1, col2, col3, col4 = st.columns(4)
+                
+                with col1:
+                    st.metric(f"🎮 {game}", "", help=f"Game: {game}")
+                
+                with col2:
+                    st.metric("XGBoost", models['xgboost'], help="XGBoost models trained")
+                
+                with col3:
+                    st.metric("LightGBM", models['lightgbm'], help="LightGBM models trained")
+                
+                with col4:
+                    st.metric("CatBoost", models['catboost'], help="CatBoost models trained")
+        else:
+            st.info(f"No data available for {game_filter}")
+    
     # Auto-refresh every 5 seconds while training
     if training_running:
         st.markdown("*Refreshing every 5 seconds...* ⟳")
         time.sleep(5)
         st.rerun()
-    
-    # Status breakdown by game
-    if tree_status['models_by_game']:
-        st.markdown("### 📊 Status by Game")
-        
-        for game, models in tree_status['models_by_game'].items():
-            col1, col2, col3, col4 = st.columns(4)
-            
-            with col1:
-                st.metric(f"🎮 {game}", "", help=f"Game: {game}")
-            
-            with col2:
-                st.metric("XGBoost", models['xgboost'], help="XGBoost models trained")
-            
-            with col3:
-                st.metric("LightGBM", models['lightgbm'], help="LightGBM models trained")
-            
-            with col4:
-                st.metric("CatBoost", models['catboost'], help="CatBoost models trained")
 
 
-def render_phase_2b_section():
+def render_phase_2b_section(game_filter: str = None):
     """Render Phase 2B - Neural Networks section."""
     st.markdown("## 🧠 Phase 2B: Neural Networks")
     st.markdown("Advanced deep learning architectures for lottery prediction")
@@ -479,7 +548,7 @@ def render_phase_2b_section():
             st.markdown("Start LSTM training for all games")
         with col2:
             if st.button("▶️ Start LSTM", key="start_lstm", use_container_width=True):
-                if start_training("Phase 2B - LSTM with Attention"):
+                if start_training("Phase 2B - LSTM with Attention", game_filter):
                     st.rerun()
     
     with tab2:
@@ -511,7 +580,7 @@ def render_phase_2b_section():
             st.markdown("Start Transformer training for all games")
         with col2:
             if st.button("▶️ Start Transformer", key="start_transformer", use_container_width=True):
-                if start_training("Phase 2B - Transformer"):
+                if start_training("Phase 2B - Transformer", game_filter):
                     st.rerun()
     
     with tab3:
@@ -543,11 +612,11 @@ def render_phase_2b_section():
             st.markdown("Start CNN training for all games")
         with col2:
             if st.button("▶️ Start CNN", key="start_cnn", use_container_width=True):
-                if start_training("Phase 2B - CNN"):
+                if start_training("Phase 2B - CNN", game_filter):
                     st.rerun()
 
 
-def render_phase_2c_section():
+def render_phase_2c_section(game_filter: str = None):
     """Render Phase 2C - Ensemble Variants section."""
     st.markdown("## 🎯 Phase 2C: Ensemble Variants")
     st.markdown("Multiple instances with different seeds and bootstrap sampling")
@@ -581,7 +650,7 @@ def render_phase_2c_section():
         st.divider()
         
         if st.button("▶️ Start Transformer Variants", key="start_tf_variants", use_container_width=True):
-            if start_training("Ensemble Variants - Transformer"):
+            if start_training("Ensemble Variants - Transformer", game_filter):
                 st.rerun()
     
     with col2:
@@ -609,11 +678,11 @@ def render_phase_2c_section():
         st.divider()
         
         if st.button("▶️ Start LSTM Variants", key="start_lstm_variants", use_container_width=True):
-            if start_training("Ensemble Variants - LSTM"):
+            if start_training("Ensemble Variants - LSTM", game_filter):
                 st.rerun()
 
 
-def render_training_summary():
+def render_training_summary(game_filter: str = None):
     """Render overall training summary."""
     st.markdown("## 📊 Complete Training Summary")
     
@@ -673,6 +742,24 @@ def render_advanced_ml_training_page(services_registry=None, ai_engines=None, co
         st.title("🤖 Advanced ML Training - Phase 2")
         st.markdown("*Execute and monitor Phase 2 advanced model training pipeline*")
         
+        # Game Selection
+        if "selected_ml_game" not in st.session_state:
+            st.session_state.selected_ml_game = "All Games"
+        
+        col1, col2 = st.columns([4, 1])
+        with col1:
+            st.markdown("### Select Game Type")
+        with col2:
+            game_options = ["All Games", "Lotto 6/49", "Lotto Max"]
+            st.session_state.selected_ml_game = st.selectbox(
+                "Game:",
+                game_options,
+                index=game_options.index(st.session_state.selected_ml_game),
+                key="game_selector"
+            )
+        
+        st.divider()
+        
         # Main tabs
         tab_overview, tab_phase2a, tab_phase2b, tab_phase2c, tab_monitor = st.tabs([
             "📊 Overview",
@@ -683,27 +770,76 @@ def render_advanced_ml_training_page(services_registry=None, ai_engines=None, co
         ])
         
         with tab_overview:
-            render_training_summary()
+            render_training_summary(st.session_state.selected_ml_game)
         
         with tab_phase2a:
-            render_phase_2a_section()
+            render_phase_2a_section(st.session_state.selected_ml_game)
         
         with tab_phase2b:
-            render_phase_2b_section()
+            render_phase_2b_section(st.session_state.selected_ml_game)
         
         with tab_phase2c:
-            render_phase_2c_section()
+            render_phase_2c_section(st.session_state.selected_ml_game)
         
         with tab_monitor:
             st.markdown("## 📈 Training Monitor")
             st.markdown("Real-time monitoring of active training processes")
+            st.divider()
             
+            # Debug info
+            with st.expander("🔍 Debug Info"):
+                st.write(f"Session State Keys: {list(st.session_state.keys())}")
+                if "training_processes" in st.session_state:
+                    st.write(f"Training Processes: {len(st.session_state.training_processes)} total")
+                    for key, proc in st.session_state.training_processes.items():
+                        st.write(f"  - {key}: Status={proc['process'].poll() is None} (running={proc['process'].poll() is None})")
+                else:
+                    st.write("No training_processes in session state")
+            
+            # Check for active processes
+            has_training_processes = "training_processes" in st.session_state and st.session_state.training_processes
+            
+            if has_training_processes:
+                active_processes = {
+                    k: v for k, v in st.session_state.training_processes.items()
+                    if v["process"].poll() is None
+                }
+                
+                if active_processes:
+                    st.markdown("### 🟢 Active Training Sessions")
+                    
+                    for process_key, proc_info in active_processes.items():
+                        col1, col2 = st.columns([4, 1])
+                        
+                        with col1:
+                            display_process_monitor(process_key)
+                        
+                        with col2:
+                            if st.button(
+                                "⏹️ Stop",
+                                key=f"stop_{process_key}",
+                                use_container_width=True
+                            ):
+                                try:
+                                    proc_info["process"].terminate()
+                                    proc_info["process"].wait(timeout=5)
+                                    st.success("✅ Process stopped")
+                                except:
+                                    proc_info["process"].kill()
+                                    st.success("✅ Process force-stopped")
+                                st.rerun()
+                        
+                        st.divider()
+                else:
+                    st.info("ℹ️ No active training processes at this moment (check history below)")
+            else:
+                st.warning("⚠️ No training session data in memory. Start a training from one of the tabs above.")
+            
+            # Show history
             if st.session_state.get("training_history"):
-                st.markdown("### Recent Training Sessions")
+                st.markdown("### 📋 Recent Training History")
                 history_df = pd.DataFrame(st.session_state.training_history)
                 st.dataframe(history_df, use_container_width=True, hide_index=True)
-            else:
-                st.info("No training sessions started yet")
         
         app_log("Advanced ML Training page rendered")
     

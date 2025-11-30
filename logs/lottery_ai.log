@@ -9858,3 +9858,170 @@ Received a label value of 32 which is outside the valid range of [0, 28).  Label
 2025-11-29 19:48:40 - lottery_ai - INFO - logger.py:138 - Model manager rendered
 2025-11-29 19:48:59 - lottery_ai - INFO - logger.py:138 - Model manager rendered
 2025-11-29 19:49:07 - lottery_ai - INFO - logger.py:138 - Model manager rendered
+2025-11-29 19:53:39 - lottery_ai - INFO - logger.py:138 - Dashboard rendered successfully
+2025-11-29 19:54:12 - lottery_ai - INFO - logger.py:138 - Model manager rendered
+2025-11-29 19:54:32 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
+2025-11-29 19:54:37 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
+2025-11-29 19:54:48 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
+2025-11-29 19:54:53 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
+2025-11-29 19:54:57 - lottery_ai - INFO - logger.py:138 - Loaded 85 CATBOOST features for Lotto 6/49 from catboost_features_t20251129_185847.csv
+2025-11-29 19:54:57 - lottery_ai - INFO - logger.py:138 - Loaded engineered features from catboost_features_t20251129_185847.csv with shape (2182, 85)
+2025-11-29 19:54:57 - lottery_ai - INFO - logger.py:138 - Using training features for catboost: shape=(2182, 85)
+2025-11-29 19:54:57 - lottery_ai - ERROR - logger.py:138 - Single model prediction error: catboost/libs/data/model_dataset_compatibility.cpp:72: Feature 85 is present in model but not in pool.
+2025-11-29 19:54:57 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
+2025-11-29 20:06:24 - lottery_ai - INFO - logger.py:138 - Dashboard rendered successfully
+2025-11-29 20:07:34 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
+2025-11-29 20:07:41 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
+2025-11-29 20:07:47 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
+2025-11-29 20:07:51 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
+2025-11-29 20:07:54 - lottery_ai - INFO - logger.py:138 - Loaded 85 CATBOOST features for Lotto 6/49 from catboost_features_t20251129_185847.csv
+2025-11-29 20:07:54 - lottery_ai - INFO - logger.py:138 - Loaded engineered features from catboost_features_t20251129_185847.csv with shape (2182, 85)
+2025-11-29 20:07:54 - lottery_ai - INFO - logger.py:138 - Using training features for catboost: shape=(2182, 85)
+2025-11-29 20:07:54 - lottery_ai - ERROR - logger.py:138 - Single model prediction error: catboost/libs/data/model_dataset_compatibility.cpp:72: Feature 85 is present in model but not in pool.
+2025-11-29 20:07:55 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
+2025-11-29 20:13:09 - lottery_ai - INFO - logger.py:138 - Dashboard rendered successfully
+2025-11-29 20:13:24 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
+2025-11-29 20:13:29 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
+2025-11-29 20:13:39 - lottery_ai - INFO - logger.py:138 - Loaded 85 CATBOOST features for Lotto 6/49 from catboost_features_t20251129_185847.csv
+2025-11-29 20:13:39 - lottery_ai - INFO - logger.py:138 - Loaded engineered features from catboost_features_t20251129_185847.csv with shape (2182, 85), using feature_dim=93
+2025-11-29 20:13:39 - lottery_ai - INFO - logger.py:138 - Using training features for catboost: shape=(2182, 85)
+2025-11-29 20:13:39 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
+2025-11-29 20:14:05 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
+2025-11-29 20:14:07 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
+2025-11-29 20:14:10 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
+2025-11-29 20:14:14 - lottery_ai - INFO - logger.py:138 - Loaded CNN embeddings from advanced_cnn_w24_e64_t20251129_185750.npz with shape (2158, 64)
+2025-11-29 20:14:15 - lottery_ai - INFO - logger.py:138 - Using training features for cnn: shape=(2158, 64)
+2025-11-29 20:14:15 - lottery_ai - WARNING - logger.py:138 - Probability shape mismatch: expected 49, got 33
+2025-11-29 20:14:15 - lottery_ai - WARNING - logger.py:138 - Probability shape mismatch: expected 49, got 33
+2025-11-29 20:14:15 - lottery_ai - WARNING - logger.py:138 - Probability shape mismatch: expected 49, got 33
+2025-11-29 20:14:16 - lottery_ai - WARNING - logger.py:138 - Probability shape mismatch: expected 49, got 33
+2025-11-29 20:14:16 - lottery_ai - WARNING - logger.py:138 - Probability shape mismatch: expected 49, got 33
+2025-11-29 20:14:16 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
+2025-11-29 20:15:39 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
+2025-11-29 20:15:43 - lottery_ai - INFO - logger.py:138 - Loaded 85 LIGHTGBM features for Lotto 6/49 from lightgbm_features_t20251129_185905.csv
+2025-11-29 20:15:44 - lottery_ai - INFO - logger.py:138 - Loaded engineered features from lightgbm_features_t20251129_185905.csv with shape (2182, 85), using feature_dim=93
+2025-11-29 20:15:44 - lottery_ai - INFO - logger.py:138 - Using training features for lightgbm: shape=(2182, 85)
+2025-11-29 20:15:44 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
+2025-11-29 20:16:11 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
+2025-11-29 20:16:13 - lottery_ai - WARNING - logger.py:138 - Could not load model-specific features: Found array with dim 3, while dim <= 2 is required by StandardScaler.
+2025-11-29 20:16:13 - lottery_ai - WARNING - logger.py:138 - Using fallback scaler with 25 features
+2025-11-29 20:16:13 - lottery_ai - INFO - logger.py:138 - Loaded LSTM sequences from advanced_lstm_w25_t20251129_185714.npz with shape (2157, 25, 45)
+2025-11-29 20:16:14 - lottery_ai - INFO - logger.py:138 - Using training features for lstm: shape=(2157, 25, 45)
+2025-11-29 20:16:14 - lottery_ai - WARNING - logger.py:138 - Probability shape mismatch: expected 49, got 33
+2025-11-29 20:16:14 - lottery_ai - WARNING - logger.py:138 - Probability shape mismatch: expected 49, got 33
+2025-11-29 20:16:14 - lottery_ai - WARNING - logger.py:138 - Probability shape mismatch: expected 49, got 33
+2025-11-29 20:16:14 - lottery_ai - WARNING - logger.py:138 - Probability shape mismatch: expected 49, got 33
+2025-11-29 20:16:14 - lottery_ai - WARNING - logger.py:138 - Probability shape mismatch: expected 49, got 33
+2025-11-29 20:16:15 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
+2025-11-29 20:16:30 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
+2025-11-29 20:16:32 - lottery_ai - INFO - logger.py:138 - Loaded 20 Transformer features for Lotto 6/49 from transformer_features_20251129_185805.csv
+2025-11-29 20:16:32 - lottery_ai - INFO - logger.py:138 - Loaded Transformer features from transformer_features_20251129_185805.csv with shape (2182, 20)
+2025-11-29 20:16:33 - lottery_ai - INFO - logger.py:138 - Using training features for transformer: shape=(2182, 20)
+2025-11-29 20:16:33 - lottery_ai - ERROR - logger.py:138 - Single model prediction error: Input 0 of layer "functional" is incompatible with the layer: expected shape=(None, 28, 1), found shape=(1, 20)
+2025-11-29 20:16:33 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
+2025-11-29 20:26:49 - lottery_ai - INFO - logger.py:138 - Dashboard rendered successfully
+2025-11-29 20:29:19 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
+2025-11-29 20:29:24 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
+2025-11-29 20:29:44 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
+2025-11-29 20:29:49 - lottery_ai - INFO - logger.py:138 - Loaded 20 Transformer features for Lotto 6/49 from transformer_features_20251129_185805.csv
+2025-11-29 20:29:49 - lottery_ai - INFO - logger.py:138 - Loaded Transformer features from transformer_features_20251129_185805.csv with shape (2182, 20), using feature_dim=20
+2025-11-29 20:29:49 - lottery_ai - INFO - logger.py:138 - Using training features for transformer: shape=(2182, 20)
+2025-11-29 20:29:50 - lottery_ai - ERROR - logger.py:138 - Single model prediction error: Input 0 of layer "functional" is incompatible with the layer: expected shape=(None, 28, 1), found shape=(1, 20)
+2025-11-29 20:29:50 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
+2025-11-29 20:38:34 - lottery_ai - INFO - logger.py:138 - Dashboard rendered successfully
+2025-11-29 20:38:46 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
+2025-11-29 20:38:53 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
+2025-11-29 20:38:57 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
+2025-11-29 20:39:01 - lottery_ai - INFO - logger.py:138 - Loaded 20 Transformer features for Lotto 6/49 from transformer_features_20251129_185805.csv
+2025-11-29 20:39:01 - lottery_ai - INFO - logger.py:138 - Loaded Transformer features from transformer_features_20251129_185805.csv with shape (2182, 20), using feature_dim=28
+2025-11-29 20:39:02 - lottery_ai - INFO - logger.py:138 - Using training features for transformer: shape=(2182, 20)
+2025-11-29 20:39:03 - lottery_ai - WARNING - logger.py:138 - Probability shape mismatch: expected 49, got 33
+2025-11-29 20:39:03 - lottery_ai - WARNING - logger.py:138 - Probability shape mismatch: expected 49, got 33
+2025-11-29 20:39:03 - lottery_ai - WARNING - logger.py:138 - Probability shape mismatch: expected 49, got 33
+2025-11-29 20:39:03 - lottery_ai - WARNING - logger.py:138 - Probability shape mismatch: expected 49, got 33
+2025-11-29 20:39:03 - lottery_ai - WARNING - logger.py:138 - Probability shape mismatch: expected 49, got 33
+2025-11-29 20:39:03 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
+2025-11-29 20:39:15 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
+2025-11-29 20:39:21 - lottery_ai - INFO - logger.py:138 - Loaded 85 XGBOOST features for Lotto 6/49 from advanced_xgboost_features_t20251129_185821.csv
+2025-11-29 20:39:21 - lottery_ai - INFO - logger.py:138 - Loaded engineered features from advanced_xgboost_features_t20251129_185821.csv with shape (2182, 85), using feature_dim=93
+2025-11-29 20:39:21 - lottery_ai - INFO - logger.py:138 - Loaded scaler from XGBoost model
+2025-11-29 20:39:21 - lottery_ai - INFO - logger.py:138 - Using training features for xgboost: shape=(2182, 85)
+2025-11-29 20:39:21 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
+2025-11-29 20:39:47 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
+2025-11-29 20:39:53 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
+2025-11-29 20:39:58 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
+2025-11-29 20:40:00 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
+2025-11-29 20:40:02 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
+2025-11-29 20:40:06 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
+2025-11-29 20:40:07 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
+2025-11-29 20:40:13 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
+2025-11-29 20:40:15 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
+2025-11-29 20:40:22 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
+2025-11-29 20:40:24 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
+2025-11-29 20:40:26 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
+2025-11-29 20:40:29 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
+2025-11-29 20:40:33 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
+2025-11-29 20:40:51 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
+2025-11-29 20:41:16 - lottery_ai - INFO - logger.py:138 - Saved advanced predictions to predictions\lotto_6_49\prediction_ai\sia_predictions_20251129_204116_5sets.json
+2025-11-29 20:41:16 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
+2025-11-29 20:41:38 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
+2025-11-29 23:14:06 - lottery_ai - INFO - logger.py:138 - Dashboard rendered successfully
+2025-11-29 23:15:03 - lottery_ai - INFO - logger.py:138 - Advanced ML Training page rendered
+2025-11-30 02:06:57 - lottery_ai - INFO - logger.py:138 - Advanced ML Training page rendered
+2025-11-30 02:07:54 - lottery_ai - INFO - logger.py:138 - Dashboard rendered successfully
+2025-11-30 02:08:07 - lottery_ai - INFO - logger.py:138 - Advanced ML Training page rendered
+2025-11-30 02:08:31 - lottery_ai - INFO - logger.py:138 - Started training process: Phase 2A - Tree Models (PID: 57424)
+2025-11-30 02:10:21 - lottery_ai - INFO - logger.py:138 - Advanced ML Training page rendered
+2025-11-30 10:16:33 - lottery_ai - INFO - logger.py:138 - Dashboard rendered successfully
+2025-11-30 10:16:43 - lottery_ai - INFO - logger.py:138 - Advanced ML Training page rendered
+2025-11-30 10:16:59 - lottery_ai - INFO - logger.py:138 - Advanced ML Training page rendered
+2025-11-30 10:17:27 - lottery_ai - INFO - logger.py:138 - Advanced ML Training page rendered
+2025-11-30 10:19:26 - lottery_ai - INFO - logger.py:138 - Started training process: Phase 2A - Tree Models - Lotto 6/49 (PID: 35240)
+2025-11-30 10:19:36 - lottery_ai - INFO - logger.py:138 - Advanced ML Training page rendered
+2025-11-30 10:20:43 - lottery_ai - INFO - logger.py:138 - Dashboard rendered successfully
+2025-11-30 10:20:55 - lottery_ai - INFO - logger.py:138 - Advanced ML Training page rendered
+2025-11-30 10:21:10 - lottery_ai - INFO - logger.py:138 - Advanced ML Training page rendered
+2025-11-30 10:21:17 - lottery_ai - INFO - logger.py:138 - Advanced ML Training page rendered
+2025-11-30 10:21:24 - lottery_ai - INFO - logger.py:138 - Advanced ML Training page rendered
+2025-11-30 10:22:11 - lottery_ai - INFO - logger.py:138 - Started training process: Phase 2A - Tree Models - Lotto Max (PID: 24336)
+2025-11-30 10:22:51 - lottery_ai - INFO - logger.py:138 - Advanced ML Training page rendered
+2025-11-30 10:27:41 - lottery_ai - INFO - logger.py:138 - Dashboard rendered successfully
+2025-11-30 10:27:52 - lottery_ai - INFO - logger.py:138 - Advanced ML Training page rendered
+2025-11-30 10:28:07 - lottery_ai - INFO - logger.py:138 - Advanced ML Training page rendered
+2025-11-30 10:28:13 - lottery_ai - INFO - logger.py:138 - Started training process: Phase 2A - Tree Models - Lotto 6/49 (PID: 41636)
+2025-11-30 10:30:43 - lottery_ai - ERROR - logger.py:138 - Error rendering Advanced ML Training page: No module named 'psutil'
+2025-11-30 10:30:48 - lottery_ai - ERROR - logger.py:138 - Error rendering Advanced ML Training page: No module named 'psutil'
+2025-11-30 10:31:00 - lottery_ai - INFO - logger.py:138 - Dashboard rendered successfully
+2025-11-30 10:32:06 - lottery_ai - INFO - logger.py:138 - Advanced ML Training page rendered
+2025-11-30 10:32:12 - lottery_ai - INFO - logger.py:138 - Advanced ML Training page rendered
+2025-11-30 10:32:20 - lottery_ai - INFO - logger.py:138 - Started training process: Phase 2A - Tree Models - Lotto Max (PID: 61188)
+2025-11-30 10:32:21 - lottery_ai - ERROR - logger.py:138 - Error rendering Advanced ML Training page: No module named 'psutil'
+2025-11-30 10:32:51 - lottery_ai - INFO - logger.py:138 - Dashboard rendered successfully
+2025-11-30 10:33:05 - lottery_ai - INFO - logger.py:138 - Advanced ML Training page rendered
+2025-11-30 10:33:32 - lottery_ai - INFO - logger.py:138 - Advanced ML Training page rendered
+2025-11-30 10:33:40 - lottery_ai - INFO - logger.py:138 - Started training process: Phase 2A - Tree Models - Lotto Max (PID: 44736)
+2025-11-30 10:33:41 - lottery_ai - ERROR - logger.py:138 - Error rendering Advanced ML Training page: No module named 'psutil'
+2025-11-30 10:34:17 - lottery_ai - ERROR - logger.py:138 - Error rendering Advanced ML Training page: No module named 'psutil'
+2025-11-30 10:34:24 - lottery_ai - INFO - logger.py:138 - Started training process: Phase 2A - Tree Models - Lotto 6/49 (PID: 4748)
+2025-11-30 10:34:25 - lottery_ai - ERROR - logger.py:138 - Error rendering Advanced ML Training page: No module named 'psutil'
+2025-11-30 10:35:40 - lottery_ai - INFO - logger.py:138 - Dashboard rendered successfully
+2025-11-30 10:35:54 - lottery_ai - INFO - logger.py:138 - Advanced ML Training page rendered
+2025-11-30 10:36:07 - lottery_ai - INFO - logger.py:138 - Advanced ML Training page rendered
+2025-11-30 10:36:15 - lottery_ai - INFO - logger.py:138 - Started training process: Phase 2A - Tree Models - Lotto Max (PID: 51168)
+2025-11-30 10:36:16 - lottery_ai - ERROR - logger.py:138 - Error rendering Advanced ML Training page: No module named 'psutil'
+2025-11-30 10:36:44 - lottery_ai - INFO - logger.py:138 - Dashboard rendered successfully
+2025-11-30 10:36:55 - lottery_ai - INFO - logger.py:138 - Advanced ML Training page rendered
+2025-11-30 10:37:02 - lottery_ai - INFO - logger.py:138 - Advanced ML Training page rendered
+2025-11-30 10:37:09 - lottery_ai - INFO - logger.py:138 - Started training process: Phase 2A - Tree Models - Lotto Max (PID: 48660)
+2025-11-30 10:37:10 - lottery_ai - ERROR - logger.py:138 - Error rendering Advanced ML Training page: No module named 'psutil'
+2025-11-30 10:37:38 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
+2025-11-30 10:37:58 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
+2025-11-30 10:38:25 - lottery_ai - INFO - logger.py:138 - Training page rendered
+2025-11-30 10:38:42 - lottery_ai - INFO - logger.py:138 - Training page rendered
+2025-11-30 10:38:48 - lottery_ai - INFO - logger.py:138 - Scraping data from https://ca.lottonumbers.com/lotto-649/numbers/2025 for year 2025
+2025-11-30 10:38:50 - lottery_ai - INFO - logger.py:138 - Found 1 tables on page
+2025-11-30 10:38:51 - lottery_ai - INFO - logger.py:138 - Successfully scraped 95 records for 2025
+2025-11-30 10:38:51 - lottery_ai - INFO - logger.py:138 - Training page rendered
+2025-11-30 10:39:01 - lottery_ai - INFO - logger.py:138 - Training page rendered
+2025-11-30 10:52:14 - lottery_ai - INFO - logger.py:138 - Dashboard rendered successfully
+2025-11-30 10:52:51 - lottery_ai - INFO - logger.py:138 - Training page rendered
