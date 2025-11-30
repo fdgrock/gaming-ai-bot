@@ -221,7 +221,10 @@ def get_ensemble_variants_status() -> Dict[str, Any]:
 # ============================================================================
 
 def start_training(trainer_name: str, game: str = None) -> bool:
-    """Start a training process."""
+    """Start a training process in a new terminal/subprocess."""
+    import subprocess
+    import sys
+    
     try:
         trainer_config = PHASE_2_TRAINERS.get(trainer_name) or PHASE_2C_VARIANTS.get(trainer_name)
         if not trainer_config:
@@ -233,23 +236,41 @@ def start_training(trainer_name: str, game: str = None) -> bool:
             st.error(f"Trainer script not found: {script_path}")
             return False
         
-        # Build command
-        cmd = f"cd {PROJECT_ROOT} && .\\venv\\Scripts\\Activate.ps1; python {script_path}"
+        # Start process via subprocess
+        # On Windows, this will run in background
+        process = subprocess.Popen(
+            [sys.executable, str(script_path)],
+            cwd=str(PROJECT_ROOT),
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True
+        )
         
-        # Note: In production, this would be executed via subprocess
-        # For now, we show a message about starting in background
-        st.info(f"✅ Starting {trainer_name} training in background...")
-        app_log(f"Starting training: {trainer_name}", "info")
+        # Store process info
+        if "training_processes" not in st.session_state:
+            st.session_state.training_processes = {}
         
-        # Record in session state
+        process_key = f"{trainer_name}_{datetime.now().timestamp()}"
+        st.session_state.training_processes[process_key] = {
+            "process": process,
+            "trainer_name": trainer_name,
+            "started_at": datetime.now(),
+            "script": str(script_path)
+        }
+        
+        # Record in history
         if "training_history" not in st.session_state:
             st.session_state.training_history = []
         
         st.session_state.training_history.append({
             "trainer": trainer_name,
             "started_at": datetime.now(),
-            "status": "running"
+            "status": "running",
+            "process_id": process_key
         })
+        
+        st.success(f"✅ Started {trainer_name} training (PID: {process.pid})")
+        app_log(f"Started training process: {trainer_name} (PID: {process.pid})", "info")
         
         return True
     
@@ -257,6 +278,48 @@ def start_training(trainer_name: str, game: str = None) -> bool:
         st.error(f"Error starting training: {e}")
         app_log(f"Error starting training: {e}", "error")
         return False
+
+
+def get_process_status(process_key: str) -> Dict[str, Any]:
+    """Get the status of a running training process."""
+    if "training_processes" not in st.session_state:
+        return {"status": "not_found"}
+    
+    proc_info = st.session_state.training_processes.get(process_key)
+    if not proc_info:
+        return {"status": "not_found"}
+    
+    process = proc_info["process"]
+    
+    return {
+        "status": "running" if process.poll() is None else "completed",
+        "trainer": proc_info["trainer_name"],
+        "started_at": proc_info["started_at"],
+        "pid": process.pid,
+        "return_code": process.returncode if process.poll() is not None else None
+    }
+
+
+def display_process_monitor(process_key: str):
+    """Display monitoring info for a running process."""
+    status = get_process_status(process_key)
+    
+    if status["status"] == "not_found":
+        st.warning("Process not found or already completed")
+        return
+    
+    col1, col2, col3 = st.columns(3)
+    
+    with col1:
+        status_color = "🟢" if status["status"] == "running" else "🔴"
+        st.metric("Status", f"{status_color} {status['status'].upper()}")
+    
+    with col2:
+        st.metric("Process ID", status["pid"])
+    
+    with col3:
+        elapsed = datetime.now() - status["started_at"]
+        st.metric("Elapsed", f"{elapsed.seconds // 3600}h {(elapsed.seconds % 3600) // 60}m")
 
 
 # ============================================================================
@@ -304,18 +367,58 @@ def render_phase_2a_section():
     
     st.divider()
     
+    # Check if training is already running
+    training_running = False
+    running_process_key = None
+    if "training_history" in st.session_state:
+        for process_key, proc_info in st.session_state.training_processes.items():
+            if "Phase 2A" in proc_info["trainer_name"] and proc_info["process"].poll() is None:
+                training_running = True
+                running_process_key = process_key
+                break
+    
     # Training Control
-    col1, col2 = st.columns([3, 1])
+    if not training_running:
+        col1, col2 = st.columns([3, 1])
+        
+        with col1:
+            st.markdown("### 🚀 Start Training")
+            st.markdown("Execute Phase 2A tree model training for all games and architectures.")
+        
+        with col2:
+            if st.button("▶️ Start Phase 2A", key="start_phase_2a", use_container_width=True):
+                if start_training("Phase 2A - Tree Models"):
+                    st.session_state.ml_training_status["phase_2a_running"] = True
+                    st.rerun()
+    else:
+        st.markdown("### 📊 Training in Progress...")
+        col1, col2 = st.columns([3, 1])
+        
+        with col1:
+            if running_process_key:
+                display_process_monitor(running_process_key)
+        
+        with col2:
+            if st.button("⏹️ Stop Training", key="stop_phase_2a", use_container_width=True):
+                if running_process_key and "training_processes" in st.session_state:
+                    proc_info = st.session_state.training_processes.get(running_process_key)
+                    if proc_info:
+                        try:
+                            proc_info["process"].terminate()
+                            st.session_state.training_processes[running_process_key]["process"].wait(timeout=5)
+                            st.success("✅ Training stopped")
+                        except:
+                            proc_info["process"].kill()
+                            st.success("✅ Training forcefully stopped")
+                        st.rerun()
     
-    with col1:
-        st.markdown("### 🚀 Start Training")
-        st.markdown("Execute Phase 2A tree model training for all games and architectures.")
+    st.divider()
     
-    with col2:
-        if st.button("▶️ Start Phase 2A", key="start_phase_2a", use_container_width=True):
-            if start_training("Phase 2A - Tree Models"):
-                st.session_state.ml_training_status["phase_2a_running"] = True
-                st.rerun()
+    # Auto-refresh every 5 seconds while training
+    if training_running:
+        st.markdown("*Refreshing every 5 seconds...* ⟳")
+        time.sleep(5)
+        st.rerun()
     
     # Status breakdown by game
     if tree_status['models_by_game']:
