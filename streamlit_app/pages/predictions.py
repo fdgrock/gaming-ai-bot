@@ -144,8 +144,50 @@ def get_ensemble_models(game: str) -> Dict[str, str]:
     return {}
 
 
-def render_page(services_registry: Optional[Dict[str, Any]] = None, 
-                ai_engines: Optional[Dict[str, Any]] = None, 
+def _get_model_feature_count(models_dir: Path, model_type: str, game_folder: str) -> Optional[int]:
+    """
+    Get the expected feature count for a model from its metadata.
+    This ensures predictions use the same feature dimension as training.
+    
+    Args:
+        models_dir: Path to models directory
+        model_type: Model type (lowercase, e.g., 'xgboost', 'catboost')
+        game_folder: Game folder name (e.g., 'lotto_6_49')
+    
+    Returns:
+        Feature count from metadata, or None if not found
+    """
+    try:
+        model_type_dir = models_dir / model_type
+        if not model_type_dir.exists():
+            return None
+        
+        # Get the latest model
+        model_files = sorted(list(model_type_dir.glob(f"{model_type}_{game_folder}_*.joblib")))
+        if not model_files:
+            return None
+        
+        latest_model_path = model_files[-1]
+        metadata_path = model_type_dir / f"{latest_model_path.stem}_metadata.json"
+        
+        if metadata_path.exists():
+            with open(metadata_path, 'r') as f:
+                metadata = json.load(f)
+            
+            # Handle nested metadata structure
+            if model_type in metadata:
+                return metadata[model_type].get('feature_count')
+            elif 'feature_count' in metadata:
+                return metadata.get('feature_count')
+    
+    except Exception as e:
+        app_logger.warning(f"Could not get feature count for {model_type}: {e}")
+    
+    return None
+
+
+def render_page(services_registry: Optional[Dict[str, Any]] = None,
+                ai_engines: Optional[Dict[str, Any]] = None,
                 components: Optional[Dict[str, Any]] = None) -> None:
     """
     Standard page render function with dependency injection support.
@@ -2176,13 +2218,14 @@ def _generate_single_model_predictions(game: str, count: int, mode: str, model_t
                 training_features = None
         
         else:
-            # Boosting models (CatBoost, LightGBM, XGBoost) use CSV feature files: (N, 85)
+            # Boosting models (CatBoost, LightGBM, XGBoost) use CSV feature files
             feature_files = sorted(list(data_dir.glob(f"features/{model_type_lower}/{game_folder}/*.csv")))
             
             if not feature_files:
                 app_logger.warning(f"No engineered features found for {model_type_lower}, using random fallback")
                 training_features = None
-                feature_dim = 85  # Default fallback
+                # Try to get feature count from model metadata
+                feature_dim = _get_model_feature_count(models_dir, model_type_lower, game_folder) or 85
             else:
                 try:
                     # Load the latest feature file
@@ -2195,7 +2238,8 @@ def _generate_single_model_predictions(game: str, count: int, mode: str, model_t
                 except Exception as e:
                     app_logger.warning(f"Could not load engineered features: {e}, using random features")
                     training_features = None
-                    feature_dim = 85  # Default fallback
+                    # Try to get feature count from model metadata
+                    feature_dim = _get_model_feature_count(models_dir, model_type_lower, game_folder) or 85
         
         # Load the selected model
         if model_type_lower == "cnn":
