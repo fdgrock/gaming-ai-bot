@@ -23,6 +23,7 @@ import logging
 import math
 import os
 import warnings
+import argparse
 from pathlib import Path
 from typing import Tuple, Dict, List, Any, Optional
 from dataclasses import dataclass, asdict
@@ -463,4 +464,18 @@ def run_transformer_training_pipeline():
 
 
 if __name__ == "__main__":
-    run_transformer_training_pipeline()
+    parser = argparse.ArgumentParser(description="Train Phase 2B Transformer models")
+    parser.add_argument("--game", type=str, default=None, help="Game to train")
+    args = parser.parse_args()
+    
+    if args.game and args.game != "All Games":
+        if "649" in args.game or args.game.lower() == "lotto 6/49":
+            config = GameConfig(name="lotto_649", num_balls=6, num_numbers=49, num_positions=6)
+            trainer = AdvancedTransformerModel(config)
+            trainer.train_model(epochs=30, batch_size=32)
+        elif "max" in args.game.lower() or args.game.lower() == "lotto max":
+            config = GameConfig(name="lotto_max", num_balls=7, num_numbers=50, num_positions=7)
+            trainer = AdvancedTransformerModel(config)
+            trainer.train_model(epochs=30, batch_size=32)
+    else:
+        run_transformer_training_pipeline()

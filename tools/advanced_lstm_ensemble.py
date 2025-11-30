@@ -6,6 +6,7 @@ for improved ensemble predictions and better generalization.
 
 import os
 import sys
+import argparse
 from pathlib import Path
 import numpy as np
 import pandas as pd
@@ -394,8 +395,12 @@ class AdvancedLSTMEnsembleTrainer:
 
 def main():
     """Main execution function."""
+    parser = argparse.ArgumentParser(description="Train Phase 2C LSTM Ensemble models")
+    parser.add_argument("--game", type=str, default=None, help="Game to train")
+    args = parser.parse_args()
+    
     try:
-        trainer = AdvancedLSTMEnsembleTrainer()
+        trainer = AdvancedLSTMEnsembleTrainer(game=args.game)
         trainer.train_all_variants()
     except Exception as e:
         logger.error(f"Fatal error: {e}")

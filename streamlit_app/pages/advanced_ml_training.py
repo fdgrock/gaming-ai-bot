@@ -123,18 +123,23 @@ def initialize_ml_training_session():
 # Model Training Status Functions
 # ============================================================================
 
-def get_tree_models_status() -> Dict[str, Any]:
-    """Get status of Phase 2A tree models."""
+def get_tree_models_status(game_filter: str = None) -> Dict[str, Any]:
+    """Get status of Phase 2A tree models, optionally filtered by game."""
     status = {
         "total_models": 0,
         "trained_models": 0,
         "pending_models": 0,
         "models_by_game": {},
-        "training_complete": False
+        "training_complete": False,
+        "estimated_minutes": 60
     }
     
     try:
-        for game in get_available_games():
+        games = get_available_games()
+        if game_filter and game_filter != "All Games":
+            games = [g for g in games if g == game_filter]
+        
+        for game in games:
             game_dir = MODELS_DIR / game.lower().replace(" ", "_").replace("/", "_")
             models_by_game = {"xgboost": 0, "lightgbm": 0, "catboost": 0}
             
@@ -148,6 +153,12 @@ def get_tree_models_status() -> Dict[str, Any]:
             
             status["models_by_game"][game] = models_by_game
             status["total_models"] += 18  # 6 positions × 3 architectures per game
+        
+        # Estimate time based on number of games
+        if game_filter and game_filter != "All Games":
+            status["estimated_minutes"] = 60  # Single game takes ~60-90 min, use lower estimate
+        else:
+            status["estimated_minutes"] = 120  # All games take ~120-180 min, use middle estimate
     
     except Exception as e:
         app_log(f"Error getting tree models status: {e}", "error")
@@ -392,13 +403,13 @@ def render_phase_2a_section(game_filter: str = None):
     
     col1, col2, col3, col4 = st.columns(4)
     
-    tree_status = get_tree_models_status()
+    tree_status = get_tree_models_status(game_filter)
     
     with col1:
         st.metric(
             "📊 Models Trained",
             f"{tree_status['trained_models']}/{tree_status['total_models']}",
-            help="Completed tree models across all games and architectures"
+            help="Completed tree models for selected game(s)"
         )
     
     with col2:
@@ -406,13 +417,14 @@ def render_phase_2a_section(game_filter: str = None):
         st.metric(
             "📈 Progress",
             f"{pct:.1f}%",
-            help="Overall training completion"
+            help="Training completion for selected game(s)"
         )
     
     with col3:
+        est_min = tree_status['estimated_minutes']
         st.metric(
             "⏱️ Estimated Time",
-            "60-90 min",
+            f"{est_min}-{est_min+30} min",
             help="Estimated time for full training"
         )
     
@@ -620,64 +632,61 @@ def render_phase_2c_section(game_filter: str = None):
     """Render Phase 2C - Ensemble Variants section."""
     st.markdown("## 🎯 Phase 2C: Ensemble Variants")
     st.markdown("Multiple instances with different seeds and bootstrap sampling")
+    st.divider()
     
     ensemble_status = get_ensemble_variants_status()
     
-    col1, col2 = st.columns(2)
-    
-    with col1:
-        st.markdown("### 🔀 Transformer Variants")
-        st.markdown("5 instances per game with different random seeds")
+    # Transformer Variants
+    with st.expander("🔀 **Transformer Variants** - 5 instances per game", expanded=True):
+        st.markdown("**Description:** 5 Transformer instances with different random seeds and bootstrap sampling")
         
-        col_a, col_b, col_c, col_d = st.columns(4)
+        tf_col1, tf_col2, tf_col3, tf_col4 = st.columns(4)
         
-        with col_a:
+        with tf_col1:
             st.metric(
                 "✅ Trained",
                 f"{ensemble_status['transformer_variants']['trained']}/{ensemble_status['transformer_variants']['total']}",
-                help="Transformer variants completed"
             )
         
-        with col_b:
-            st.metric("⏱️ Time", "90-120 min", help="Training duration")
+        with tf_col2:
+            st.metric("⏱️ Estimated Time", "90-120 min")
         
-        with col_c:
-            st.metric("💾 Size", "~900MB", help="Total for 10 models")
+        with tf_col3:
+            st.metric("💾 Total Size", "~900MB")
         
-        with col_d:
-            st.metric("💻 GPU", "Required", help="GPU memory needed")
+        with tf_col4:
+            st.metric("💻 Compute", "GPU Required")
         
-        st.divider()
-        
-        if st.button("▶️ Start Transformer Variants", key="start_tf_variants", use_container_width=True):
+        st.write("")
+        if st.button("▶️ Start Transformer Variants Training", key="start_tf_variants", use_container_width=True):
             if start_training("Ensemble Variants - Transformer", game_filter):
                 st.rerun()
     
-    with col2:
-        st.markdown("### 🔗 LSTM Variants")
-        st.markdown("3 instances per game with different random seeds")
+    st.write("")
+    
+    # LSTM Variants
+    with st.expander("🔗 **LSTM Variants** - 3 instances per game", expanded=True):
+        st.markdown("**Description:** 3 LSTM instances with different random seeds and bootstrap sampling")
         
-        col_a, col_b, col_c, col_d = st.columns(4)
+        lstm_col1, lstm_col2, lstm_col3, lstm_col4 = st.columns(4)
         
-        with col_a:
+        with lstm_col1:
             st.metric(
                 "✅ Trained",
                 f"{ensemble_status['lstm_variants']['trained']}/{ensemble_status['lstm_variants']['total']}",
-                help="LSTM variants completed"
             )
         
-        with col_b:
-            st.metric("⏱️ Time", "60-90 min", help="Training duration")
+        with lstm_col2:
+            st.metric("⏱️ Estimated Time", "60-90 min")
         
-        with col_c:
-            st.metric("💾 Size", "~450MB", help="Total for 6 models")
+        with lstm_col3:
+            st.metric("💾 Total Size", "~450MB")
         
-        with col_d:
-            st.metric("💻 GPU", "Required", help="GPU memory needed")
+        with lstm_col4:
+            st.metric("💻 Compute", "GPU Required")
         
-        st.divider()
-        
-        if st.button("▶️ Start LSTM Variants", key="start_lstm_variants", use_container_width=True):
+        st.write("")
+        if st.button("▶️ Start LSTM Variants Training", key="start_lstm_variants", use_container_width=True):
             if start_training("Ensemble Variants - LSTM", game_filter):
                 st.rerun()
 
