@@ -39,6 +39,21 @@ except ImportError:
     def app_log(message: str, level: str = "info"): print(f"[{level.upper()}] {message}")
     def get_data_dir(): return Path("data")
 
+# Import real-time streaming components
+try:
+    from streamlit_app.realtime_log_streamer import RealTimeLogStreamer, RealTimeLogDisplay
+except ImportError:
+    try:
+        # Fallback for direct module import
+        import sys
+        from pathlib import Path as PathlibPath
+        sys.path.insert(0, str(PathlibPath(__file__).parent.parent))
+        from realtime_log_streamer import RealTimeLogStreamer, RealTimeLogDisplay
+    except ImportError as e:
+        st.error(f"Failed to import RealTimeLogStreamer: {e}")
+        RealTimeLogStreamer = None
+        RealTimeLogDisplay = None
+
 
 # ============================================================================
 # Constants & Configuration
@@ -327,7 +342,11 @@ def start_training(trainer_name: str, game: str = None) -> bool:
         capture_thread = threading.Thread(target=capture_output, daemon=True)
         capture_thread.start()
         
-        # Store process info - only store serializable data (PID, not process object)
+        # Create real-time log streamer
+        streamer = RealTimeLogStreamer(process, log_file, max_buffer_lines=500)
+        streamer.start()
+        
+        # Store process info
         if "training_processes" not in st.session_state:
             st.session_state.training_processes = {}
         
@@ -341,8 +360,9 @@ def start_training(trainer_name: str, game: str = None) -> bool:
             "game": game,
             "started_at": datetime.now().isoformat(),
             "script": str(script_path),
-            "log_file": str(log_file),  # Path to log file for reading output
-            "process": process  # Keep reference for immediate use in this run
+            "log_file": str(log_file),
+            "process": process,
+            "streamer": streamer  # Add streamer for real-time log display
         }
         
         # Record in history
@@ -454,59 +474,58 @@ def display_process_monitor(process_key: str):
 
 def display_training_logs_window(process_key: str, height: int = 500):
     """
-    Display real-time training logs using Streamlit placeholder for smooth updates without page refresh.
-    This function BOTH creates and updates the placeholder content.
+    Display real-time training logs with live streaming from RealTimeLogStreamer.
+    Automatically updates with new log lines as they arrive.
     """
     if "training_processes" not in st.session_state or process_key not in st.session_state.training_processes:
         st.warning("Process information not found")
         return
     
     proc_info = st.session_state.training_processes[process_key]
-    log_file = proc_info.get("log_file")
+    streamer = proc_info.get("streamer")
     
-    if not log_file:
-        st.info("No log file available for this training session")
+    if not streamer:
+        st.warning("Log streamer not available")
         return
     
-    # Read logs from file
-    log_output = ""
-    try:
-        from pathlib import Path
-        log_path = Path(log_file)
+    # Create layout with progress and logs
+    st.markdown("### 📊 Real-Time Training Logs")
+    
+    # Progress section
+    progress_container = st.container()
+    with progress_container:
+        cols = progress_container.columns(4)
+        with cols[0]:
+            progress = streamer.get_progress()
+            if progress.total_positions > 0:
+                progress_container.progress(progress.position_progress)
+                status = f"Position {progress.position}/{progress.total_positions}"
+                if progress.model_name:
+                    status += f" - {progress.model_name}"
+                progress_container.text(status)
         
-        if log_path.exists():
-            try:
-                # Read the log file with retries
-                content = ""
-                for attempt in range(3):
-                    try:
-                        with open(log_path, 'r', encoding='utf-8', errors='ignore') as f:
-                            content = f.read()
-                        break
-                    except (IOError, OSError):
-                        if attempt < 2:
-                            import time as time_module
-                            time_module.sleep(0.1)
-                
-                if content.strip():
-                    log_output = content
-                else:
-                    log_output = "Training started, waiting for output...\n"
-            except (IOError, OSError) as e:
-                log_output = f"Reading log file ({str(e)})\n"
-        else:
-            log_output = "Log file created, waiting for output...\n"
-                
-    except Exception as e:
-        log_output = f"Error reading log file: {e}\n"
+        with cols[1]:
+            if progress.total_trials > 0:
+                progress_container.metric("Trial", f"{progress.trial}/{progress.total_trials}")
+        
+        with cols[2]:
+            delta_text = "[BEST]" if progress.is_best else None
+            progress_container.metric("Score", f"{progress.score:.4f}", delta=delta_text)
+        
+        with cols[3]:
+            progress_container.metric("Elapsed", progress.elapsed_time)
     
-    if not log_output.strip():
-        log_output = "Waiting for training output...\n"
+    st.divider()
     
-    # Display using HTML with custom styling (like Data & Training page)
-    # Escape HTML and format logs
-    escaped_logs = log_output.replace("<", "&lt;").replace(">", "&gt;")
-    log_lines = escaped_logs.split('\n')
+    # Logs section
+    logs = streamer.get_logs(num_lines=200)
+    if logs:
+        log_text = '\n'.join(logs)
+    else:
+        log_text = "Waiting for output...\n"
+    
+    # Escape HTML and render
+    escaped_logs = log_text.replace("<", "&lt;").replace(">", "&gt;")
     
     st.markdown(f"""
     <div style="
@@ -518,15 +537,15 @@ def display_training_logs_window(process_key: str, height: int = 500):
         background-color: #f0f0f0;
         font-family: 'Courier New', monospace;
         font-size: 12px;
-        line-height: 1.5;
+        line-height: 1.4;
         white-space: pre-wrap;
         word-wrap: break-word;
     ">
-    {"<br>".join(log_lines)}
+    {escaped_logs}
     </div>
     """, unsafe_allow_html=True)
     
-    # Add manual refresh button
+    # Add refresh button
     col1, col2 = st.columns([20, 1])
     with col2:
         if st.button("🔄", key=f"refresh_log_{process_key}", help="Refresh logs", use_container_width=True):
@@ -1486,20 +1505,20 @@ def render_advanced_ml_training_page(services_registry=None, ai_engines=None, co
                 history_df = pd.DataFrame(st.session_state.training_history)
                 st.dataframe(history_df, use_container_width=True, hide_index=True)
         
-        # Auto-refresh mechanism for logs - check if training is running and trigger rerun
+        # Auto-refresh mechanism for real-time log streaming
+        # With RealTimeLogStreamer, we can use more aggressive polling without flickering
+        # because logs are read from queue, not from files
         if "training_processes" in st.session_state and st.session_state.training_processes:
             has_running = any(
                 proc_info.get("process") and proc_info["process"].poll() is None
                 for proc_info in st.session_state.training_processes.values()
             )
             if has_running:
-                # Use Streamlit's polling mechanism to refresh logs every 2 seconds
-                # This is much faster than the default heartbeat but doesn't cause full-page flicker
-                # because we're only updating log display content, not the entire page structure
+                # Rerun every 1 second (every ~40 iterations at 25ms per iteration)
+                # With streamer, this is safe because we're reading from queue, not files
                 st.session_state._autorefresh_timer = st.session_state.get("_autorefresh_timer", 0) + 1
                 
-                # Rerun every 2 seconds (every ~50 iterations at 25ms per iteration)
-                if st.session_state._autorefresh_timer >= 80:
+                if st.session_state._autorefresh_timer >= 40:
                     st.session_state._autorefresh_timer = 0
                     st.rerun()
         
@@ -1508,8 +1527,5 @@ def render_advanced_ml_training_page(services_registry=None, ai_engines=None, co
     except Exception as e:
         st.error(f"Error rendering Advanced ML Training page: {e}")
         app_log(f"Error rendering Advanced ML Training page: {e}", "error")
-
-
-# This allows the page to be called directly
 if __name__ == "__main__":
     render_advanced_ml_training_page()

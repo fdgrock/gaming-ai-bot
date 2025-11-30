@@ -40,3 +40,6 @@ Training XGBoost model (hyperparameter tuning with 15 trials)...
   Trial 2/15: Score=0.4445
     [BEST] NEW BEST! Score: 0.4445
   Trial 3/15: Score=0.1433
+  Trial 4/15: Score=0.0908
+
+[Process output ended - 32 lines captured]
