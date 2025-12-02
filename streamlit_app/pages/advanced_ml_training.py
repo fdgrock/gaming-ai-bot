@@ -253,7 +253,7 @@ def get_ensemble_variants_status() -> Dict[str, Any]:
 # Training Execution Functions
 # ============================================================================
 
-def start_training(trainer_name: str, game: str = None) -> bool:
+def start_training(trainer_name: str, game: str = None, resume_mode: bool = False) -> bool:
     """Start a training process in a new terminal/subprocess."""
     import subprocess
     import sys
@@ -273,6 +273,10 @@ def start_training(trainer_name: str, game: str = None) -> bool:
         cmd = [sys.executable, str(script_path)]
         if game and game != "All Games":
             cmd.extend(["--game", game])
+        
+        # Add resume flag if enabled
+        if resume_mode:
+            cmd.append("--resume")
         
         # Create log file for this training session
         log_dir = PROJECT_ROOT / "logs" / "training"
@@ -306,6 +310,7 @@ def start_training(trainer_name: str, game: str = None) -> bool:
             f.write(f"{'='*80}\n")
             f.write(f"Training started: {trainer_name}\n")
             f.write(f"Game: {game if game != 'All Games' else 'All Games'}\n")
+            f.write(f"Resume Mode: {'ENABLED - Will skip existing models' if resume_mode else 'DISABLED - Will retrain all'}\n")
             f.write(f"Time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
             f.write(f"{'='*80}\n\n")
             f.write(f"Starting process: {' '.join(cmd)}\n")
@@ -313,36 +318,9 @@ def start_training(trainer_name: str, game: str = None) -> bool:
             f.write(f"Process will output below:\n")
             f.write(f"{'='*80}\n\n")
         
-        # Start a thread to capture output and write to log file
-        import threading
-        import time as time_module
-        
-        def capture_output():
-            """Capture subprocess output and write to log file."""
-            try:
-                with open(str(log_file), 'a', buffering=1) as f:
-                    # Read from stdout (which includes stderr)
-                    line_count = 0
-                    for line in process.stdout:
-                        if line:
-                            f.write(line)
-                            f.flush()
-                            line_count += 1
-                    
-                    # Write completion marker
-                    f.write(f"\n[Process output ended - {line_count} lines captured]\n")
-                    f.flush()
-            except Exception as e:
-                try:
-                    with open(str(log_file), 'a') as f:
-                        f.write(f"\n[Error capturing output: {type(e).__name__}: {e}]\n")
-                except:
-                    pass
-        
-        capture_thread = threading.Thread(target=capture_output, daemon=True)
-        capture_thread.start()
-        
-        # Create real-time log streamer
+        # Create real-time log streamer for line-by-line output capture
+        # (RealTimeLogStreamer handles both stdout capture and log file writing)
+        from streamlit_app.realtime_log_streamer import RealTimeLogStreamer
         streamer = RealTimeLogStreamer(process, log_file, max_buffer_lines=500)
         streamer.start()
         
@@ -362,7 +340,7 @@ def start_training(trainer_name: str, game: str = None) -> bool:
             "script": str(script_path),
             "log_file": str(log_file),
             "process": process,
-            "streamer": streamer  # Add streamer for real-time log display
+            "streamer": streamer  # Real-time streaming object for live log display
         }
         
         # Record in history
@@ -472,10 +450,60 @@ def display_process_monitor(process_key: str):
         st.metric("Elapsed", f"{elapsed.seconds // 3600}h {(elapsed.seconds % 3600) // 60}m")
 
 
+def cleanup_training_process(process_key: str):
+    """
+    Properly cleanup a training process and clear session state.
+    Ensures process is terminated, resources freed, and UI state reset.
+    """
+    if "training_processes" not in st.session_state:
+        return
+    
+    proc_info = st.session_state.training_processes.get(process_key)
+    if not proc_info:
+        return
+    
+    try:
+        # Terminate process with timeout and force kill fallback
+        process = proc_info.get("process")
+        if process and process.poll() is None:  # Only if still running
+            try:
+                process.terminate()
+                process.wait(timeout=3)
+            except subprocess.TimeoutExpired:
+                process.kill()
+                process.wait(timeout=2)
+    except Exception as e:
+        app_log(f"Error terminating process {process_key}: {e}", "error")
+    
+    # Close streamer if present
+    try:
+        streamer = proc_info.get("streamer")
+        if streamer:
+            streamer.stop()
+    except Exception as e:
+        app_log(f"Error stopping streamer: {e}", "error")
+    
+    # Remove from training processes
+    if process_key in st.session_state.training_processes:
+        del st.session_state.training_processes[process_key]
+    
+    # Clear related session state keys
+    keys_to_clear = [
+        f"{process_key}_trainer_name",
+        f"{process_key}_started_at",
+        f"{process_key}_progress_bars",
+        f"_autorefresh_timer",
+        "training_history"
+    ]
+    for key in keys_to_clear:
+        if key in st.session_state:
+            del st.session_state[key]
+
+
 def display_training_logs_window(process_key: str, height: int = 500):
     """
     Display real-time training logs with live streaming from RealTimeLogStreamer.
-    Automatically updates with new log lines as they arrive.
+    Shows metrics, progress bars, and scrollable logs.
     """
     if "training_processes" not in st.session_state or process_key not in st.session_state.training_processes:
         st.warning("Process information not found")
@@ -484,49 +512,82 @@ def display_training_logs_window(process_key: str, height: int = 500):
     proc_info = st.session_state.training_processes[process_key]
     streamer = proc_info.get("streamer")
     
-    if not streamer:
-        st.warning("Log streamer not available")
-        return
-    
-    # Create layout with progress and logs
-    st.markdown("### 📊 Real-Time Training Logs")
-    
-    # Progress section
-    progress_container = st.container()
-    with progress_container:
-        cols = progress_container.columns(4)
-        with cols[0]:
-            progress = streamer.get_progress()
-            if progress.total_positions > 0:
-                progress_container.progress(progress.position_progress)
-                status = f"Position {progress.position}/{progress.total_positions}"
-                if progress.model_name:
-                    status += f" - {progress.model_name}"
-                progress_container.text(status)
+    # Show metrics from streamer progress (if available) - otherwise skip metrics
+    if streamer:
+        col1, col2, col3, col4 = st.columns(4)
         
-        with cols[1]:
-            if progress.total_trials > 0:
-                progress_container.metric("Trial", f"{progress.trial}/{progress.total_trials}")
+        try:
+            with col1:
+                pos_text = f"{streamer.progress.position}/{streamer.progress.total_positions}" if streamer.progress.total_positions > 0 else "N/A"
+                st.metric("Position", pos_text)
+            
+            with col2:
+                trial_text = f"{streamer.progress.trial}/{streamer.progress.total_trials}" if streamer.progress.total_trials > 0 else "N/A"
+                st.metric("Trial", trial_text)
+            
+            with col3:
+                score_delta = "[BEST]" if streamer.progress.is_best else None
+                score_val = getattr(streamer.progress, 'score', 0.0)
+                st.metric("Score", f"{score_val:.4f}", delta=score_delta)
+            
+            with col4:
+                best_score_val = getattr(streamer.progress, 'best_score', 0.0)
+                st.metric("Best", f"{best_score_val:.4f}")
+        except Exception as e:
+            st.error(f"Error displaying metrics: {str(e)}")
+            app_log(f"Metrics display error: {e}", "error")
         
-        with cols[2]:
-            delta_text = "[BEST]" if progress.is_best else None
-            progress_container.metric("Score", f"{progress.score:.4f}", delta=delta_text)
+        # Progress bars
+        col1, col2 = st.columns(2)
         
-        with cols[3]:
-            progress_container.metric("Elapsed", progress.elapsed_time)
-    
-    st.divider()
-    
-    # Logs section
-    logs = streamer.get_logs(num_lines=200)
-    if logs:
-        log_text = '\n'.join(logs)
+        with col1:
+            if streamer.progress.total_positions > 0:
+                st.progress(
+                    streamer.progress.position_progress,
+                    text=f"Position: {streamer.progress.position}/{streamer.progress.total_positions}"
+                )
+        
+        with col2:
+            if streamer.progress.total_trials > 0:
+                st.progress(
+                    streamer.progress.trial_progress,
+                    text=f"Trial: {streamer.progress.trial}/{streamer.progress.total_trials}"
+                )
+        
+        st.divider()
     else:
-        log_text = "Waiting for output...\n"
+        st.info("💡 Real-time metrics not available - showing file-based logs")
     
-    # Escape HTML and render
-    escaped_logs = log_text.replace("<", "&lt;").replace(">", "&gt;")
+    # Log display - styled to match data_training.py Model Training tab
+    st.markdown("### 📜 Training Output")
     
+    # Simple approach: Read directly from log file (which IS being written to)
+    # The file is actively being appended to by the streamer thread
+    log_file = proc_info.get("log_file")
+    all_logs = ""
+    
+    if log_file:
+        try:
+            from pathlib import Path
+            log_path = Path(log_file)
+            if log_path.exists():
+                with open(str(log_path), 'r', encoding='utf-8', errors='ignore') as f:
+                    all_logs = f.read()
+            else:
+                all_logs = f"Log file not found: {log_file}"
+        except Exception as e:
+            all_logs = f"Error reading log file: {str(e)}"
+    else:
+        all_logs = "No log file path available"
+    
+    # If still empty, show message
+    if not all_logs.strip():
+        all_logs = "Initializing... logs will appear here as training progresses"
+    
+    # Format logs for display - replace HTML special chars
+    escaped_logs = all_logs.replace("<", "&lt;").replace(">", "&gt;")
+    
+    # Use light background styling matching data_training.py
     st.markdown(f"""
     <div style="
         height: {height}px; 
@@ -535,21 +596,32 @@ def display_training_logs_window(process_key: str, height: int = 500):
         border-radius: 5px; 
         padding: 10px; 
         background-color: #f0f0f0;
-        font-family: 'Courier New', monospace;
+        font-family: monospace;
         font-size: 12px;
         line-height: 1.4;
-        white-space: pre-wrap;
-        word-wrap: break-word;
     ">
-    {escaped_logs}
+    {"<br>".join([line.replace("<", "&lt;").replace(">", "&gt;") for line in escaped_logs.split(chr(10))])}
     </div>
     """, unsafe_allow_html=True)
     
-    # Add refresh button
-    col1, col2 = st.columns([20, 1])
-    with col2:
-        if st.button("🔄", key=f"refresh_log_{process_key}", help="Refresh logs", use_container_width=True):
-            st.rerun()
+    # Show completion status
+    process = proc_info.get("process")
+    if process:
+        return_code = process.poll()
+        if return_code is not None:
+            # Process has completed
+            if return_code == 0:
+                st.success("✅ **Training completed successfully!**")
+            else:
+                st.error(f"❌ **Training failed (exit code: {return_code})**")
+        else:
+            # Still running - auto-refresh
+            try:
+                import time
+                time.sleep(1)
+                st.rerun()
+            except Exception as e:
+                st.warning(f"⚠️ Auto-refresh error: {e}. Please refresh manually.")
 
 
 # ============================================================================
@@ -649,7 +721,21 @@ def render_phase_2a_section(game_filter: str = None):
                     # Process has ended - check return code
                     was_terminated = proc_info.get("was_terminated", False)
                     
-                    if poll_result != 0 and not was_terminated:
+                    if poll_result == 0 and not was_terminated:
+                        # Process succeeded - show success message and log file
+                        st.success(f"✅ **Training completed successfully!** (Process {process_key})")
+                        log_file = proc_info.get("log_file")
+                        if log_file:
+                            try:
+                                with open(log_file, 'r', errors='ignore') as f:
+                                    content = f.read()
+                                    # Show last 1500 chars for context
+                                    success_msg = content[-1500:] if len(content) > 1500 else content
+                                    with st.expander("📋 Show full training output"):
+                                        st.code(success_msg, language="text")
+                            except:
+                                pass
+                    elif poll_result != 0 and not was_terminated:
                         # Process failed (and wasn't manually stopped) - show error from log file
                         log_file = proc_info.get("log_file")
                         error_msg = ""
@@ -674,19 +760,46 @@ def render_phase_2a_section(game_filter: str = None):
         with col1:
             st.markdown("### 🚀 Start Training")
             st.markdown("Execute Phase 2A tree model training for all games and architectures.")
+            
+            # Add resume checkbox
+            resume_enabled = st.checkbox(
+                "📋 Resume Mode: Skip existing models",
+                value=False,
+                key="phase_2a_resume",
+                help="If enabled, will skip already trained models and only train missing ones. Much faster for incomplete training."
+            )
         
         with col2:
             if st.button("▶️ Start Phase 2A", key="start_phase_2a", use_container_width=True):
-                if start_training("Phase 2A - Tree Models", game_filter):
+                if start_training("Phase 2A - Tree Models", game_filter, resume_mode=resume_enabled):
                     st.session_state.ml_training_status["phase_2a_running"] = True
                     st.rerun()
     else:
         st.markdown("### 📊 Training in Progress...")
         
-        # Add progress indicator
+        # Check if the process has completed
+        process_completed = False
+        completion_code = None
         if running_process_key and "training_processes" in st.session_state:
             proc_info = st.session_state.training_processes.get(running_process_key)
             if proc_info:
+                process = proc_info.get("process")
+                if process:
+                    completion_code = process.poll()
+                    if completion_code is not None:
+                        process_completed = True
+        
+        if process_completed:
+            # Process has finished - show final status instead of progress
+            if completion_code == 0:
+                st.success("✅ **Training completed successfully!**")
+            else:
+                st.error(f"❌ **Training failed with exit code: {completion_code}**")
+        
+        # Add progress indicator
+        if running_process_key and "training_processes" in st.session_state:
+            proc_info = st.session_state.training_processes.get(running_process_key)
+            if proc_info and not process_completed:
                 log_file = proc_info.get("log_file")
                 if log_file:
                     try:
@@ -714,25 +827,63 @@ def render_phase_2a_section(game_filter: str = None):
                 display_process_monitor(running_process_key)
         
         with col2:
-            if st.button("⏹️ Stop Training", key="stop_phase_2a", use_container_width=True):
+            button_label = "⏹️ Stop Training" if not process_completed else "✨ Start New Training"
+            if st.button(button_label, key="stop_phase_2a", use_container_width=True):
+                if running_process_key:
+                    if not process_completed:
+                        cleanup_training_process(running_process_key)
+                        st.success("✅ Training stopped and cleaned up")
+                    else:
+                        # Clear completed process and show start button
+                        if running_process_key in st.session_state.training_processes:
+                            del st.session_state.training_processes[running_process_key]
+                    st.rerun()
+        
+        # Always show training logs - whether still running or completed
+        st.divider()
+        if running_process_key:
+            if not process_completed:
+                display_training_logs_window(running_process_key, height=500)
+            else:
+                # Show final logs for completed training
+                log_file = None
                 if running_process_key and "training_processes" in st.session_state:
                     proc_info = st.session_state.training_processes.get(running_process_key)
                     if proc_info:
-                        try:
-                            proc_info["process"].terminate()
-                            st.session_state.training_processes[running_process_key]["was_terminated"] = True
-                            st.session_state.training_processes[running_process_key]["process"].wait(timeout=5)
-                            st.success("✅ Training stopped")
-                        except:
-                            proc_info["process"].kill()
-                            st.session_state.training_processes[running_process_key]["was_terminated"] = True
-                            st.success("✅ Training forcefully stopped")
-                        st.rerun()
-        
-        # Show training logs
-        st.divider()
-        if running_process_key:
-            display_training_logs_window(running_process_key, height=500)
+                        log_file = proc_info.get("log_file")
+                
+                if log_file:
+                    try:
+                        from pathlib import Path
+                        log_path = Path(log_file)
+                        if log_path.exists():
+                            with open(str(log_path), 'r', encoding='utf-8', errors='ignore') as f:
+                                all_logs = f.read()
+                            
+                            st.markdown("### 📜 Training Output")
+                            escaped_logs = all_logs.replace("<", "&lt;").replace(">", "&gt;")
+                            st.markdown(f"""
+                            <div style="
+                                height: 600px; 
+                                overflow-y: auto; 
+                                border: 2px solid #d32f2f; 
+                                border-radius: 5px; 
+                                padding: 10px; 
+                                background-color: #fff3e0;
+                                font-family: monospace;
+                                font-size: 12px;
+                                line-height: 1.4;
+                            ">
+                            {"<br>".join([line.replace("<", "&lt;").replace(">", "&gt;") for line in escaped_logs.split(chr(10))])}
+                            </div>
+                            """, unsafe_allow_html=True)
+                            
+                            # Show completion info
+                            st.info(f"💡 Training process ended with exit code: {completion_code}")
+                            if completion_code != 0:
+                                st.warning("⚠️ Check the logs above to see where the training failed")
+                    except:
+                        pass
     
     st.divider()
     
@@ -780,13 +931,27 @@ def render_phase_2b_section(game_filter: str = None):
         st.markdown("### Encoder-Decoder LSTM with Luong Attention")
         st.markdown("Multi-task learning with 100-draw lookback sequences")
         
-        # Check if LSTM training is running
+        # Check if LSTM training is running OR recently completed
         lstm_training_key = None
+        lstm_process_completed = False
+        lstm_completion_code = None
+        
         if "training_processes" in st.session_state:
             for key, proc_info in st.session_state.training_processes.items():
-                if "Phase 2B - LSTM" in key and proc_info["status"] == "running":
-                    lstm_training_key = key
-                    break
+                if "Phase 2B - LSTM" in key:
+                    process = proc_info.get("process")
+                    if process:
+                        poll_result = process.poll()
+                        if poll_result is None:
+                            # Still running
+                            lstm_training_key = key
+                            break
+                        else:
+                            # Recently completed - still show logs
+                            lstm_training_key = key
+                            lstm_process_completed = True
+                            lstm_completion_code = poll_result
+                            break
         
         if not lstm_training_key:
             col1, col2, col3, col4 = st.columns(4)
@@ -817,29 +982,33 @@ def render_phase_2b_section(game_filter: str = None):
                     if start_training("Phase 2B - LSTM with Attention", game_filter):
                         st.rerun()
         else:
-            st.markdown("### 📊 Training in Progress...")
+            if lstm_process_completed:
+                st.markdown("### 📊 Training Completed")
+                if lstm_completion_code == 0:
+                    st.success("✅ **Training completed successfully!**")
+                else:
+                    st.error(f"❌ **Training failed with exit code: {lstm_completion_code}**")
+            else:
+                st.markdown("### 📊 Training in Progress...")
+            
             col1, col2 = st.columns([3, 1])
             
             with col1:
                 display_process_monitor(lstm_training_key)
             
             with col2:
-                if st.button("⏹️ Stop Training", key="stop_lstm", use_container_width=True):
-                    if lstm_training_key and "training_processes" in st.session_state:
-                        proc_info = st.session_state.training_processes.get(lstm_training_key)
-                        if proc_info:
-                            try:
-                                proc_info["process"].terminate()
-                                st.session_state.training_processes[lstm_training_key]["was_terminated"] = True
-                                st.session_state.training_processes[lstm_training_key]["process"].wait(timeout=5)
-                                st.success("✅ Training stopped")
-                            except:
-                                proc_info["process"].kill()
-                                st.session_state.training_processes[lstm_training_key]["was_terminated"] = True
-                                st.success("✅ Training forcefully stopped")
-                            st.rerun()
+                button_label = "🔄 Reset" if lstm_process_completed else "⏹️ Stop Training"
+                if st.button(button_label, key="stop_lstm", use_container_width=True):
+                    if lstm_training_key:
+                        if not lstm_process_completed:
+                            cleanup_training_process(lstm_training_key)
+                            st.success("✅ Training stopped and cleaned up")
+                        else:
+                            if lstm_training_key in st.session_state.training_processes:
+                                del st.session_state.training_processes[lstm_training_key]
+                        st.rerun()
             
-            # Show training logs
+            # Show training logs (persist even after completion)
             st.divider()
             if lstm_training_key:
                 display_training_logs_window(lstm_training_key, height=500)
@@ -848,13 +1017,27 @@ def render_phase_2b_section(game_filter: str = None):
         st.markdown("### Decoder-Only Transformer (GPT-like)")
         st.markdown("4-layer transformer with 8-head multi-attention")
         
-        # Check if Transformer training is running
+        # Check if Transformer training is running OR recently completed
         transformer_training_key = None
+        transformer_process_completed = False
+        transformer_completion_code = None
+        
         if "training_processes" in st.session_state:
             for key, proc_info in st.session_state.training_processes.items():
-                if "Phase 2B - Transformer" in key and proc_info["status"] == "running":
-                    transformer_training_key = key
-                    break
+                if "Phase 2B - Transformer" in key:
+                    process = proc_info.get("process")
+                    if process:
+                        poll_result = process.poll()
+                        if poll_result is None:
+                            # Still running
+                            transformer_training_key = key
+                            break
+                        else:
+                            # Recently completed - still show logs
+                            transformer_training_key = key
+                            transformer_process_completed = True
+                            transformer_completion_code = poll_result
+                            break
         
         if not transformer_training_key:
             col1, col2, col3, col4 = st.columns(4)
@@ -885,29 +1068,33 @@ def render_phase_2b_section(game_filter: str = None):
                     if start_training("Phase 2B - Transformer", game_filter):
                         st.rerun()
         else:
-            st.markdown("### 📊 Training in Progress...")
+            if transformer_process_completed:
+                st.markdown("### 📊 Training Completed")
+                if transformer_completion_code == 0:
+                    st.success("✅ **Training completed successfully!**")
+                else:
+                    st.error(f"❌ **Training failed with exit code: {transformer_completion_code}**")
+            else:
+                st.markdown("### 📊 Training in Progress...")
+            
             col1, col2 = st.columns([3, 1])
             
             with col1:
                 display_process_monitor(transformer_training_key)
             
             with col2:
-                if st.button("⏹️ Stop Training", key="stop_transformer", use_container_width=True):
-                    if transformer_training_key and "training_processes" in st.session_state:
-                        proc_info = st.session_state.training_processes.get(transformer_training_key)
-                        if proc_info:
-                            try:
-                                proc_info["process"].terminate()
-                                st.session_state.training_processes[transformer_training_key]["was_terminated"] = True
-                                st.session_state.training_processes[transformer_training_key]["process"].wait(timeout=5)
-                                st.success("✅ Training stopped")
-                            except:
-                                proc_info["process"].kill()
-                                st.session_state.training_processes[transformer_training_key]["was_terminated"] = True
-                                st.success("✅ Training forcefully stopped")
-                            st.rerun()
+                button_label = "🔄 Reset" if transformer_process_completed else "⏹️ Stop Training"
+                if st.button(button_label, key="stop_transformer", use_container_width=True):
+                    if transformer_training_key:
+                        if not transformer_process_completed:
+                            cleanup_training_process(transformer_training_key)
+                            st.success("✅ Training stopped and cleaned up")
+                        else:
+                            if transformer_training_key in st.session_state.training_processes:
+                                del st.session_state.training_processes[transformer_training_key]
+                        st.rerun()
             
-            # Show training logs
+            # Show training logs (persist even after completion)
             st.divider()
             if transformer_training_key:
                 display_training_logs_window(transformer_training_key, height=500)
@@ -916,13 +1103,27 @@ def render_phase_2b_section(game_filter: str = None):
         st.markdown("### 1D Convolutional Neural Network")
         st.markdown("Progressive convolution blocks (64→128→256 filters)")
         
-        # Check if CNN training is running
+        # Check if CNN training is running OR recently completed
         cnn_training_key = None
+        cnn_process_completed = False
+        cnn_completion_code = None
+        
         if "training_processes" in st.session_state:
             for key, proc_info in st.session_state.training_processes.items():
-                if "Phase 2B - CNN" in key and proc_info["status"] == "running":
-                    cnn_training_key = key
-                    break
+                if "Phase 2B - CNN" in key:
+                    process = proc_info.get("process")
+                    if process:
+                        poll_result = process.poll()
+                        if poll_result is None:
+                            # Still running
+                            cnn_training_key = key
+                            break
+                        else:
+                            # Recently completed - still show logs
+                            cnn_training_key = key
+                            cnn_process_completed = True
+                            cnn_completion_code = poll_result
+                            break
         
         if not cnn_training_key:
             col1, col2, col3, col4 = st.columns(4)
@@ -953,29 +1154,33 @@ def render_phase_2b_section(game_filter: str = None):
                     if start_training("Phase 2B - CNN", game_filter):
                         st.rerun()
         else:
-            st.markdown("### 📊 Training in Progress...")
+            if cnn_process_completed:
+                st.markdown("### 📊 Training Completed")
+                if cnn_completion_code == 0:
+                    st.success("✅ **Training completed successfully!**")
+                else:
+                    st.error(f"❌ **Training failed with exit code: {cnn_completion_code}**")
+            else:
+                st.markdown("### 📊 Training in Progress...")
+            
             col1, col2 = st.columns([3, 1])
             
             with col1:
                 display_process_monitor(cnn_training_key)
             
             with col2:
-                if st.button("⏹️ Stop Training", key="stop_cnn", use_container_width=True):
-                    if cnn_training_key and "training_processes" in st.session_state:
-                        proc_info = st.session_state.training_processes.get(cnn_training_key)
-                        if proc_info:
-                            try:
-                                proc_info["process"].terminate()
-                                st.session_state.training_processes[cnn_training_key]["was_terminated"] = True
-                                st.session_state.training_processes[cnn_training_key]["process"].wait(timeout=5)
-                                st.success("✅ Training stopped")
-                            except:
-                                proc_info["process"].kill()
-                                st.session_state.training_processes[cnn_training_key]["was_terminated"] = True
-                                st.success("✅ Training forcefully stopped")
-                            st.rerun()
+                button_label = "🔄 Reset" if cnn_process_completed else "⏹️ Stop Training"
+                if st.button(button_label, key="stop_cnn", use_container_width=True):
+                    if cnn_training_key:
+                        if not cnn_process_completed:
+                            cleanup_training_process(cnn_training_key)
+                            st.success("✅ Training stopped and cleaned up")
+                        else:
+                            if cnn_training_key in st.session_state.training_processes:
+                                del st.session_state.training_processes[cnn_training_key]
+                        st.rerun()
             
-            # Show training logs
+            # Show training logs (persist even after completion)
             st.divider()
             if cnn_training_key:
                 display_training_logs_window(cnn_training_key, height=500)
@@ -991,13 +1196,27 @@ def render_phase_2c_section(game_filter: str = None):
     
     # Transformer Variants
     with st.expander("🔀 **Transformer Variants** - 5 instances per game", expanded=True):
-        # Check if Transformer Variants training is running
+        # Check if Transformer Variants training is running OR recently completed
         tf_variants_training_key = None
+        tf_variants_process_completed = False
+        tf_variants_completion_code = None
+        
         if "training_processes" in st.session_state:
             for key, proc_info in st.session_state.training_processes.items():
-                if "Ensemble Variants - Transformer" in key and proc_info["status"] == "running":
-                    tf_variants_training_key = key
-                    break
+                if "Ensemble Variants - Transformer" in key:
+                    process = proc_info.get("process")
+                    if process:
+                        poll_result = process.poll()
+                        if poll_result is None:
+                            # Still running
+                            tf_variants_training_key = key
+                            break
+                        else:
+                            # Recently completed - still show logs
+                            tf_variants_training_key = key
+                            tf_variants_process_completed = True
+                            tf_variants_completion_code = poll_result
+                            break
         
         if not tf_variants_training_key:
             st.markdown("**Description:** 5 Transformer instances with different random seeds and bootstrap sampling")
@@ -1024,29 +1243,33 @@ def render_phase_2c_section(game_filter: str = None):
                 if start_training("Ensemble Variants - Transformer", game_filter):
                     st.rerun()
         else:
-            st.markdown("### 📊 Training in Progress...")
+            if tf_variants_process_completed:
+                st.markdown("### 📊 Training Completed")
+                if tf_variants_completion_code == 0:
+                    st.success("✅ **Training completed successfully!**")
+                else:
+                    st.error(f"❌ **Training failed with exit code: {tf_variants_completion_code}**")
+            else:
+                st.markdown("### 📊 Training in Progress...")
+            
             col1, col2 = st.columns([3, 1])
             
             with col1:
                 display_process_monitor(tf_variants_training_key)
             
             with col2:
-                if st.button("⏹️ Stop Training", key="stop_tf_variants", use_container_width=True):
-                    if tf_variants_training_key and "training_processes" in st.session_state:
-                        proc_info = st.session_state.training_processes.get(tf_variants_training_key)
-                        if proc_info:
-                            try:
-                                proc_info["process"].terminate()
-                                st.session_state.training_processes[tf_variants_training_key]["was_terminated"] = True
-                                st.session_state.training_processes[tf_variants_training_key]["process"].wait(timeout=5)
-                                st.success("✅ Training stopped")
-                            except:
-                                proc_info["process"].kill()
-                                st.session_state.training_processes[tf_variants_training_key]["was_terminated"] = True
-                                st.success("✅ Training forcefully stopped")
-                            st.rerun()
+                button_label = "🔄 Reset" if tf_variants_process_completed else "⏹️ Stop Training"
+                if st.button(button_label, key="stop_tf_variants", use_container_width=True):
+                    if tf_variants_training_key:
+                        if not tf_variants_process_completed:
+                            cleanup_training_process(tf_variants_training_key)
+                            st.success("✅ Training stopped and cleaned up")
+                        else:
+                            if tf_variants_training_key in st.session_state.training_processes:
+                                del st.session_state.training_processes[tf_variants_training_key]
+                        st.rerun()
             
-            # Show training logs
+            # Show training logs (persist even after completion)
             st.divider()
             if tf_variants_training_key:
                 display_training_logs_window(tf_variants_training_key, height=500)
@@ -1055,13 +1278,27 @@ def render_phase_2c_section(game_filter: str = None):
     
     # LSTM Variants
     with st.expander("🔗 **LSTM Variants** - 3 instances per game", expanded=True):
-        # Check if LSTM Variants training is running
+        # Check if LSTM Variants training is running OR recently completed
         lstm_variants_training_key = None
+        lstm_variants_process_completed = False
+        lstm_variants_completion_code = None
+        
         if "training_processes" in st.session_state:
             for key, proc_info in st.session_state.training_processes.items():
-                if "Ensemble Variants - LSTM" in key and proc_info["status"] == "running":
-                    lstm_variants_training_key = key
-                    break
+                if "Ensemble Variants - LSTM" in key:
+                    process = proc_info.get("process")
+                    if process:
+                        poll_result = process.poll()
+                        if poll_result is None:
+                            # Still running
+                            lstm_variants_training_key = key
+                            break
+                        else:
+                            # Recently completed - still show logs
+                            lstm_variants_training_key = key
+                            lstm_variants_process_completed = True
+                            lstm_variants_completion_code = poll_result
+                            break
         
         if not lstm_variants_training_key:
             st.markdown("**Description:** 3 LSTM instances with different random seeds and bootstrap sampling")
@@ -1088,32 +1325,442 @@ def render_phase_2c_section(game_filter: str = None):
                 if start_training("Ensemble Variants - LSTM", game_filter):
                     st.rerun()
         else:
-            st.markdown("### 📊 Training in Progress...")
+            if lstm_variants_process_completed:
+                st.markdown("### 📊 Training Completed")
+                if lstm_variants_completion_code == 0:
+                    st.success("✅ **Training completed successfully!**")
+                else:
+                    st.error(f"❌ **Training failed with exit code: {lstm_variants_completion_code}**")
+            else:
+                st.markdown("### 📊 Training in Progress...")
+            
             col1, col2 = st.columns([3, 1])
             
             with col1:
                 display_process_monitor(lstm_variants_training_key)
             
             with col2:
-                if st.button("⏹️ Stop Training", key="stop_lstm_variants", use_container_width=True):
-                    if lstm_variants_training_key and "training_processes" in st.session_state:
-                        proc_info = st.session_state.training_processes.get(lstm_variants_training_key)
-                        if proc_info:
-                            try:
-                                proc_info["process"].terminate()
-                                st.session_state.training_processes[lstm_variants_training_key]["was_terminated"] = True
-                                st.session_state.training_processes[lstm_variants_training_key]["process"].wait(timeout=5)
-                                st.success("✅ Training stopped")
-                            except:
-                                proc_info["process"].kill()
-                                st.session_state.training_processes[lstm_variants_training_key]["was_terminated"] = True
-                                st.success("✅ Training forcefully stopped")
-                            st.rerun()
+                button_label = "🔄 Reset" if lstm_variants_process_completed else "⏹️ Stop Training"
+                if st.button(button_label, key="stop_lstm_variants", use_container_width=True):
+                    if lstm_variants_training_key:
+                        if not lstm_variants_process_completed:
+                            cleanup_training_process(lstm_variants_training_key)
+                            st.success("✅ Training stopped and cleaned up")
+                        else:
+                            if lstm_variants_training_key in st.session_state.training_processes:
+                                del st.session_state.training_processes[lstm_variants_training_key]
+                        st.rerun()
             
-            # Show training logs
+            # Show training logs (persist even after completion)
             st.divider()
             if lstm_variants_training_key:
                 display_training_logs_window(lstm_variants_training_key, height=500)
+
+
+def render_phase_2d_section(game_filter: str = None):
+    """Render Phase 2D - Model Leaderboard & Analysis section."""
+    st.markdown("## 🏆 Phase 2D - Model Leaderboard & Analysis")
+    st.markdown("*Comprehensive evaluation and ranking of all trained models for production deployment*")
+    st.markdown("*Using top-level game filter from page header*")
+    
+    st.divider()
+    
+    try:
+        # Import Phase 2D module
+        sys.path.insert(0, str(Path(__file__).parent.parent.parent / "tools"))
+        from phase_2d_leaderboard import Phase2DLeaderboard
+        
+        # Action Buttons
+        col1, col2, col3 = st.columns(3)
+        
+        with col1:
+            if st.button("📊 Generate Leaderboard", key="phase2d_leaderboard", use_container_width=True):
+                with st.spinner("Scanning and evaluating all models..."):
+                    leaderboard = Phase2DLeaderboard()
+                    
+                    # Determine game filter
+                    game_param = None
+                    if game_filter and game_filter != "All Games":
+                        game_param = game_filter.lower().replace(" ", "_")
+                    
+                    df = leaderboard.generate_leaderboard(game_param)
+                    
+                    if not df.empty:
+                        set_session_value("phase2d_leaderboard_df", df)
+                        set_session_value("phase2d_promoted_models", [])  # Initialize promoted models list
+                        st.success(f"✅ Leaderboard generated with {len(df)} models")
+                        st.rerun()
+                    else:
+                        st.warning("⚠️ No models found. Train models first in Phase 2A/2B/2C")
+        
+        with col2:
+            if st.button("🎫 Generate Model Cards", key="phase2d_cards", use_container_width=True):
+                promoted_models = get_session_value("phase2d_promoted_models", [])
+                
+                if not promoted_models:
+                    st.warning("⚠️ Please promote models first using the 'Model Ranking' tab")
+                else:
+                    with st.spinner("Generating detailed model cards for promoted models..."):
+                        leaderboard = Phase2DLeaderboard()
+                        
+                        game_param = None
+                        if game_filter and game_filter != "All Games":
+                            game_param = game_filter.lower().replace(" ", "_")
+                        
+                        df = leaderboard.generate_leaderboard(game_param)
+                        
+                        if not df.empty:
+                            # Filter to only promoted models
+                            promoted_df = df[df['model_name'].isin(promoted_models)]
+                            
+                            if not promoted_df.empty:
+                                cards = leaderboard.generate_model_cards(promoted_df, top_n=len(promoted_df))
+                                set_session_value("phase2d_model_cards", cards)
+                                leaderboard.save_model_cards(cards, game_param or "all")
+                                st.success(f"✅ Generated {len(cards)} model cards for promoted models")
+                                st.rerun()
+                            else:
+                                st.warning("⚠️ No promoted models found in leaderboard")
+        
+        with col3:
+            if st.button("💾 Export Results", key="phase2d_export", use_container_width=True):
+                promoted_models = get_session_value("phase2d_promoted_models", [])
+                
+                if not promoted_models:
+                    st.warning("⚠️ Please promote models first before exporting")
+                else:
+                    with st.spinner("Exporting leaderboard and promoted model cards..."):
+                        leaderboard = Phase2DLeaderboard()
+                        
+                        game_param = None
+                        if game_filter and game_filter != "All Games":
+                            game_param = game_filter.lower().replace(" ", "_")
+                        
+                        df = leaderboard.generate_leaderboard(game_param)
+                        
+                        if not df.empty:
+                            leaderboard.save_leaderboard(df, game_param or "all")
+                            
+                            promoted_df = df[df['model_name'].isin(promoted_models)]
+                            if not promoted_df.empty:
+                                cards = leaderboard.generate_model_cards(promoted_df, top_n=len(promoted_df))
+                                leaderboard.save_model_cards(cards, game_param or "all")
+                                st.success(f"✅ Results exported:\n  📁 models/advanced/leaderboards/\n  📁 models/advanced/model_cards/\n  📊 Promoted {len(promoted_models)} models for prediction engine")
+                            st.rerun()
+        
+        st.divider()
+        
+        # Display Comprehensive Leaderboard
+        leaderboard_df = get_session_value("phase2d_leaderboard_df")
+        if leaderboard_df is not None and not leaderboard_df.empty:
+            st.markdown("### 📊 Comprehensive Model Leaderboard")
+            
+            # Overall Statistics
+            col1, col2, col3, col4, col5 = st.columns(5)
+            with col1:
+                st.metric("Total Models", len(leaderboard_df))
+            with col2:
+                phase_2a_count = len(leaderboard_df[leaderboard_df['phase'] == '2A'])
+                st.metric("Phase 2A (Trees)", phase_2a_count)
+            with col3:
+                phase_2b_count = len(leaderboard_df[leaderboard_df['phase'] == '2B'])
+                st.metric("Phase 2B (Neural)", phase_2b_count)
+            with col4:
+                phase_2c_count = len(leaderboard_df[leaderboard_df['phase'] == '2C'])
+                st.metric("Phase 2C (Variants)", phase_2c_count)
+            with col5:
+                st.metric("Top Score", f"{leaderboard_df['composite_score'].max():.4f}")
+            
+            st.divider()
+            
+            # Phase 2A - Tree Models Section
+            st.markdown("#### 🌳 Phase 2A - Tree Models")
+            phase_2a_df = leaderboard_df[leaderboard_df['phase'] == '2A'].copy()
+            if not phase_2a_df.empty:
+                col1, col2, col3 = st.columns(3)
+                with col1:
+                    st.metric("Tree Models", len(phase_2a_df))
+                with col2:
+                    st.metric("Avg Score", f"{phase_2a_df['composite_score'].mean():.4f}")
+                with col3:
+                    st.metric("Best Score", f"{phase_2a_df['composite_score'].max():.4f}")
+                
+                # Display table
+                display_cols = ['rank', 'model_name', 'model_type', 'composite_score', 'top_5_accuracy', 'ensemble_weight']
+                display_df = phase_2a_df[display_cols].copy()
+                display_df.columns = ['Rank', 'Model', 'Type', 'Score', 'Top-5', 'Weight']
+                display_df['Score'] = display_df['Score'].apply(lambda x: f"{x:.4f}")
+                display_df['Top-5'] = display_df['Top-5'].apply(lambda x: f"{x:.1%}")
+                display_df['Weight'] = display_df['Weight'].apply(lambda x: f"{x:.4f}")
+                st.dataframe(display_df, use_container_width=True, hide_index=True)
+            else:
+                st.info("No Phase 2A tree models found")
+            
+            st.divider()
+            
+            # Phase 2B - Neural Networks Section
+            st.markdown("#### 🧠 Phase 2B - Neural Networks")
+            phase_2b_df = leaderboard_df[leaderboard_df['phase'] == '2B'].copy()
+            if not phase_2b_df.empty:
+                col1, col2, col3 = st.columns(3)
+                with col1:
+                    st.metric("Neural Models", len(phase_2b_df))
+                with col2:
+                    st.metric("Avg Score", f"{phase_2b_df['composite_score'].mean():.4f}")
+                with col3:
+                    st.metric("Best Score", f"{phase_2b_df['composite_score'].max():.4f}")
+                
+                # Display table
+                display_cols = ['rank', 'model_name', 'model_type', 'composite_score', 'top_5_accuracy', 'ensemble_weight']
+                display_df = phase_2b_df[display_cols].copy()
+                display_df.columns = ['Rank', 'Model', 'Type', 'Score', 'Top-5', 'Weight']
+                display_df['Score'] = display_df['Score'].apply(lambda x: f"{x:.4f}")
+                display_df['Top-5'] = display_df['Top-5'].apply(lambda x: f"{x:.1%}")
+                display_df['Weight'] = display_df['Weight'].apply(lambda x: f"{x:.4f}")
+                st.dataframe(display_df, use_container_width=True, hide_index=True)
+            else:
+                st.info("No Phase 2B neural network models found")
+            
+            st.divider()
+            
+            # Phase 2C - Ensemble Variants Section
+            st.markdown("#### 🎯 Phase 2C - Ensemble Variants")
+            phase_2c_df = leaderboard_df[leaderboard_df['phase'] == '2C'].copy()
+            if not phase_2c_df.empty:
+                col1, col2, col3 = st.columns(3)
+                with col1:
+                    st.metric("Variant Models", len(phase_2c_df))
+                with col2:
+                    st.metric("Avg Score", f"{phase_2c_df['composite_score'].mean():.4f}")
+                with col3:
+                    st.metric("Best Score", f"{phase_2c_df['composite_score'].max():.4f}")
+                
+                # Display table
+                display_cols = ['rank', 'model_name', 'model_type', 'composite_score', 'top_5_accuracy', 'ensemble_weight']
+                display_df = phase_2c_df[display_cols].copy()
+                display_df.columns = ['Rank', 'Model', 'Type', 'Score', 'Top-5', 'Weight']
+                display_df['Score'] = display_df['Score'].apply(lambda x: f"{x:.4f}")
+                display_df['Top-5'] = display_df['Top-5'].apply(lambda x: f"{x:.1%}")
+                display_df['Weight'] = display_df['Weight'].apply(lambda x: f"{x:.4f}")
+                st.dataframe(display_df, use_container_width=True, hide_index=True)
+            else:
+                st.info("No Phase 2C ensemble variant models found")
+            
+            st.divider()
+            
+            # Model Details & Analysis with Hierarchical Selectors
+            st.markdown("### 📋 Model Details & Analysis")
+            
+            analysis_tab1, analysis_tab2, analysis_tab3 = st.tabs(["🔍 Model Explorer", "📊 Comparison", "📈 Model Ranking"])
+            
+            with analysis_tab1:
+                st.markdown("#### Hierarchical Model Explorer")
+                
+                # Group selector
+                group_options = ["All", "Tree Models (2A)", "Neural Networks (2B)", "Ensemble Variants (2C)"]
+                selected_group = st.selectbox("Select Model Group:", group_options, key="group_selector")
+                
+                # Filter by group
+                if selected_group == "Tree Models (2A)":
+                    group_df = leaderboard_df[leaderboard_df['phase'] == '2A']
+                elif selected_group == "Neural Networks (2B)":
+                    group_df = leaderboard_df[leaderboard_df['phase'] == '2B']
+                elif selected_group == "Ensemble Variants (2C)":
+                    group_df = leaderboard_df[leaderboard_df['phase'] == '2C']
+                else:
+                    group_df = leaderboard_df
+                
+                if not group_df.empty:
+                    # Type selector
+                    type_options = sorted(group_df['model_type'].unique().tolist())
+                    selected_type = st.selectbox("Select Model Type:", ["All"] + type_options, key="type_selector")
+                    
+                    # Filter by type
+                    if selected_type != "All":
+                        type_df = group_df[group_df['model_type'] == selected_type]
+                    else:
+                        type_df = group_df
+                    
+                    if not type_df.empty:
+                        # Model selector
+                        model_options = sorted(type_df['model_name'].tolist())
+                        selected_model = st.selectbox("Select Model:", model_options, key="model_selector")
+                        selected_row = type_df[type_df['model_name'] == selected_model].iloc[0]
+                        
+                        # Display detailed information
+                        col1, col2, col3 = st.columns(3)
+                        
+                        with col1:
+                            st.markdown("**Model Info**")
+                            st.write(f"Rank: #{int(selected_row['rank'])}")
+                            st.write(f"Phase: {selected_row['phase']}")
+                            st.write(f"Type: {selected_row['model_type'].upper()}")
+                            st.write(f"Architecture: {selected_row['architecture']}")
+                            st.write(f"Game: {selected_row['game']}")
+                        
+                        with col2:
+                            st.markdown("**Performance Metrics**")
+                            st.metric("Composite Score", f"{selected_row['composite_score']:.4f}")
+                            st.metric("Top-5 Accuracy", f"{selected_row['top_5_accuracy']:.2%}")
+                            st.metric("Top-10 Accuracy", f"{selected_row['top_10_accuracy']:.2%}")
+                            st.metric("KL Divergence", f"{selected_row['kl_divergence']:.4f}")
+                        
+                        with col3:
+                            st.markdown("**Production Metrics**")
+                            st.metric("Health Score", f"{selected_row['health_score']:.4f}")
+                            st.metric("Ensemble Weight", f"{selected_row['ensemble_weight']:.4f}")
+                            if pd.notna(selected_row['seed']):
+                                st.metric("Seed", int(selected_row['seed']))
+                        
+                        st.divider()
+                        
+                        st.markdown("**💪 Strength**")
+                        st.info(selected_row['strength'])
+                        
+                        st.markdown("**⚠️ Known Bias**")
+                        st.warning(selected_row['known_bias'])
+                        
+                        st.markdown("**🎯 Recommended Use**")
+                        st.success(selected_row['recommended_use'])
+                    else:
+                        st.info("No models found for selected type")
+                else:
+                    st.info("No models found for selected group")
+            
+            with analysis_tab2:
+                st.markdown("#### Model Comparison: Tree vs Neural vs Variants")
+                
+                comparison_data = {
+                    'Tree Models (2A)': leaderboard_df[leaderboard_df['phase'] == '2A'],
+                    'Neural Networks (2B)': leaderboard_df[leaderboard_df['phase'] == '2B'],
+                    'Ensemble Variants (2C)': leaderboard_df[leaderboard_df['phase'] == '2C']
+                }
+                
+                col1, col2, col3 = st.columns(3)
+                
+                with col1:
+                    st.markdown("**Tree Models (2A)**")
+                    if not comparison_data['Tree Models (2A)'].empty:
+                        st.write(f"Count: {len(comparison_data['Tree Models (2A)'])}")
+                        st.write(f"Avg Score: {comparison_data['Tree Models (2A)']['composite_score'].mean():.4f}")
+                        st.write(f"Best: {comparison_data['Tree Models (2A)']['composite_score'].max():.4f}")
+                        st.write(f"Worst: {comparison_data['Tree Models (2A)']['composite_score'].min():.4f}")
+                    else:
+                        st.write("No models")
+                
+                with col2:
+                    st.markdown("**Neural Networks (2B)**")
+                    if not comparison_data['Neural Networks (2B)'].empty:
+                        st.write(f"Count: {len(comparison_data['Neural Networks (2B)'])}")
+                        st.write(f"Avg Score: {comparison_data['Neural Networks (2B)']['composite_score'].mean():.4f}")
+                        st.write(f"Best: {comparison_data['Neural Networks (2B)']['composite_score'].max():.4f}")
+                        st.write(f"Worst: {comparison_data['Neural Networks (2B)']['composite_score'].min():.4f}")
+                    else:
+                        st.write("No models")
+                
+                with col3:
+                    st.markdown("**Ensemble Variants (2C)**")
+                    if not comparison_data['Ensemble Variants (2C)'].empty:
+                        st.write(f"Count: {len(comparison_data['Ensemble Variants (2C)'])}")
+                        st.write(f"Avg Score: {comparison_data['Ensemble Variants (2C)']['composite_score'].mean():.4f}")
+                        st.write(f"Best: {comparison_data['Ensemble Variants (2C)']['composite_score'].max():.4f}")
+                        st.write(f"Worst: {comparison_data['Ensemble Variants (2C)']['composite_score'].min():.4f}")
+                    else:
+                        st.write("No models")
+                
+                st.divider()
+                
+                # Score Distribution Comparison
+                st.markdown("**Score Distribution by Phase**")
+                comparison_df = leaderboard_df[['phase', 'composite_score']].copy()
+                st.bar_chart(comparison_df.set_index('phase')['composite_score'].value_counts().sort_index())
+                
+                # Accuracy Comparison
+                st.markdown("**Top-5 Accuracy by Phase**")
+                accuracy_data = {
+                    '2A': leaderboard_df[leaderboard_df['phase'] == '2A']['top_5_accuracy'].mean(),
+                    '2B': leaderboard_df[leaderboard_df['phase'] == '2B']['top_5_accuracy'].mean(),
+                    '2C': leaderboard_df[leaderboard_df['phase'] == '2C']['top_5_accuracy'].mean()
+                }
+                st.bar_chart(pd.Series(accuracy_data))
+            
+            with analysis_tab3:
+                st.markdown("#### 📈 Model Ranking - Promotion for Production")
+                
+                promoted_models = get_session_value("phase2d_promoted_models", [])
+                
+                # Display all models ranked from best to worst
+                ranking_df = leaderboard_df[['rank', 'model_name', 'model_type', 'phase', 'composite_score', 'top_5_accuracy']].copy()
+                ranking_df = ranking_df.sort_values('rank').reset_index(drop=True)
+                
+                st.markdown("**All Models Ranked by Composite Score**")
+                
+                # Create a container for the ranking display
+                for idx, row in ranking_df.iterrows():
+                    col1, col2, col3, col4, col5 = st.columns([1, 2, 1.5, 1, 1])
+                    
+                    with col1:
+                        st.markdown(f"### #{int(row['rank'])}")
+                    
+                    with col2:
+                        st.markdown(f"**{row['model_name']}**")
+                        st.caption(f"{row['phase']} | {row['model_type'].upper()}")
+                    
+                    with col3:
+                        st.metric("Score", f"{row['composite_score']:.4f}")
+                    
+                    with col4:
+                        st.metric("Top-5", f"{row['top_5_accuracy']:.1%}")
+                    
+                    with col5:
+                        # Promote/Demote button
+                        model_name = row['model_name']
+                        is_promoted = model_name in promoted_models
+                        
+                        if is_promoted:
+                            if st.button("❌ Demote", key=f"demote_{idx}"):
+                                promoted_models.remove(model_name)
+                                set_session_value("phase2d_promoted_models", promoted_models)
+                                st.success(f"Demoted: {model_name}")
+                                st.rerun()
+                        else:
+                            if st.button("✅ Promote", key=f"promote_{idx}"):
+                                promoted_models.append(model_name)
+                                set_session_value("phase2d_promoted_models", promoted_models)
+                                st.success(f"Promoted: {model_name}")
+                                st.rerun()
+                    
+                    st.divider()
+                
+                # Summary of promoted models
+                st.markdown("#### ✅ Promoted Models for Production Engine")
+                if promoted_models:
+                    promoted_df = leaderboard_df[leaderboard_df['model_name'].isin(promoted_models)].sort_values('rank')
+                    
+                    col1, col2 = st.columns([3, 2])
+                    with col1:
+                        st.success(f"**Total Promoted: {len(promoted_models)} models**")
+                        for i, model in enumerate(promoted_models, 1):
+                            model_row = leaderboard_df[leaderboard_df['model_name'] == model].iloc[0]
+                            st.write(f"{i}. {model} - Score: {model_row['composite_score']:.4f}")
+                    
+                    with col2:
+                        st.info(f"**Statistics**")
+                        st.write(f"Count: {len(promoted_df)}")
+                        st.write(f"Avg Score: {promoted_df['composite_score'].mean():.4f}")
+                        st.write(f"Best: {promoted_df['composite_score'].max():.4f}")
+                else:
+                    st.warning("No models promoted yet. Click 'Promote' buttons above to select models for the prediction engine.")
+        
+        else:
+            st.info("ℹ️ Click '📊 Generate Leaderboard' to evaluate all trained models")
+    
+    except ImportError as e:
+        st.error(f"❌ Failed to import Phase 2D module: {e}")
+    except Exception as e:
+        st.error(f"❌ Error in Phase 2D: {e}")
+        import traceback
+        st.write(traceback.format_exc())
 
 
 def render_training_summary(game_filter: str = None):
@@ -1421,12 +2068,13 @@ def render_advanced_ml_training_page(services_registry=None, ai_engines=None, co
         st.divider()
         
         # Main tabs
-        tab_overview, tab_phase1, tab_phase2a, tab_phase2b, tab_phase2c, tab_monitor = st.tabs([
+        tab_overview, tab_phase1, tab_phase2a, tab_phase2b, tab_phase2c, tab_phase2d, tab_monitor = st.tabs([
             "📊 Overview",
             "⚙️ Phase 1",
             "🌳 Phase 2A",
             "🧠 Phase 2B",
             "🎯 Phase 2C",
+            "🏆 Phase 2D",
             "📈 Monitor"
         ])
         
@@ -1444,6 +2092,11 @@ def render_advanced_ml_training_page(services_registry=None, ai_engines=None, co
         
         with tab_phase2c:
             render_phase_2c_section(st.session_state.selected_ml_game)
+        
+        with tab_phase2d:
+            # Use top-level game filter
+            current_game = None if st.session_state.selected_ml_game == "All Games" else st.session_state.selected_ml_game
+            render_phase_2d_section(current_game)
         
         with tab_monitor:
             st.markdown("## 📈 Training Monitor")
