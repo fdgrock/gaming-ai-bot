@@ -287,6 +287,13 @@ def _render_ml_predictions() -> None:
             ["Lotto 6/49", "Lotto Max"],
             key="ml_game_selector"
         )
+        
+        # Display next draw date
+        try:
+            next_draw = compute_next_draw_date(game_name)
+            st.info(f"📅 **Next Draw Date:** {next_draw.strftime('%A, %B %d, %Y')}")
+        except Exception as e:
+            app_logger.debug(f"Could not compute next draw date: {e}")
     
     # Helper function to get promoted models from Phase 2D
     def get_promoted_models(game_name: str) -> List[Dict[str, Any]]:
@@ -437,14 +444,8 @@ def _render_ml_predictions() -> None:
         
         with st.spinner("🔄 Generating predictions..."):
             try:
-                # Initialize engine with all parameters
-                engine = PredictionEngine(
-                    sampling_strategy=SamplingStrategy,
-                    bias_correction_enabled=use_bias_correction,
-                    random_seed=random_seed,
-                    variability_factor=variability_factor / 100.0,  # Convert percentage to decimal
-                    save_seed_with_predictions=save_seed_with_predictions
-                )
+                # Initialize engine with game
+                engine = PredictionEngine(game=game_name)
                 
                 # Generate predictions
                 results = []
@@ -457,33 +458,116 @@ def _render_ml_predictions() -> None:
                         st.error("Selected model not found")
                         return
                     
-                    for i in range(num_predictions):
-                        result = engine.predict_single_model(
-                            model_name=selected_model,
-                            game=game_name,
-                            probability_weights=model_data.get("class_probabilities", None),
-                            health_score=model_data.get("health_score", 0.75),
-                            known_bias=model_data.get("known_bias", 0.0)
-                        )
-                        results.append(result)
-                
-                else:  # Ensemble mode
-                    # Prepare ensemble data from selected model objects
-                    ensemble_models = {}
-                    for model_data in selected_model_objs:
-                        model_name = model_data.get("model_name")
-                        ensemble_models[model_name] = {
-                            "probabilities": model_data.get("class_probabilities", None),
-                            "health_score": model_data.get("health_score", 0.75),
-                            "known_bias": model_data.get("known_bias", 0.0)
-                        }
+                    # Get health score for bias correction
+                    health_score = model_data.get("health_score", 0.75)
                     
                     for i in range(num_predictions):
-                        result = engine.predict_ensemble(
-                            models=ensemble_models,
-                            game=game_name
+                        # Use seed with offset for each prediction
+                        current_seed = random_seed + i if random_seed else None
+                        
+                        result_list = engine.predict_single_model(
+                            model_name=selected_model,
+                            health_score=health_score,
+                            num_predictions=1,
+                            seed=current_seed
                         )
-                        results.append(result)
+                        
+                        if result_list:
+                            result = result_list[0]
+                            # Add metadata for saving
+                            result_dict = {
+                                'numbers': result.numbers,
+                                'confidence': result.confidence,
+                                'model_name': result.model_name,
+                                'prediction_type': result.prediction_type,
+                                'reasoning': result.reasoning,
+                                'generated_at': result.generated_at,
+                                'game': result.game,
+                                'variability_factor': variability_factor,
+                                'seed': current_seed if save_seed_with_predictions else None
+                            }
+                            results.append(result_dict)
+                
+                else:  # Ensemble mode
+                    # Prepare ensemble weights (model_name: health_score)
+                    model_weights = {}
+                    for model_data in selected_model_objs:
+                        model_name = model_data.get("model_name")
+                        model_weights[model_name] = model_data.get("health_score", 0.75)
+                    
+                    for i in range(num_predictions):
+                        # Use seed with offset for each prediction
+                        current_seed = random_seed + i if random_seed else None
+                        
+                        result_list = engine.predict_ensemble(
+                            model_weights=model_weights,
+                            num_predictions=1,
+                            seed=current_seed
+                        )
+                        
+                        if result_list:
+                            result = result_list[0]
+                            # Add metadata for saving
+                            result_dict = {
+                                'numbers': result.numbers,
+                                'confidence': result.confidence,
+                                'model_name': f"Ensemble ({len(model_weights)} models)",
+                                'prediction_type': result.prediction_type,
+                                'reasoning': result.reasoning,
+                                'generated_at': result.generated_at,
+                                'game': result.game,
+                                'models_used': model_weights,
+                                'variability_factor': variability_factor,
+                                'seed': current_seed if save_seed_with_predictions else None
+                            }
+                            results.append(result_dict)
+                
+                # Save predictions to disk
+                if results:
+                    try:
+                        game_key = sanitize_game_name(game_name)
+                        pred_dir = Path(__file__).parent.parent.parent / "predictions" / game_key / prediction_mode
+                        pred_dir.mkdir(parents=True, exist_ok=True)
+                        
+                        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+                        pred_file = pred_dir / f"prediction_{timestamp}.json"
+                        
+                        # Get next draw date
+                        next_draw_date = None
+                        try:
+                            next_draw = compute_next_draw_date(game_name)
+                            next_draw_date = next_draw.strftime('%Y-%m-%d')
+                        except:
+                            pass
+                        
+                        # Prepare data for saving
+                        save_data = {
+                            "game": game_name,
+                            "draw_date": next_draw_date,
+                            "prediction_type": prediction_mode,
+                            "generated_at": datetime.now().isoformat(),
+                            "parameters": {
+                                "num_predictions": num_predictions,
+                                "random_seed": random_seed,
+                                "variability_factor": variability_factor,
+                                "bias_correction_enabled": use_bias_correction,
+                                "save_seed_with_predictions": save_seed_with_predictions
+                            },
+                            "predictions": results
+                        }
+                        
+                        with open(pred_file, 'w') as f:
+                            json.dump(save_data, f, indent=2, default=str)
+                        
+                        st.success(f"💾 Predictions saved to: `{pred_file.relative_to(Path(__file__).parent.parent.parent)}`")
+                        
+                        # Reset the generation flag to prevent duplicate saves on page reruns
+                        st.session_state.ml_predictions_generated = False
+                    
+                    except Exception as e:
+                        st.warning(f"⚠️ Could not save predictions: {e}")
+                        # Still reset the flag to avoid repeated attempts
+                        st.session_state.ml_predictions_generated = False
                 
                 # Display summary
                 st.success(f"✅ Generated {len(results)} predictions!")
@@ -492,7 +576,7 @@ def _render_ml_predictions() -> None:
                 with col1:
                     st.metric("Total Predictions", len(results))
                 with col2:
-                    avg_confidence = np.mean([r.confidence for r in results])
+                    avg_confidence = np.mean([r['confidence'] for r in results])
                     st.metric("Avg Confidence", f"{avg_confidence:.4f}")
                 with col3:
                     st.metric("Mode", prediction_mode)
@@ -501,37 +585,25 @@ def _render_ml_predictions() -> None:
                 st.markdown("**Prediction Details:**")
                 
                 for idx, result in enumerate(results, 1):
-                    with st.expander(f"Prediction {idx}: {result.numbers}", expanded=(idx == 1)):
+                    numbers_str = ", ".join(map(str, result['numbers']))
+                    with st.expander(f"Prediction {idx}: {numbers_str}", expanded=(idx == 1)):
                         col1, col2 = st.columns(2)
                         
                         with col1:
-                            st.markdown(f"**Numbers:** {result.numbers}")
-                            st.markdown(f"**Confidence:** {result.confidence:.4f}")
-                            st.markdown(f"**Model:** {result.model_name}")
+                            st.markdown(f"**Numbers:** {result['numbers']}")
+                            st.markdown(f"**Confidence:** {result['confidence']:.4f}")
+                            st.markdown(f"**Model:** {result['model_name']}")
                         
                         with col2:
-                            st.markdown(f"**Type:** {result.prediction_type}")
-                            st.markdown(f"**Generated:** {result.generated_at.strftime('%Y-%m-%d %H:%M:%S')}")
+                            st.markdown(f"**Type:** {result['prediction_type']}")
+                            st.markdown(f"**Generated:** {result['generated_at']}")
                         
                         st.markdown("**Reasoning:**")
-                        st.info(result.reasoning)
+                        st.info(result['reasoning'])
                         
-                        if result.individual_probabilities:
-                            st.markdown("**Number Probabilities:**")
-                            prob_df = pd.DataFrame({
-                                "Number": result.individual_probabilities.keys(),
-                                "Probability": result.individual_probabilities.values()
-                            }).sort_values("Probability", ascending=False)
-                            
-                            fig = px.bar(
-                                prob_df,
-                                x="Number",
-                                y="Probability",
-                                title=f"Prediction {idx} - Number Probabilities",
-                                color="Probability",
-                                color_continuous_scale="Viridis"
-                            )
-                            st.plotly_chart(fig, use_container_width=True)
+                        # Show seed if saved
+                        if result.get('seed') is not None:
+                            st.caption(f"🔐 Seed: {result['seed']} | Variability: {result.get('variability_factor', 10)}%")
                 
                 # Export section
                 st.markdown("**📥 Export Results**")
@@ -544,11 +616,11 @@ def _render_ml_predictions() -> None:
                     for idx, result in enumerate(results, 1):
                         csv_data.append({
                             "Prediction": idx,
-                            "Numbers": ",".join(map(str, result.numbers)),
-                            "Confidence": result.confidence,
-                            "Model": result.model_name,
-                            "Type": result.prediction_type,
-                            "Generated": result.generated_at.isoformat()
+                            "Numbers": ",".join(map(str, result['numbers'])),
+                            "Confidence": result['confidence'],
+                            "Model": result['model_name'],
+                            "Type": result['prediction_type'],
+                            "Generated": result['generated_at']
                         })
                     
                     csv_df = pd.DataFrame(csv_data)
@@ -569,19 +641,20 @@ def _render_ml_predictions() -> None:
                         "mode": prediction_mode,
                         "predictions": [
                             {
-                                "numbers": r.numbers,
-                                "confidence": r.confidence,
-                                "model": r.model_name,
-                                "type": r.prediction_type,
-                                "reasoning": r.reasoning,
-                                "generated_at": r.generated_at.isoformat(),
-                                "probabilities": r.individual_probabilities
+                                "numbers": r['numbers'],
+                                "confidence": r['confidence'],
+                                "model": r['model_name'],
+                                "type": r['prediction_type'],
+                                "reasoning": r['reasoning'],
+                                "generated_at": r['generated_at'],
+                                "variability_factor": r.get('variability_factor'),
+                                "seed": r.get('seed')
                             }
                             for r in results
                         ],
                         "metadata": {
                             "total_count": len(results),
-                            "avg_confidence": float(np.mean([r.confidence for r in results])),
+                            "avg_confidence": float(np.mean([r['confidence'] for r in results])),
                             "generation_time": datetime.now().isoformat()
                         }
                     }
@@ -1348,9 +1421,16 @@ def _render_performance_analysis() -> None:
     # ==================== ML PREDICTIONS ANALYSIS ====================
     st.divider()
     st.markdown("### 🧠 ML Predictions Analysis")
-    st.markdown("*View generated ML predictions with detailed analysis from trained models*")
+    st.markdown("*View generated ML predictions with detailed analysis from trained models for the current draw date*")
     
     try:
+        # Get the draw date from latest_draw
+        draw_date_str = latest_draw.get('draw_date', 'N/A') if latest_draw else 'N/A'
+        
+        if draw_date_str == 'N/A':
+            st.warning("⚠️ Could not determine draw date. ML predictions cannot be filtered.")
+            return
+        
         # Analysis mode selector
         analysis_mode = st.radio(
             "View predictions from:",
@@ -1360,7 +1440,7 @@ def _render_performance_analysis() -> None:
         )
         
         if analysis_mode == "Single Model":
-            # Load single model predictions
+            # Load single model predictions for this draw date
             col1, col2 = st.columns(2)
             
             with col1:
@@ -1371,10 +1451,19 @@ def _render_performance_analysis() -> None:
                 available_predictions = []
                 if single_model_dir.exists():
                     pred_files = sorted(single_model_dir.glob("*.json"), key=lambda p: p.stat().st_mtime, reverse=True)
-                    available_predictions = [f.stem for f in pred_files]
+                    # Filter predictions by draw date
+                    for pred_file in pred_files:
+                        try:
+                            with open(pred_file, 'r') as f:
+                                pred_data = json.load(f)
+                            pred_draw_date = pred_data.get('draw_date', 'N/A')
+                            if pred_draw_date == draw_date_str:
+                                available_predictions.append(f.stem)
+                        except:
+                            pass
                 
                 if not available_predictions:
-                    st.info("ℹ️ No Single Model predictions available for this game. Generate predictions in the Generate ML Predictions tab.")
+                    st.info(f"ℹ️ No Single Model predictions available for draw date {draw_date_str}. Generate predictions in the Generate ML Predictions tab.")
                 else:
                     selected_pred = st.selectbox(
                         "Select Prediction",
@@ -1392,10 +1481,11 @@ def _render_performance_analysis() -> None:
                             with col2:
                                 st.markdown("**📊 Prediction Summary**")
                                 pred_info = pd.DataFrame({
-                                    "Metric": ["Model Name", "Game", "Generated", "Predictions"],
+                                    "Metric": ["Model Name", "Game", "Draw Date", "Generated", "Predictions"],
                                     "Value": [
-                                        prediction_data.get("model_name", "N/A"),
+                                        prediction_data.get("prediction_type", "N/A"),
                                         prediction_data.get("game", "N/A"),
+                                        prediction_data.get("draw_date", "N/A"),
                                         str(prediction_data.get("generated_at", "N/A"))[:16],
                                         len(prediction_data.get("predictions", []))
                                     ]
@@ -1426,72 +1516,82 @@ def _render_performance_analysis() -> None:
                                             st.info(pred_set.get("reasoning"))
         
         else:  # Ensemble mode
-            # Load ensemble predictions for current draw date
+            # Load ensemble predictions for this draw date
             game_key = sanitize_game_name(selected_game)
             ensemble_dir = Path(__file__).parent.parent.parent / "predictions" / game_key / "Ensemble Voting"
             
-            if not ensemble_dir.exists():
-                st.info("ℹ️ No Ensemble predictions available for this game. Generate predictions in the Generate ML Predictions tab.")
+            available_ensemble = []
+            if ensemble_dir.exists():
+                ensemble_files = sorted(ensemble_dir.glob("*.json"), key=lambda p: p.stat().st_mtime, reverse=True)
+                # Filter predictions by draw date
+                for ensemble_file in ensemble_files:
+                    try:
+                        with open(ensemble_file, 'r') as f:
+                            ens_data = json.load(f)
+                        ens_draw_date = ens_data.get('draw_date', 'N/A')
+                        if ens_draw_date == draw_date_str:
+                            available_ensemble.append(ensemble_file.stem)
+                    except:
+                        pass
+            
+            if not available_ensemble:
+                st.info(f"ℹ️ No Ensemble predictions available for draw date {draw_date_str}. Generate predictions in the Generate ML Predictions tab.")
             else:
-                available_ensemble = sorted(ensemble_dir.glob("*.json"), key=lambda p: p.stat().st_mtime, reverse=True)
+                col1, col2 = st.columns(2)
                 
-                if not available_ensemble:
-                    st.info("ℹ️ No Ensemble predictions found.")
-                else:
-                    col1, col2 = st.columns(2)
+                with col1:
+                    selected_ensemble = st.selectbox(
+                        "Select Ensemble Prediction",
+                        available_ensemble,
+                        key="ensemble_pred_select",
+                        format_func=lambda x: x.replace("prediction_", "").replace("_", " ").upper()
+                    )
+                
+                # Load and display ensemble prediction
+                if selected_ensemble:
+                    ensemble_file = ensemble_dir / f"{selected_ensemble}.json"
+                    ensemble_data = safe_load_json(ensemble_file)
                     
-                    with col1:
-                        selected_ensemble = st.selectbox(
-                            "Select Ensemble Prediction",
-                            [f.stem for f in available_ensemble],
-                            key="ensemble_pred_select",
-                            format_func=lambda x: x.replace("prediction_", "").replace("_", " ").upper()
-                        )
-                    
-                    # Load and display ensemble prediction
-                    if selected_ensemble:
-                        ensemble_file = ensemble_dir / f"{selected_ensemble}.json"
-                        ensemble_data = safe_load_json(ensemble_file)
+                    if ensemble_data:
+                        with col2:
+                            st.markdown("**📊 Ensemble Summary**")
+                            ensemble_info = pd.DataFrame({
+                                "Metric": ["Mode", "Game", "Draw Date", "Generated", "Predictions"],
+                                "Value": [
+                                    ensemble_data.get("prediction_type", "Ensemble Voting"),
+                                    ensemble_data.get("game", "N/A"),
+                                    ensemble_data.get("draw_date", "N/A"),
+                                    str(ensemble_data.get("generated_at", "N/A"))[:16],
+                                    len(ensemble_data.get("predictions", []))
+                                ]
+                            })
+                            st.dataframe(ensemble_info, use_container_width=True, hide_index=True)
                         
-                        if ensemble_data:
-                            with col2:
-                                st.markdown("**📊 Ensemble Summary**")
-                                ensemble_info = pd.DataFrame({
-                                    "Metric": ["Mode", "Game", "Generated", "Predictions"],
-                                    "Value": [
-                                        ensemble_data.get("prediction_type", "Ensemble Voting"),
-                                        ensemble_data.get("game", "N/A"),
-                                        str(ensemble_data.get("generated_at", "N/A"))[:16],
-                                        len(ensemble_data.get("predictions", []))
-                                    ]
-                                })
-                                st.dataframe(ensemble_info, use_container_width=True, hide_index=True)
-                            
-                            st.markdown("**🎯 Generated Numbers:**")
-                            predictions_list = ensemble_data.get("predictions", [])
-                            
-                            if predictions_list:
-                                for idx, pred_set in enumerate(predictions_list, 1):
-                                    with st.expander(f"Set {idx}: {pred_set.get('numbers', [])} - Confidence: {pred_set.get('confidence', 0):.2%}"):
-                                        col_a, col_b, col_c = st.columns(3)
-                                        
-                                        with col_a:
-                                            st.markdown(f"**Numbers:** {pred_set.get('numbers', [])}")
-                                            st.markdown(f"**Confidence:** {pred_set.get('confidence', 0):.2%}")
-                                        
-                                        with col_b:
-                                            st.markdown(f"**Prediction Type:** {pred_set.get('prediction_type', 'Ensemble Voting')}")
-                                            st.markdown(f"**Generated:** {str(pred_set.get('generated_at', 'N/A'))[:10]}")
-                                        
-                                        with col_c:
-                                            # Show model count if available
-                                            if isinstance(pred_set.get('models_used'), dict):
-                                                model_count = len(pred_set.get('models_used', {}))
-                                                st.markdown(f"**Models Used:** {model_count}")
-                                        
-                                        if pred_set.get("reasoning"):
-                                            st.markdown("**Ensemble Analysis:**")
-                                            st.info(pred_set.get("reasoning"))
+                        st.markdown("**🎯 Generated Numbers:**")
+                        predictions_list = ensemble_data.get("predictions", [])
+                        
+                        if predictions_list:
+                            for idx, pred_set in enumerate(predictions_list, 1):
+                                with st.expander(f"Set {idx}: {pred_set.get('numbers', [])} - Confidence: {pred_set.get('confidence', 0):.2%}"):
+                                    col_a, col_b, col_c = st.columns(3)
+                                    
+                                    with col_a:
+                                        st.markdown(f"**Numbers:** {pred_set.get('numbers', [])}")
+                                        st.markdown(f"**Confidence:** {pred_set.get('confidence', 0):.2%}")
+                                    
+                                    with col_b:
+                                        st.markdown(f"**Prediction Type:** {pred_set.get('prediction_type', 'Ensemble Voting')}")
+                                        st.markdown(f"**Generated:** {str(pred_set.get('generated_at', 'N/A'))[:10]}")
+                                    
+                                    with col_c:
+                                        # Show model count if available
+                                        if isinstance(pred_set.get('models_used'), dict):
+                                            model_count = len(pred_set.get('models_used', {}))
+                                            st.markdown(f"**Models Used:** {model_count}")
+                                    
+                                    if pred_set.get("reasoning"):
+                                        st.markdown("**Ensemble Analysis:**")
+                                        st.info(pred_set.get("reasoning"))
     
     except Exception as e:
         app_logger.error(f"Error in ML Predictions Analysis: {e}")
@@ -1778,8 +1878,8 @@ def _render_prediction_history() -> None:
         key="hist_game_selector"
     )
     
-    # Create two tabs
-    tab1, tab2 = st.tabs(["🤖 Predictions by Model", "📅 Predictions by Date"])
+    # Create three tabs
+    tab1, tab2, tab3 = st.tabs(["🤖 Predictions by Model", "📅 Predictions by Date", "🧠 ML Predictions"])
     
     # ===== TAB 1: PREDICTIONS BY MODEL =====
     with tab1:
@@ -2082,6 +2182,222 @@ def _render_prediction_history() -> None:
                                 st.markdown("")  # Spacing between sets
             else:
                 st.info(f"No predictions found for {date_str}")
+    
+    # ===== TAB 3: ML PREDICTIONS =====
+    with tab3:
+        st.subheader("View ML Predictions by Draw Date")
+        
+        # Mode selector
+        ml_mode = st.selectbox(
+            "Prediction Mode",
+            ["Single Model", "Ensemble"],
+            key="ml_history_mode"
+        )
+        
+        # Get all available draw dates with ML predictions for this game
+        game_key = sanitize_game_name(selected_game)
+        ml_predictions_dir = Path(__file__).parent.parent.parent / "predictions" / game_key
+        
+        if not ml_predictions_dir.exists():
+            st.info("ℹ️ No ML predictions directory found for this game.")
+        else:
+            # Determine which subdirectory based on mode
+            mode_dir = ml_predictions_dir / ("Single Model" if ml_mode == "Single Model" else "Ensemble Voting")
+            
+            if not mode_dir.exists():
+                st.info(f"ℹ️ No {ml_mode} predictions found for this game.")
+            else:
+                # Get all prediction files and extract unique draw dates
+                pred_files = sorted(mode_dir.glob("*.json"), key=lambda p: p.stat().st_mtime, reverse=True)
+                
+                if not pred_files:
+                    st.info(f"ℹ️ No {ml_mode} prediction files found.")
+                else:
+                    # Extract unique draw dates from prediction files
+                    draw_dates_dict = {}  # {date: list of files}
+                    for pred_file in pred_files:
+                        try:
+                            with open(pred_file, 'r') as f:
+                                pred_data = json.load(f)
+                            draw_date = pred_data.get('draw_date', 'Unknown')
+                            if draw_date not in draw_dates_dict:
+                                draw_dates_dict[draw_date] = []
+                            draw_dates_dict[draw_date].append(pred_file)
+                        except:
+                            pass
+                    
+                    if not draw_dates_dict:
+                        st.info("ℹ️ No valid ML predictions found.")
+                    else:
+                        # Sort dates with newest first
+                        sorted_dates = sorted(draw_dates_dict.keys(), reverse=True)
+                        
+                        # Select draw date
+                        selected_draw_date = st.selectbox(
+                            "Select Draw Date",
+                            sorted_dates,
+                            key="ml_history_date_select"
+                        )
+                        
+                        if selected_draw_date:
+                            # Get draw info for this date
+                            draw_info = _get_latest_draw_data_for_date(selected_game, selected_draw_date)
+                            
+                            # Display draw information header
+                            if draw_info:
+                                with st.container(border=True):
+                                    st.markdown("### 📊 Draw Information")
+                                    col1, col2, col3, col4 = st.columns(4)
+                                    
+                                    with col1:
+                                        st.markdown(f"**Draw Date:** `{selected_draw_date}`")
+                                    
+                                    with col2:
+                                        winning_nums = draw_info.get('numbers', [])
+                                        st.markdown(f"**Winning Numbers:** `{', '.join(map(str, winning_nums))}`")
+                                    
+                                    with col3:
+                                        bonus = draw_info.get('bonus', 'N/A')
+                                        st.markdown(f"**Bonus:** `{bonus}`")
+                                    
+                                    with col4:
+                                        jackpot = draw_info.get('jackpot', 0)
+                                        if isinstance(jackpot, (int, float)):
+                                            st.markdown(f"**Jackpot:** `${jackpot:,.0f}`")
+                                        else:
+                                            st.markdown(f"**Jackpot:** `{jackpot}`")
+                            
+                            st.divider()
+                            
+                            # Get predictions for this date (usually just the latest one per mode)
+                            date_predictions = draw_dates_dict.get(selected_draw_date, [])
+                            
+                            # Display the most recent prediction file
+                            if date_predictions:
+                                # Use only the first (most recent) prediction file
+                                pred_file = date_predictions[0]
+                                
+                                try:
+                                    with open(pred_file, 'r') as f:
+                                        pred_data = json.load(f)
+                                    
+                                    predictions_list = pred_data.get('predictions', [])
+                                    prediction_type = pred_data.get('prediction_type', ml_mode)
+                                    generated_at = pred_data.get('generated_at', 'N/A')
+                                    
+                                    with st.container(border=True):
+                                        # Header with draw information
+                                        st.markdown("### 📋 ML Prediction Details")
+                                        
+                                        col1, col2, col3, col4 = st.columns(4)
+                                        
+                                        with col1:
+                                            st.markdown(f"**Draw Date:** `{selected_draw_date if selected_draw_date != 'Unknown' else 'Not Available'}`")
+                                        
+                                        with col2:
+                                            if draw_info:
+                                                winning_nums = draw_info.get('numbers', [])
+                                                st.markdown(f"**Winning Numbers:** `{', '.join(map(str, winning_nums))}`")
+                                            else:
+                                                st.markdown("**Winning Numbers:** `Not Available`")
+                                        
+                                        with col3:
+                                            if draw_info:
+                                                jackpot = draw_info.get('jackpot', 0)
+                                                if isinstance(jackpot, (int, float)) and jackpot > 0:
+                                                    st.markdown(f"**Jackpot:** `${jackpot:,.0f}`")
+                                                else:
+                                                    st.markdown("**Jackpot:** `Not Available`")
+                                            else:
+                                                st.markdown("**Jackpot:** `Not Available`")
+                                        
+                                        with col4:
+                                            st.markdown(f"**Generated:** `{generated_at[:16] if generated_at != 'N/A' else 'N/A'}`")
+                                        
+                                        st.divider()
+                                        
+                                        st.markdown(f"**Prediction Mode:** {prediction_type}")
+                                        st.markdown(f"**Total Prediction Sets:** {len(predictions_list)}")
+                                        
+                                        if predictions_list:
+                                            avg_confidence = sum(p.get('confidence', 0) for p in predictions_list) / len(predictions_list)
+                                            st.markdown(f"**Average Confidence:** `{avg_confidence:.2%}`")
+                                        
+                                        if ml_mode == "Ensemble" and predictions_list:
+                                            models_used = predictions_list[0].get('models_used', {})
+                                            if isinstance(models_used, dict):
+                                                st.markdown(f"**Models Used:** `{len(models_used)}`")
+                                        
+                                        st.markdown("---")
+                                        st.markdown("### 🎯 Predicted Numbers & Accuracy")
+                                        
+                                        # Calculate accuracy if we have winning numbers
+                                        accuracy_data = {}
+                                        if draw_info:
+                                            winning_nums = draw_info.get('numbers', [])
+                                            accuracy_data = _calculate_prediction_accuracy(predictions_list, winning_nums)
+                                        
+                                        # Display prediction sets with OLG-style game balls - each set as a row
+                                        for set_idx, pred_set in enumerate(predictions_list):
+                                            # Parse prediction numbers
+                                            nums = pred_set.get('numbers', [])
+                                            if isinstance(nums, str):
+                                                nums = [int(n.strip()) for n in nums.strip('[]"').split(',') if n.strip().isdigit()]
+                                            elif not isinstance(nums, list):
+                                                nums = list(nums) if hasattr(nums, '__iter__') else []
+                                            
+                                            # Get accuracy for this set
+                                            acc = accuracy_data.get(set_idx, {})
+                                            matched = acc.get('matched_numbers', [])
+                                            match_count = acc.get('match_count', 0)
+                                            total = acc.get('total_count', len(nums))
+                                            
+                                            # Set header with match count
+                                            confidence = pred_set.get('confidence', 0)
+                                            st.markdown(f"**Set {set_idx + 1}** - ✓ {match_count}/{total} matched | Confidence: `{confidence:.2%}`")
+                                            
+                                            # Display numbers as OLG-style game balls with color coding
+                                            num_cols = st.columns(len(nums) if nums else 6)
+                                            if nums:
+                                                for num_idx, (col, num) in enumerate(zip(num_cols, nums)):
+                                                    with col:
+                                                        # Determine color based on match
+                                                        is_correct = num in matched
+                                                        if is_correct:
+                                                            gradient_color = "linear-gradient(135deg, #86efac 0%, #22c55e 50%, #16a34a 100%)"
+                                                            shadow_color = "rgba(34, 197, 94, 0.3)"
+                                                        else:
+                                                            gradient_color = "linear-gradient(135deg, #fecaca 0%, #f87171 50%, #dc2626 100%)"
+                                                            shadow_color = "rgba(220, 38, 38, 0.3)"
+                                                        
+                                                        st.markdown(
+                                                            f'''
+                                                            <div style="
+                                                                text-align: center;
+                                                                padding: 0;
+                                                                margin: 0 auto;
+                                                                width: 70px;
+                                                                height: 70px;
+                                                                background: {gradient_color};
+                                                                border-radius: 50%;
+                                                                color: white;
+                                                                font-weight: 900;
+                                                                font-size: 32px;
+                                                                box-shadow: 0 6px 12px {shadow_color}, inset 0 1px 0 rgba(255,255,255,0.4);
+                                                                display: flex;
+                                                                align-items: center;
+                                                                justify-content: center;
+                                                                border: 2px solid rgba(255,255,255,0.3);
+                                                            ">{num}</div>
+                                                            ''',
+                                                            unsafe_allow_html=True
+                                                        )
+                                            
+                                            st.markdown("")  # Spacing between sets
+                                except Exception as e:
+                                    app_logger.error(f"Error displaying ML prediction: {e}")
+                                    st.warning(f"Error loading prediction file: {e}")
+
 
 
 def _get_latest_draw_data_for_date(game: str, target_date: str) -> Optional[Dict]:
