@@ -1381,7 +1381,7 @@ def render_phase_2d_section(game_filter: str = None):
                     # Determine game filter
                     game_param = None
                     if game_filter and game_filter != "All Games":
-                        game_param = game_filter.lower().replace(" ", "_")
+                        game_param = game_filter.lower().replace(" ", "_").replace("/", "_")
                     
                     df = leaderboard.generate_leaderboard(game_param)
                     

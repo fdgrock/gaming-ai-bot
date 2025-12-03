@@ -28,6 +28,14 @@ import json
 import traceback
 from sklearn.preprocessing import StandardScaler
 
+# ML Prediction Engine imports
+try:
+    from tools.prediction_engine import PredictionEngine, SamplingStrategy
+except ImportError:
+    # Fallback if import fails
+    PredictionEngine = None
+    SamplingStrategy = None
+
 try:
     from ..core import (
         get_available_games, 
@@ -218,8 +226,9 @@ def render_page(services_registry: Optional[Dict[str, Any]] = None,
         st.markdown("Generate intelligent lottery predictions using advanced AI models and mathematical analysis")
         
         # Main content tabs
-        tab1, tab2, tab3, tab4, tab5 = st.tabs([
+        tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
             "🎯 Generate Predictions",
+            "✨ Generate ML Predictions",
             "📊 Performance Analysis", 
             "📚 Prediction History",
             "📤 Export & Import",
@@ -230,15 +239,18 @@ def render_page(services_registry: Optional[Dict[str, Any]] = None,
             _render_prediction_generator()
         
         with tab2:
-            _render_performance_analysis()
+            _render_ml_predictions()
         
         with tab3:
-            _render_prediction_history()
+            _render_performance_analysis()
         
         with tab4:
-            _render_export_import()
+            _render_prediction_history()
         
         with tab5:
+            _render_export_import()
+        
+        with tab6:
             _render_help_guide()
         
         app_logger.info("Predictions page rendered successfully")
@@ -247,6 +259,379 @@ def render_page(services_registry: Optional[Dict[str, Any]] = None,
         st.error(f"🚨 Error rendering predictions page: {str(e)}")
         with st.expander("Error Details"):
             st.code(traceback.format_exc())
+
+
+def _render_ml_predictions() -> None:
+    """Advanced ML prediction generation with Gumbel-Top-K sampling, bias correction, and ensemble voting."""
+    
+    if PredictionEngine is None:
+        st.error("❌ Prediction Engine not available. Please ensure tools/prediction_engine.py is installed.")
+        return
+    
+    st.markdown("### 🎲 Generate ML Predictions")
+    st.markdown("""
+    Advanced AI prediction system with:
+    - **Gumbel-Top-K Sampling**: Mathematically correct categorical sampling
+    - **Bias Correction**: Weighted by model health scores
+    - **Ensemble Voting**: Weighted probability fusion with KL divergence checks
+    """)
+    
+    # ==================== SECTION 1: Model Selection ====================
+    st.markdown("#### 1️⃣ Select Game & Models")
+    
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        game_name = st.selectbox(
+            "Choose Game",
+            ["Lotto 6/49", "Lotto Max"],
+            key="ml_game_selector"
+        )
+    
+    # Helper function to get promoted models from Phase 2D
+    def get_promoted_models(game_name: str) -> List[Dict[str, Any]]:
+        """Load promoted models from Phase 2D leaderboard JSON file."""
+        import os
+        import json
+        from pathlib import Path
+        from streamlit_app.core import sanitize_game_name
+        
+        game_lower = sanitize_game_name(game_name)
+        PROJECT_ROOT = Path(os.path.dirname(os.path.abspath(__file__))).parent.parent
+        model_cards_dir = PROJECT_ROOT / "models" / "advanced" / "model_cards"
+        
+        if not model_cards_dir.exists():
+            st.error(f"❌ Model cards directory not found at: {model_cards_dir}")
+            return []
+        
+        # Find the latest model cards file for this game
+        matching_files = list(model_cards_dir.glob(f"model_cards_{game_lower}_*.json"))
+        
+        if not matching_files:
+            return []
+        
+        # Get the most recent file
+        latest_file = max(matching_files, key=lambda p: p.stat().st_mtime)
+        
+        try:
+            with open(latest_file, 'r') as f:
+                models_data = json.load(f)
+            return models_data
+        except Exception as e:
+            st.error(f"Error loading model cards: {e}")
+            return []
+    
+    promoted_models = get_promoted_models(game_name)
+    
+    if not promoted_models:
+        st.warning(f"⚠️ No promoted models found for {game_name}. Please visit Phase 2D Leaderboard first.")
+        return
+    
+    with col2:
+        # promoted_models is now a list of dicts
+        model_names = [m.get("model_name", "Unknown") for m in promoted_models]
+        available_models = model_names
+        selected_models = st.multiselect(
+            "Select Models to Use",
+            available_models,
+            default=available_models[:min(3, len(available_models))],
+            key="ml_model_selector"
+        )
+    
+    if not selected_models:
+        st.info("ℹ️ Please select at least one model to generate predictions.")
+        return
+    
+    # Get the selected model objects
+    selected_model_objs = [m for m in promoted_models if m.get("model_name") in selected_models]
+    
+    # ==================== SECTION 2: Prediction Mode ====================
+    st.markdown("#### 2️⃣ Prediction Mode")
+    
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        prediction_mode = st.radio(
+            "Choose Prediction Strategy",
+            ["Single Model", "Ensemble Voting"],
+            help="Single: Use one model at a time | Ensemble: Combine multiple models",
+            key="ml_mode_selector"
+        )
+    
+    with col2:
+        if prediction_mode == "Single Model":
+            selected_model = st.selectbox(
+                "Select Single Model",
+                selected_models,
+                key="ml_single_model"
+            )
+        else:
+            selected_model = None  # Ensemble uses all selected models
+    
+    # ==================== SECTION 3: Generation Controls ====================
+    st.markdown("#### 3️⃣ Generation Settings")
+    
+    col1, col2, col3 = st.columns(3)
+    
+    with col1:
+        num_predictions = st.slider(
+            "Number of Predictions",
+            min_value=1,
+            max_value=20,
+            value=5,
+            key="ml_pred_count"
+        )
+    
+    with col2:
+        random_seed = st.number_input(
+            "Random Seed",
+            min_value=0,
+            max_value=2**31 - 1,
+            value=42,
+            help="Use the same seed for reproducible predictions",
+            key="ml_seed"
+        )
+    
+    with col3:
+        use_bias_correction = st.checkbox(
+            "Apply Bias Correction",
+            value=True,
+            help="Correct model biases using historical performance",
+            key="ml_bias_correction"
+        )
+    
+    # Additional parameters row
+    col1, col2, col3 = st.columns(3)
+    
+    with col1:
+        variability_factor = st.slider(
+            "Variability Factor (%)",
+            min_value=0.0,
+            max_value=30.0,
+            value=10.0,
+            step=0.5,
+            help="Variation per draw (0-30%). Higher values = more variation in predictions",
+            key="ml_variability"
+        )
+    
+    with col2:
+        save_seed_with_predictions = st.checkbox(
+            "Save Seed with Predictions",
+            value=True,
+            help="Store random seed with predictions for exact reproducibility",
+            key="ml_save_seed"
+        )
+    
+    with col3:
+        st.empty()  # Placeholder for alignment
+    
+    # Generate button
+    col1, col2, col3 = st.columns([1, 2, 1])
+    with col2:
+        if st.button("🚀 Generate Predictions", use_container_width=True, key="ml_generate_btn"):
+            st.session_state.ml_predictions_generated = True
+    
+    # ==================== SECTION 4: Results ====================
+    if st.session_state.get("ml_predictions_generated", False):
+        st.markdown("#### 4️⃣ Prediction Results")
+        
+        with st.spinner("🔄 Generating predictions..."):
+            try:
+                # Initialize engine with all parameters
+                engine = PredictionEngine(
+                    sampling_strategy=SamplingStrategy,
+                    bias_correction_enabled=use_bias_correction,
+                    random_seed=random_seed,
+                    variability_factor=variability_factor / 100.0,  # Convert percentage to decimal
+                    save_seed_with_predictions=save_seed_with_predictions
+                )
+                
+                # Generate predictions
+                results = []
+                
+                if prediction_mode == "Single Model":
+                    # Get the single selected model object
+                    model_data = next((m for m in selected_model_objs if m.get("model_name") == selected_model), None)
+                    
+                    if not model_data:
+                        st.error("Selected model not found")
+                        return
+                    
+                    for i in range(num_predictions):
+                        result = engine.predict_single_model(
+                            model_name=selected_model,
+                            game=game_name,
+                            probability_weights=model_data.get("class_probabilities", None),
+                            health_score=model_data.get("health_score", 0.75),
+                            known_bias=model_data.get("known_bias", 0.0)
+                        )
+                        results.append(result)
+                
+                else:  # Ensemble mode
+                    # Prepare ensemble data from selected model objects
+                    ensemble_models = {}
+                    for model_data in selected_model_objs:
+                        model_name = model_data.get("model_name")
+                        ensemble_models[model_name] = {
+                            "probabilities": model_data.get("class_probabilities", None),
+                            "health_score": model_data.get("health_score", 0.75),
+                            "known_bias": model_data.get("known_bias", 0.0)
+                        }
+                    
+                    for i in range(num_predictions):
+                        result = engine.predict_ensemble(
+                            models=ensemble_models,
+                            game=game_name
+                        )
+                        results.append(result)
+                
+                # Display summary
+                st.success(f"✅ Generated {len(results)} predictions!")
+                
+                col1, col2, col3 = st.columns(3)
+                with col1:
+                    st.metric("Total Predictions", len(results))
+                with col2:
+                    avg_confidence = np.mean([r.confidence for r in results])
+                    st.metric("Avg Confidence", f"{avg_confidence:.4f}")
+                with col3:
+                    st.metric("Mode", prediction_mode)
+                
+                # Display detailed predictions
+                st.markdown("**Prediction Details:**")
+                
+                for idx, result in enumerate(results, 1):
+                    with st.expander(f"Prediction {idx}: {result.numbers}", expanded=(idx == 1)):
+                        col1, col2 = st.columns(2)
+                        
+                        with col1:
+                            st.markdown(f"**Numbers:** {result.numbers}")
+                            st.markdown(f"**Confidence:** {result.confidence:.4f}")
+                            st.markdown(f"**Model:** {result.model_name}")
+                        
+                        with col2:
+                            st.markdown(f"**Type:** {result.prediction_type}")
+                            st.markdown(f"**Generated:** {result.generated_at.strftime('%Y-%m-%d %H:%M:%S')}")
+                        
+                        st.markdown("**Reasoning:**")
+                        st.info(result.reasoning)
+                        
+                        if result.individual_probabilities:
+                            st.markdown("**Number Probabilities:**")
+                            prob_df = pd.DataFrame({
+                                "Number": result.individual_probabilities.keys(),
+                                "Probability": result.individual_probabilities.values()
+                            }).sort_values("Probability", ascending=False)
+                            
+                            fig = px.bar(
+                                prob_df,
+                                x="Number",
+                                y="Probability",
+                                title=f"Prediction {idx} - Number Probabilities",
+                                color="Probability",
+                                color_continuous_scale="Viridis"
+                            )
+                            st.plotly_chart(fig, use_container_width=True)
+                
+                # Export section
+                st.markdown("**📥 Export Results**")
+                
+                col1, col2 = st.columns(2)
+                
+                with col1:
+                    # CSV export
+                    csv_data = []
+                    for idx, result in enumerate(results, 1):
+                        csv_data.append({
+                            "Prediction": idx,
+                            "Numbers": ",".join(map(str, result.numbers)),
+                            "Confidence": result.confidence,
+                            "Model": result.model_name,
+                            "Type": result.prediction_type,
+                            "Generated": result.generated_at.isoformat()
+                        })
+                    
+                    csv_df = pd.DataFrame(csv_data)
+                    csv_str = csv_df.to_csv(index=False)
+                    
+                    st.download_button(
+                        label="📊 Download CSV",
+                        data=csv_str,
+                        file_name=f"ml_predictions_{game_name}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
+                        mime="text/csv",
+                        key="ml_csv_export"
+                    )
+                
+                with col2:
+                    # JSON export
+                    json_data = {
+                        "game": game_name,
+                        "mode": prediction_mode,
+                        "predictions": [
+                            {
+                                "numbers": r.numbers,
+                                "confidence": r.confidence,
+                                "model": r.model_name,
+                                "type": r.prediction_type,
+                                "reasoning": r.reasoning,
+                                "generated_at": r.generated_at.isoformat(),
+                                "probabilities": r.individual_probabilities
+                            }
+                            for r in results
+                        ],
+                        "metadata": {
+                            "total_count": len(results),
+                            "avg_confidence": float(np.mean([r.confidence for r in results])),
+                            "generation_time": datetime.now().isoformat()
+                        }
+                    }
+                    
+                    json_str = json.dumps(json_data, indent=2)
+                    
+                    st.download_button(
+                        label="📄 Download JSON",
+                        data=json_str,
+                        file_name=f"ml_predictions_{game_name}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json",
+                        mime="application/json",
+                        key="ml_json_export"
+                    )
+                
+                # Algorithm explanation
+                with st.expander("📚 Algorithm Explanation"):
+                    st.markdown("""
+                    #### Gumbel-Top-K Sampling
+                    Mathematically correct method for categorical sampling:
+                    ```
+                    score_i = log(p_i) + gumbel_noise_i
+                    Select indices with highest scores
+                    ```
+                    
+                    #### Bias Correction
+                    Weighted by model health scores:
+                    ```
+                    α = 0.3 + (0.6 × health_score)
+                    P_corrected = α × P_model + (1-α) × P_historical
+                    ```
+                    
+                    #### Ensemble Voting
+                    Weighted probability fusion:
+                    ```
+                    P_ensemble = Σ(w_i × P_i) / Σ(w_i)
+                    where w_i = health_score of model i
+                    ```
+                    
+                    #### KL Divergence Check
+                    Monitors divergence from baseline:
+                    ```
+                    If KL_divergence > 0.5: Apply gentle correction
+                    Correction strength varies by divergence magnitude
+                    ```
+                    """)
+            
+            except Exception as e:
+                st.error(f"❌ Error generating predictions: {e}")
+                with st.expander("Error Details"):
+                    st.code(traceback.format_exc())
 
 
 def _render_prediction_generator() -> None:
@@ -959,6 +1344,158 @@ def _render_performance_analysis() -> None:
         except Exception as e:
             app_logger.error(f"Error generating detailed analysis: {e}")
             st.warning(f"Could not generate detailed analysis: {str(e)}")
+    
+    # ==================== ML PREDICTIONS ANALYSIS ====================
+    st.divider()
+    st.markdown("### 🧠 ML Predictions Analysis")
+    st.markdown("*View generated ML predictions with detailed analysis from trained models*")
+    
+    try:
+        # Analysis mode selector
+        analysis_mode = st.radio(
+            "View predictions from:",
+            ["Single Model", "Ensemble"],
+            horizontal=True,
+            key="ml_analysis_mode"
+        )
+        
+        if analysis_mode == "Single Model":
+            # Load single model predictions
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                # Get list of available single model predictions for this game
+                game_key = sanitize_game_name(selected_game)
+                single_model_dir = Path(__file__).parent.parent.parent / "predictions" / game_key / "Single Model"
+                
+                available_predictions = []
+                if single_model_dir.exists():
+                    pred_files = sorted(single_model_dir.glob("*.json"), key=lambda p: p.stat().st_mtime, reverse=True)
+                    available_predictions = [f.stem for f in pred_files]
+                
+                if not available_predictions:
+                    st.info("ℹ️ No Single Model predictions available for this game. Generate predictions in the Generate ML Predictions tab.")
+                else:
+                    selected_pred = st.selectbox(
+                        "Select Prediction",
+                        available_predictions,
+                        key="single_model_pred_select",
+                        format_func=lambda x: x.replace("prediction_", "").replace("_", " ").upper()
+                    )
+                    
+                    # Load and display the selected prediction
+                    if selected_pred:
+                        pred_file = single_model_dir / f"{selected_pred}.json"
+                        prediction_data = safe_load_json(pred_file)
+                        
+                        if prediction_data:
+                            with col2:
+                                st.markdown("**📊 Prediction Summary**")
+                                pred_info = pd.DataFrame({
+                                    "Metric": ["Model Name", "Game", "Generated", "Predictions"],
+                                    "Value": [
+                                        prediction_data.get("model_name", "N/A"),
+                                        prediction_data.get("game", "N/A"),
+                                        str(prediction_data.get("generated_at", "N/A"))[:16],
+                                        len(prediction_data.get("predictions", []))
+                                    ]
+                                })
+                                st.dataframe(pred_info, use_container_width=True, hide_index=True)
+                            
+                            st.markdown("**🎯 Generated Numbers:**")
+                            predictions_list = prediction_data.get("predictions", [])
+                            
+                            if predictions_list:
+                                for idx, pred_set in enumerate(predictions_list, 1):
+                                    with st.expander(f"Set {idx}: {pred_set.get('numbers', [])} - Confidence: {pred_set.get('confidence', 0):.2%}"):
+                                        col_a, col_b, col_c = st.columns(3)
+                                        
+                                        with col_a:
+                                            st.markdown(f"**Numbers:** {pred_set.get('numbers', [])}")
+                                            st.markdown(f"**Confidence:** {pred_set.get('confidence', 0):.2%}")
+                                        
+                                        with col_b:
+                                            st.markdown(f"**Model:** {pred_set.get('model_name', 'N/A')}")
+                                            st.markdown(f"**Type:** {pred_set.get('prediction_type', 'N/A')}")
+                                        
+                                        with col_c:
+                                            st.markdown(f"**Generated:** {str(pred_set.get('generated_at', 'N/A'))[:10]}")
+                                        
+                                        if pred_set.get("reasoning"):
+                                            st.markdown("**Analysis:**")
+                                            st.info(pred_set.get("reasoning"))
+        
+        else:  # Ensemble mode
+            # Load ensemble predictions for current draw date
+            game_key = sanitize_game_name(selected_game)
+            ensemble_dir = Path(__file__).parent.parent.parent / "predictions" / game_key / "Ensemble Voting"
+            
+            if not ensemble_dir.exists():
+                st.info("ℹ️ No Ensemble predictions available for this game. Generate predictions in the Generate ML Predictions tab.")
+            else:
+                available_ensemble = sorted(ensemble_dir.glob("*.json"), key=lambda p: p.stat().st_mtime, reverse=True)
+                
+                if not available_ensemble:
+                    st.info("ℹ️ No Ensemble predictions found.")
+                else:
+                    col1, col2 = st.columns(2)
+                    
+                    with col1:
+                        selected_ensemble = st.selectbox(
+                            "Select Ensemble Prediction",
+                            [f.stem for f in available_ensemble],
+                            key="ensemble_pred_select",
+                            format_func=lambda x: x.replace("prediction_", "").replace("_", " ").upper()
+                        )
+                    
+                    # Load and display ensemble prediction
+                    if selected_ensemble:
+                        ensemble_file = ensemble_dir / f"{selected_ensemble}.json"
+                        ensemble_data = safe_load_json(ensemble_file)
+                        
+                        if ensemble_data:
+                            with col2:
+                                st.markdown("**📊 Ensemble Summary**")
+                                ensemble_info = pd.DataFrame({
+                                    "Metric": ["Mode", "Game", "Generated", "Predictions"],
+                                    "Value": [
+                                        ensemble_data.get("prediction_type", "Ensemble Voting"),
+                                        ensemble_data.get("game", "N/A"),
+                                        str(ensemble_data.get("generated_at", "N/A"))[:16],
+                                        len(ensemble_data.get("predictions", []))
+                                    ]
+                                })
+                                st.dataframe(ensemble_info, use_container_width=True, hide_index=True)
+                            
+                            st.markdown("**🎯 Generated Numbers:**")
+                            predictions_list = ensemble_data.get("predictions", [])
+                            
+                            if predictions_list:
+                                for idx, pred_set in enumerate(predictions_list, 1):
+                                    with st.expander(f"Set {idx}: {pred_set.get('numbers', [])} - Confidence: {pred_set.get('confidence', 0):.2%}"):
+                                        col_a, col_b, col_c = st.columns(3)
+                                        
+                                        with col_a:
+                                            st.markdown(f"**Numbers:** {pred_set.get('numbers', [])}")
+                                            st.markdown(f"**Confidence:** {pred_set.get('confidence', 0):.2%}")
+                                        
+                                        with col_b:
+                                            st.markdown(f"**Prediction Type:** {pred_set.get('prediction_type', 'Ensemble Voting')}")
+                                            st.markdown(f"**Generated:** {str(pred_set.get('generated_at', 'N/A'))[:10]}")
+                                        
+                                        with col_c:
+                                            # Show model count if available
+                                            if isinstance(pred_set.get('models_used'), dict):
+                                                model_count = len(pred_set.get('models_used', {}))
+                                                st.markdown(f"**Models Used:** {model_count}")
+                                        
+                                        if pred_set.get("reasoning"):
+                                            st.markdown("**Ensemble Analysis:**")
+                                            st.info(pred_set.get("reasoning"))
+    
+    except Exception as e:
+        app_logger.error(f"Error in ML Predictions Analysis: {e}")
+        st.error(f"Error loading ML predictions: {str(e)}")
 
 
 def _get_latest_draw_data(game: str) -> Optional[Dict]:

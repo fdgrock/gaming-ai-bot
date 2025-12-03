@@ -22,6 +22,16 @@ import logging
 from datetime import datetime
 import pickle
 
+
+class NumpyEncoder(json.JSONEncoder):
+    """Custom JSON encoder for numpy and float32 types."""
+    def default(self, obj):
+        if isinstance(obj, (np.integer, np.floating)):
+            return float(obj)
+        if isinstance(obj, np.ndarray):
+            return obj.tolist()
+        return super().default(obj)
+
 # Configure GPU
 gpus = tf.config.list_physical_devices('GPU')
 if gpus:
@@ -87,10 +97,16 @@ class AdvancedTransformerEnsembleTrainer:
     TEST_SPLIT = 0.15
     LEARNING_RATE = 0.001
     
-    def __init__(self):
-        """Initialize the ensemble trainer."""
+    def __init__(self, game: str = None):
+        """
+        Initialize the ensemble trainer.
+        
+        Args:
+            game: Optional game name to filter training. If None, trains all games.
+        """
         self.scaler = {}
         self.training_logs = []
+        self.game_filter = game  # Optional: can filter to specific game
         
     def load_data_and_prepare(self, game_name: str, seed: int = 42) -> Tuple[np.ndarray, np.ndarray]:
         """Load and prepare data for training."""
@@ -177,14 +193,22 @@ class AdvancedTransformerEnsembleTrainer:
                 'distribution': 'sparse_categorical_crossentropy'
             },
             loss_weights={'primary': 0.5, 'skipgram': 0.25, 'distribution': 0.25},
-            metrics=['accuracy']
+            metrics={
+                'primary': 'accuracy',
+                'skipgram': 'accuracy',
+                'distribution': 'accuracy'
+            }
         )
         
         return model
     
     def _add_positional_encoding(self, x, max_seq_length=100):
         """Add positional encoding to embeddings."""
-        positions = tf.range(tf.shape(x)[1])
+        # Use Lambda layer to handle dynamic tensor operations
+        def get_positions(x):
+            return tf.range(tf.shape(x)[1])
+        
+        positions = layers.Lambda(get_positions)(x)
         position_embedding = layers.Embedding(max_seq_length, 128)(positions)
         return x + position_embedding
     
@@ -300,10 +324,12 @@ class AdvancedTransformerEnsembleTrainer:
         }
     
     def train_all_variants(self):
-        """Train all ensemble variants for all games."""
+        """Train all ensemble variants for all games (or filtered game)."""
         logger.info("=" * 80)
         logger.info("Starting Phase 2C Transformer Ensemble Training")
         logger.info(f"Training {self.NUM_VARIANTS_PER_GAME} variants per game with different seeds")
+        if self.game_filter:
+            logger.info(f"Game filter: {self.game_filter}")
         logger.info("=" * 80)
         
         summary = {
@@ -314,7 +340,18 @@ class AdvancedTransformerEnsembleTrainer:
             'games': {}
         }
         
-        for game_name, game in self.GAMES.items():
+        # Filter games if game_filter is specified
+        games_to_train = self.GAMES
+        if self.game_filter:
+            # Normalize game name - convert "Lotto 6/49" to "lotto_6_49"
+            game_key = self.game_filter.lower().replace(" ", "_").replace("/", "_")
+            if game_key in self.GAMES:
+                games_to_train = {game_key: self.GAMES[game_key]}
+            else:
+                logger.warning(f"Game {self.game_filter} not found. Available games: {list(self.GAMES.keys())}")
+                return
+        
+        for game_name, game in games_to_train.items():
             logger.info(f"\n{'=' * 80}")
             logger.info(f"Training Transformer ensemble for {game_name}")
             logger.info(f"{'=' * 80}")
@@ -332,15 +369,17 @@ class AdvancedTransformerEnsembleTrainer:
                     logger.error(f"Error training variant {variant_idx}: {e}")
             
             summary['games'][game_name] = game_results
-        
-        # Save summary
-        summary_path = MODELS_DIR / "transformer_ensemble_summary.json"
-        with open(summary_path, 'w') as f:
-            json.dump(summary, f, indent=2)
+            
+            # Save metadata for this game's variants in the variant folder
+            game_variant_dir = MODELS_DIR / game_name / "transformer_variants"
+            game_variant_dir.mkdir(parents=True, exist_ok=True)
+            metadata_path = game_variant_dir / "metadata.json"
+            with open(metadata_path, 'w') as f:
+                json.dump(game_results, f, indent=2, cls=NumpyEncoder)
+            logger.info(f"Metadata saved to {metadata_path}")
         
         logger.info(f"\n{'=' * 80}")
         logger.info(f"Phase 2C Transformer Ensemble Training Complete!")
-        logger.info(f"Summary saved to {summary_path}")
         logger.info(f"{'=' * 80}")
 
 

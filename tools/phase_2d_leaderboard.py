@@ -162,7 +162,7 @@ class Phase2DLeaderboard:
             if not game_folder.is_dir():
                 continue
             
-            if game and game.lower().replace(" ", "_") != game_folder.name:
+            if game and game.lower().replace(" ", "_").replace("/", "_") != game_folder.name:
                 continue
             
             # Look for training_summary.json in the game folder (flat structure)
@@ -253,7 +253,7 @@ class Phase2DLeaderboard:
             if not game_folder.is_dir():
                 continue
             
-            if game and game.lower().replace(" ", "_") != game_folder.name:
+            if game and game.lower().replace(" ", "_").replace("/", "_") != game_folder.name:
                 continue
             
             # Look for training_summary_*.json files in the game folder (flat structure)
@@ -331,7 +331,7 @@ class Phase2DLeaderboard:
             if not game_folder.is_dir():
                 continue
             
-            if game and game.lower().replace(" ", "_") != game_folder.name:
+            if game and game.lower().replace(" ", "_").replace("/", "_") != game_folder.name:
                 continue
             
             # Look for *_variants folders (lstm_variants, transformer_variants)
@@ -351,55 +351,62 @@ class Phase2DLeaderboard:
                             with open(lstm_summary_file, 'r') as f:
                                 summary_data = json.load(f)
                             
-                            # Get the game-specific variants
-                            game_name = game_folder.name
-                            games_data = summary_data.get('games', {})
+                            # Handle both flat structure (variants directly) and nested structure (games -> variants)
+                            variants_list = []
                             
-                            if game_name in games_data:
-                                game_variants = games_data[game_name].get('variants', [])
-                                num_variants = summary_data.get('num_variants', len(game_variants))
+                            if 'games' in summary_data:
+                                # Nested structure: games -> {game_name} -> variants
+                                game_name = game_folder.name
+                                games_data = summary_data.get('games', {})
+                                if game_name in games_data:
+                                    variants_list = games_data[game_name].get('variants', [])
+                            elif 'variants' in summary_data:
+                                # Flat structure: variants directly at top level
+                                variants_list = summary_data.get('variants', [])
+                            
+                            num_variants = summary_data.get('num_variants', len(variants_list))
+                            
+                            for var_idx, variant_data in enumerate(variants_list):
+                                # Use variant-specific metrics if available
+                                var_metrics = variant_data.get('metrics', {})
+                                top_5_acc = float(var_metrics.get('top_5_accuracy', 0.0))
+                                top_10_acc = float(var_metrics.get('top_10_accuracy', 0.0))
+                                kl_div = float(var_metrics.get('kl_divergence', 0.0))
                                 
-                                for variant_data in game_variants:
-                                    var_idx = variant_data.get('variant_index', 0)
-                                    metrics = variant_data.get('metrics', {})
-                                    
-                                    top_5_acc = float(metrics.get('top_5_accuracy', 0.0))
-                                    top_10_acc = float(metrics.get('top_10_accuracy', 0.0))
-                                    kl_div = float(metrics.get('kl_divergence', 0.0))
-                                    
-                                    composite = self._calculate_composite_score(top_5_acc, kl_div)
-                                    
-                                    strength, bias = self._get_model_strengths_and_biases(
-                                        architecture_lower, game_folder.name, metrics, top_5_acc
-                                    )
-                                    
-                                    seed = variant_data.get('seed', None)
-                                    model_name = f"{architecture}_variant_{var_idx + 1}"
-                                    if seed:
-                                        model_name += f"_seed_{seed}"
-                                    
-                                    results.append({
-                                        'phase': '2C',
-                                        'game': game_folder.name,
-                                        'model_name': model_name,
-                                        'model_type': architecture_lower,
-                                        'architecture': f"{architecture} Ensemble",
-                                        'composite_score': composite,
-                                        'top_5_accuracy': top_5_acc,
-                                        'top_10_accuracy': top_10_acc,
-                                        'kl_divergence': kl_div,
-                                        'strength': strength,
-                                        'known_bias': bias,
-                                        'recommended_use': self._get_recommended_use(top_5_acc, architecture_lower, num_variants),
-                                        'health_score': composite,
-                                        'ensemble_weight': max(0.0, composite),
-                                        'created_at': variant_data.get('created_at', datetime.now().isoformat()),
-                                        'model_path': str(lstm_summary_file),
-                                        'accuracy': metrics.get('accuracy', 0.0),
-                                        'total_samples': None,
-                                        'variant_index': var_idx,
-                                        'seed': seed
-                                    })
+                                composite = self._calculate_composite_score(top_5_acc, kl_div)
+                                
+                                strength, bias = self._get_model_strengths_and_biases(
+                                    architecture_lower, game_folder.name, var_metrics, top_5_acc
+                                )
+                                
+                                seed = variant_data.get('seed', None)
+                                variant_index = variant_data.get('variant_index', var_idx)
+                                model_name = f"{architecture}_variant_{variant_index + 1}"
+                                if seed:
+                                    model_name += f"_seed_{seed}"
+                                
+                                results.append({
+                                    'phase': '2C',
+                                    'game': game_folder.name,
+                                    'model_name': model_name,
+                                    'model_type': architecture_lower,
+                                    'architecture': f"{architecture} Ensemble",
+                                    'composite_score': composite,
+                                    'top_5_accuracy': top_5_acc,
+                                    'top_10_accuracy': top_10_acc,
+                                    'kl_divergence': kl_div,
+                                    'strength': strength,
+                                    'known_bias': bias,
+                                    'recommended_use': self._get_recommended_use(top_5_acc, architecture_lower, num_variants),
+                                    'health_score': composite,
+                                    'ensemble_weight': max(0.0, composite),
+                                    'created_at': variant_data.get('created_at', datetime.now().isoformat()),
+                                    'model_path': str(lstm_summary_file),
+                                    'accuracy': var_metrics.get('accuracy', 0.0),
+                                    'total_samples': None,
+                                    'variant_index': variant_index,
+                                    'seed': seed
+                                })
                         
                         except Exception as e:
                             logger.warning(f"Failed to read LSTM variants from {lstm_summary_file}: {e}")
@@ -588,8 +595,11 @@ class Phase2DLeaderboard:
         output_dir = self.advanced_models_dir / "model_cards"
         output_dir.mkdir(parents=True, exist_ok=True)
         
+        # Sanitize game name: replace spaces and slashes
+        game_sanitized = game.lower().replace(" ", "_").replace("/", "_")
+        
         timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-        filename = output_dir / f"model_cards_{game}_{timestamp}.json"
+        filename = output_dir / f"model_cards_{game_sanitized}_{timestamp}.json"
         
         cards_data = [asdict(card) for card in model_cards]
         

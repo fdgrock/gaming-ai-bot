@@ -22,6 +22,16 @@ import logging
 from datetime import datetime
 import pickle
 
+
+class NumpyEncoder(json.JSONEncoder):
+    """Custom JSON encoder for numpy and float32 types."""
+    def default(self, obj):
+        if isinstance(obj, (np.integer, np.floating)):
+            return float(obj)
+        if isinstance(obj, np.ndarray):
+            return obj.tolist()
+        return super().default(obj)
+
 # Configure GPU
 gpus = tf.config.list_physical_devices('GPU')
 if gpus:
@@ -145,10 +155,16 @@ class AdvancedLSTMEnsembleTrainer:
     LEARNING_RATE = 0.001
     LOOKBACK = 100  # 100-draw lookback
     
-    def __init__(self):
-        """Initialize the ensemble trainer."""
+    def __init__(self, game: str = None):
+        """
+        Initialize the ensemble trainer.
+        
+        Args:
+            game: Optional game name to filter training. If None, trains all games.
+        """
         self.scaler = {}
         self.training_logs = []
+        self.game_filter = game  # Optional: can filter to specific game
     
     def create_sequences(self, X: np.ndarray, lookback: int = 100, stride: int = 10) -> np.ndarray:
         """Create sequences for LSTM input."""
@@ -202,25 +218,29 @@ class AdvancedLSTMEnsembleTrainer:
         # Input: 3D tensor [batch, 100, n_features]
         inputs = layers.Input(shape=(self.LOOKBACK, n_features), name='input_sequence')
         
-        # Encoder: Bidirectional LSTM
+        # Encoder: Bidirectional LSTM with return_sequences for attention
         encoder = layers.Bidirectional(
-            layers.LSTM(128, return_state=True, name='encoder_lstm'),
+            layers.LSTM(128, return_sequences=True, return_state=True, name='encoder_lstm'),
             name='encoder_bidirectional'
         )
-        encoder_outputs, forward_h, forward_c, backward_h, backward_c = encoder(inputs)
+        encoder_result = encoder(inputs)
+        # Bidirectional with return_sequences=True returns: (sequences, fwd_h, fwd_c, bwd_h, bwd_c)
+        encoder_sequences = encoder_result[0]  # [batch, time, 256]
+        forward_h, forward_c, backward_h, backward_c = encoder_result[1], encoder_result[2], encoder_result[3], encoder_result[4]
         
-        # Combine bidirectional states
+        # Combine bidirectional states for decoder initial state
         state_h = layers.Concatenate()([forward_h, backward_h])
         state_c = layers.Concatenate()([forward_c, backward_c])
         
-        # Attention layer
+        # Attention layer - takes full sequence and decoder hidden state
         attention_output, attention_weights = AttentionLayer(256, name='attention')(
-            encoder_outputs, state_h
+            encoder_sequences, state_h
         )
         
-        # Decoder: LSTM
+        # Decoder: LSTM with attention context (2D) - need to expand for LSTM input
+        attention_expanded = layers.Reshape((1, 256))(attention_output)  # [batch, 1, 256]
         decoder = layers.LSTM(256, name='decoder_lstm')
-        decoder_output = decoder(attention_output)
+        decoder_output = decoder(attention_expanded)
         
         # Output heads (multi-task learning)
         # Primary task (50%)
@@ -249,7 +269,11 @@ class AdvancedLSTMEnsembleTrainer:
                 'distribution': 'sparse_categorical_crossentropy'
             },
             loss_weights={'primary': 0.5, 'skipgram': 0.25, 'distribution': 0.25},
-            metrics=['accuracy']
+            metrics={
+                'primary': 'accuracy',
+                'skipgram': 'accuracy',
+                'distribution': 'accuracy'
+            }
         )
         
         return model
@@ -293,9 +317,18 @@ class AdvancedLSTMEnsembleTrainer:
         # Load data
         X, y = self.load_data_and_prepare(game.name, seed)
         
-        # Create sequences
-        X_sequences = self.create_sequences(X, self.LOOKBACK)
-        y_sequences = y[self.LOOKBACK:]
+        # Create sequences with stride=10
+        stride = 10
+        X_sequences = self.create_sequences(X, self.LOOKBACK, stride=stride)
+        # Apply same stride to targets: take every 10th element starting at LOOKBACK
+        y_sequences = y[self.LOOKBACK::stride]
+        
+        # Ensure alignment - trim to match shortest
+        min_len = min(len(X_sequences), len(y_sequences))
+        X_sequences = X_sequences[:min_len]
+        y_sequences = y_sequences[:min_len]
+        
+        logger.info(f"Sequences created: X={X_sequences.shape}, y={y_sequences.shape}")
         
         # Train-val-test split
         X_train, X_temp, y_train, y_temp = train_test_split(
@@ -351,10 +384,12 @@ class AdvancedLSTMEnsembleTrainer:
         }
     
     def train_all_variants(self):
-        """Train all ensemble variants for all games."""
+        """Train all ensemble variants for all games (or filtered game)."""
         logger.info("=" * 80)
         logger.info("Starting Phase 2C LSTM Ensemble Training")
         logger.info(f"Training {self.NUM_VARIANTS_PER_GAME} variants per game with different seeds")
+        if self.game_filter:
+            logger.info(f"Game filter: {self.game_filter}")
         logger.info("=" * 80)
         
         summary = {
@@ -365,7 +400,18 @@ class AdvancedLSTMEnsembleTrainer:
             'games': {}
         }
         
-        for game_name, game in self.GAMES.items():
+        # Filter games if game_filter is specified
+        games_to_train = self.GAMES
+        if self.game_filter:
+            # Normalize game name - convert "Lotto 6/49" to "lotto_6_49"
+            game_key = self.game_filter.lower().replace(" ", "_").replace("/", "_")
+            if game_key in self.GAMES:
+                games_to_train = {game_key: self.GAMES[game_key]}
+            else:
+                logger.warning(f"Game {self.game_filter} not found. Available games: {list(self.GAMES.keys())}")
+                return
+        
+        for game_name, game in games_to_train.items():
             logger.info(f"\n{'=' * 80}")
             logger.info(f"Training LSTM ensemble for {game_name}")
             logger.info(f"{'=' * 80}")
@@ -383,15 +429,17 @@ class AdvancedLSTMEnsembleTrainer:
                     logger.error(f"Error training variant {variant_idx}: {e}")
             
             summary['games'][game_name] = game_results
-        
-        # Save summary
-        summary_path = MODELS_DIR / "lstm_ensemble_summary.json"
-        with open(summary_path, 'w') as f:
-            json.dump(summary, f, indent=2)
+            
+            # Save metadata for this game's variants in the variant folder
+            game_variant_dir = MODELS_DIR / game_name / "lstm_variants"
+            game_variant_dir.mkdir(parents=True, exist_ok=True)
+            metadata_path = game_variant_dir / "metadata.json"
+            with open(metadata_path, 'w') as f:
+                json.dump(game_results, f, indent=2, cls=NumpyEncoder)
+            logger.info(f"Metadata saved to {metadata_path}")
         
         logger.info(f"\n{'=' * 80}")
         logger.info(f"Phase 2C LSTM Ensemble Training Complete!")
-        logger.info(f"Summary saved to {summary_path}")
         logger.info(f"{'=' * 80}")
 
 
