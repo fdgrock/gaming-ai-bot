@@ -1394,11 +1394,23 @@ def render_phase_2d_section(game_filter: str = None):
                         st.warning("⚠️ No models found. Train models first in Phase 2A/2B/2C")
         
         with col2:
+            # Add custom model card naming section
+            st.markdown("#### 🎫 Generate Model Cards")
+            
+            card_name_input = st.text_input(
+                "Custom card name suffix",
+                value="",
+                placeholder="e.g., option1, variant_a, high_confidence",
+                help="Custom identifier for this model card set. Example: 'option1' creates 'model_cards_lotto_max_option1.json'"
+            )
+            
             if st.button("🎫 Generate Model Cards", key="phase2d_cards", use_container_width=True):
                 promoted_models = get_session_value("phase2d_promoted_models", [])
                 
                 if not promoted_models:
                     st.warning("⚠️ Please promote models first using the 'Model Ranking' tab")
+                elif not card_name_input.strip():
+                    st.warning("⚠️ Please enter a custom name for this model card set")
                 else:
                     with st.spinner("Generating detailed model cards for promoted models..."):
                         leaderboard = Phase2DLeaderboard()
@@ -1414,11 +1426,30 @@ def render_phase_2d_section(game_filter: str = None):
                             promoted_df = df[df['model_name'].isin(promoted_models)]
                             
                             if not promoted_df.empty:
-                                cards = leaderboard.generate_model_cards(promoted_df, top_n=len(promoted_df))
-                                set_session_value("phase2d_model_cards", cards)
-                                leaderboard.save_model_cards(cards, game_param or "all")
-                                st.success(f"✅ Generated {len(cards)} model cards for promoted models")
-                                st.rerun()
+                                # Check if file already exists
+                                existing_file = leaderboard.check_model_cards_exists(card_name_input.strip(), game_param or "all")
+                                
+                                if existing_file:
+                                    st.warning(f"⚠️ Model card with name '{card_name_input.strip()}' already exists")
+                                    
+                                    col_overwrite_a, col_overwrite_b = st.columns(2)
+                                    with col_overwrite_a:
+                                        if st.button("📝 Overwrite Existing File", use_container_width=True):
+                                            cards = leaderboard.generate_model_cards(promoted_df, top_n=len(promoted_df))
+                                            set_session_value("phase2d_model_cards", cards)
+                                            result_path = leaderboard.save_model_cards(cards, game_param or "all", custom_suffix=card_name_input.strip(), overwrite=True)
+                                            st.success(f"✅ Generated {len(cards)} model cards and overwrote existing file:\n`{result_path}`")
+                                            st.rerun()
+                                    
+                                    with col_overwrite_b:
+                                        if st.button("❌ Use Different Name", use_container_width=True):
+                                            st.info("Please enter a different custom name above")
+                                else:
+                                    cards = leaderboard.generate_model_cards(promoted_df, top_n=len(promoted_df))
+                                    set_session_value("phase2d_model_cards", cards)
+                                    result_path = leaderboard.save_model_cards(cards, game_param or "all", custom_suffix=card_name_input.strip())
+                                    st.success(f"✅ Generated {len(cards)} model cards and saved:\n`{result_path}`")
+                                    st.rerun()
                             else:
                                 st.warning("⚠️ No promoted models found in leaderboard")
         

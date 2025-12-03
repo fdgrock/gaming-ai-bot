@@ -590,16 +590,58 @@ class Phase2DLeaderboard:
         logger.info(f"\n✅ Leaderboard saved to: {filename}")
         return filename
     
-    def save_model_cards(self, model_cards: List[ModelCard], game: str = "all"):
-        """Save model cards to JSON."""
+    def check_model_cards_exists(self, custom_suffix: str, game: str = "all") -> Optional[str]:
+        """Check if model cards file with custom suffix already exists.
+        
+        Returns:
+            Path to existing file if found, None otherwise
+        """
+        output_dir = self.advanced_models_dir / "model_cards"
+        game_sanitized = game.lower().replace(" ", "_").replace("/", "_")
+        custom_suffix_sanitized = str(custom_suffix).lower().strip().replace(" ", "_").replace("/", "_")
+        
+        # Look for file with the pattern: model_cards_{game}_{YYYYMMDD}_{custom_suffix}.json
+        pattern = f"model_cards_{game_sanitized}_*_{custom_suffix_sanitized}.json"
+        
+        matches = list(output_dir.glob(pattern))
+        if matches:
+            # Return the most recent one
+            return str(max(matches, key=lambda p: p.stat().st_mtime))
+        return None
+    
+    def save_model_cards(self, model_cards: List[ModelCard], game: str = "all", 
+                        custom_suffix: Optional[str] = None, overwrite: bool = False):
+        """Save model cards to JSON with optional custom suffix.
+        
+        Args:
+            model_cards: List of ModelCard objects to save
+            game: Game identifier (e.g., 'lotto_max', 'lotto_6_49', 'all')
+            custom_suffix: Custom suffix for filename (e.g., 'option1'). 
+                          If None, uses date-based naming.
+            overwrite: If True, overwrite existing file with same custom_suffix.
+                      If False, raise error if file exists.
+        
+        Returns:
+            Path to saved file
+        """
         output_dir = self.advanced_models_dir / "model_cards"
         output_dir.mkdir(parents=True, exist_ok=True)
         
         # Sanitize game name: replace spaces and slashes
         game_sanitized = game.lower().replace(" ", "_").replace("/", "_")
+        date_str = datetime.now().strftime('%Y%m%d')
         
-        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-        filename = output_dir / f"model_cards_{game_sanitized}_{timestamp}.json"
+        if custom_suffix:
+            # Use format: model_cards_{game}_{YYYYMMDD}_{custom_suffix}.json
+            custom_suffix_sanitized = str(custom_suffix).lower().strip().replace(" ", "_").replace("/", "_")
+            filename = output_dir / f"model_cards_{game_sanitized}_{date_str}_{custom_suffix_sanitized}.json"
+            
+            # Check if file exists and handle accordingly
+            if filename.exists() and not overwrite:
+                raise FileExistsError(f"Model cards file already exists: {filename}")
+        else:
+            # Use date-based naming as fallback: model_cards_{game}_{YYYYMMDD}.json
+            filename = output_dir / f"model_cards_{game_sanitized}_{date_str}.json"
         
         cards_data = [asdict(card) for card in model_cards]
         
@@ -607,7 +649,7 @@ class Phase2DLeaderboard:
             json.dump(cards_data, f, indent=2, default=str)
         
         logger.info(f"✅ Model cards saved to: {filename}")
-        return filename
+        return str(filename)
 
 
 def main():

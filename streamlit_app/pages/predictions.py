@@ -276,6 +276,28 @@ def _render_ml_predictions() -> None:
     - **Ensemble Voting**: Weighted probability fusion with KL divergence checks
     """)
     
+    # Helper function to get available model cards for a game
+    def get_available_model_cards(game: str) -> List[str]:
+        """Get list of available model card files for a game."""
+        import os
+        from pathlib import Path
+        from streamlit_app.core import sanitize_game_name
+        
+        game_lower = sanitize_game_name(game)
+        PROJECT_ROOT = Path(os.path.dirname(os.path.abspath(__file__))).parent.parent
+        model_cards_dir = PROJECT_ROOT / "models" / "advanced" / "model_cards"
+        
+        if not model_cards_dir.exists():
+            return []
+        
+        # Find all model cards files for this game
+        matching_files = list(model_cards_dir.glob(f"model_cards_{game_lower}_*.json"))
+        
+        # Extract just the filenames without path
+        filenames = [f.name for f in matching_files]
+        
+        return sorted(filenames, reverse=True)  # Most recent first
+    
     # ==================== SECTION 1: Model Selection ====================
     st.markdown("#### 1️⃣ Select Game & Models")
     
@@ -294,6 +316,19 @@ def _render_ml_predictions() -> None:
             st.info(f"📅 **Next Draw Date:** {next_draw.strftime('%A, %B %d, %Y')}")
         except Exception as e:
             app_logger.debug(f"Could not compute next draw date: {e}")
+    
+    with col2:
+        # Model Card selection dropdown
+        available_cards = get_available_model_cards(game_name)
+        if available_cards:
+            selected_card = st.selectbox(
+                "Select Model Card",
+                available_cards,
+                key="ml_model_card_selector"
+            )
+            set_session_value('selected_ml_model_card', selected_card)
+        else:
+            st.warning(f"⚠️ No model cards available for {game_name}")
     
     # Helper function to get promoted models from Phase 2D
     def get_promoted_models(game_name: str) -> List[Dict[str, Any]]:
@@ -334,16 +369,17 @@ def _render_ml_predictions() -> None:
         st.warning(f"⚠️ No promoted models found for {game_name}. Please visit Phase 2D Leaderboard first.")
         return
     
-    with col2:
-        # promoted_models is now a list of dicts
-        model_names = [m.get("model_name", "Unknown") for m in promoted_models]
-        available_models = model_names
-        selected_models = st.multiselect(
-            "Select Models to Use",
-            available_models,
-            default=available_models[:min(3, len(available_models))],
-            key="ml_model_selector"
-        )
+    st.markdown("#### Select Models to Use")
+    
+    # promoted_models is now a list of dicts
+    model_names = [m.get("model_name", "Unknown") for m in promoted_models]
+    available_models = model_names
+    selected_models = st.multiselect(
+        "Select Models",
+        available_models,
+        default=available_models[:min(3, len(available_models))],
+        key="ml_model_selector"
+    )
     
     if not selected_models:
         st.info("ℹ️ Please select at least one model to generate predictions.")
