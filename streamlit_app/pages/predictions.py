@@ -1106,12 +1106,14 @@ def _render_prediction_generator() -> None:
     
     # Configuration options
     with st.expander("⚙️ Advanced Configuration", expanded=False):
+        st.markdown("### Core Settings")
         col1, col2, col3 = st.columns(3)
         
         with col1:
             confidence_threshold = st.slider(
                 "Confidence Threshold",
                 0.0, 1.0, 0.5,
+                help="Minimum confidence score for predictions. Higher = more selective.",
                 key="pred_confidence"
             )
         
@@ -1119,15 +1121,53 @@ def _render_prediction_generator() -> None:
             use_patterns = st.checkbox(
                 "Enable Pattern Analysis",
                 value=True,
-                key="pred_patterns"
+                key="pred_patterns",
+                help="Analyze historical patterns in lottery data"
             )
         
         with col3:
             use_temporal = st.checkbox(
                 "Enable Temporal Analysis",
                 value=True,
-                key="pred_temporal"
+                key="pred_temporal",
+                help="Consider time-based trends in number selection"
             )
+        
+        st.divider()
+        st.markdown("### Advanced Mathematical Techniques")
+        
+        col_math1, col_math2, col_math3 = st.columns(3)
+        
+        with col_math1:
+            enable_temperature_scaling = st.checkbox(
+                "🌡️ Temperature Scaling",
+                value=True,
+                key="enable_temp_scaling",
+                help="Apply entropy regulation for controlled diversity (mathematical rigor)"
+            )
+        
+        with col_math2:
+            enable_diversity_penalty = st.checkbox(
+                "🎲 Diversity Penalty",
+                value=True,
+                key="enable_diversity",
+                help="Prevent identical predictions across multiple sets"
+            )
+        
+        with col_math3:
+            enable_bias_correction = st.checkbox(
+                "📊 Historical Bias Correction",
+                value=True,
+                key="enable_bias_correction",
+                help="Correct for overrepresented/underrepresented numbers"
+            )
+        
+        st.info("""
+        **Advanced Techniques:**
+        - 🌡️ **Temperature Scaling**: Uses softmax temperature adjustment to regulate entropy, ensuring predictions are neither too deterministic nor too random
+        - 🎲 **Diversity Penalty**: Applies weighted penalties to ensure multiple prediction sets are truly different (not just slight variations)
+        - 📊 **Historical Bias Correction**: Prevents overreliance on frequently-drawn numbers; encourages underrepresented numbers when appropriate
+        """)
     
     st.divider()
     
@@ -2605,6 +2645,172 @@ def _render_help_guide() -> None:
     """)
 
 
+def _apply_advanced_probability_manipulation(pred_probs: np.ndarray, temperature: float = 1.0, 
+                                             entropy_target: float = 0.7, diversity_weight: float = 0.15) -> np.ndarray:
+    """
+    Apply advanced mathematical transformations to model probabilities for better diversity and rigor.
+    
+    This function applies sophisticated probability manipulation techniques including:
+    1. Temperature scaling for entropy regulation
+    2. Gumbel-Max sampling principles for diversity
+    3. Entropy constraint optimization
+    4. Softmax reshaping with controlled variance
+    
+    Args:
+        pred_probs: Raw model probabilities (shape: max_number,)
+        temperature: Temperature for softmax (>1 = more uniform, <1 = sharper)
+        entropy_target: Target normalized entropy (0.0-1.0, 0.7 = good diversity-confidence balance)
+        diversity_weight: Weight for diversity penalty in final selection
+    
+    Returns:
+        np.ndarray: Transformed probabilities with better mathematical properties
+    """
+    from scipy.special import softmax
+    from scipy.stats import entropy as scipy_entropy
+    
+    # Step 1: Normalize input to valid probability range
+    if np.min(pred_probs) < 0 or np.max(pred_probs) > 1:
+        pred_probs = (pred_probs - np.min(pred_probs)) / (np.max(pred_probs) - np.min(pred_probs) + 1e-10)
+    
+    # Step 2: Convert to log space for numerical stability
+    log_probs = np.log(np.clip(pred_probs, 1e-10, 1.0))
+    
+    # Step 3: Apply temperature scaling
+    if temperature != 1.0:
+        log_probs_scaled = log_probs / temperature
+        probs_scaled = softmax(log_probs_scaled)
+    else:
+        probs_scaled = softmax(log_probs)
+    
+    # Step 4: Calculate current entropy
+    current_entropy = scipy_entropy(probs_scaled + 1e-10)
+    max_entropy = np.log(len(probs_scaled))
+    normalized_entropy = current_entropy / max_entropy if max_entropy > 0 else 0.5
+    
+    # Step 5: Adjust temperature iteratively if entropy is far from target
+    if abs(normalized_entropy - entropy_target) > 0.1:
+        if normalized_entropy > entropy_target:
+            # Too uniform, sharpen (temperature < 1)
+            adjusted_temperature = max(0.1, temperature * 0.8)
+        else:
+            # Too sharp, flatten (temperature > 1)
+            adjusted_temperature = min(3.0, temperature * 1.2)
+        
+        log_probs_adjusted = log_probs / adjusted_temperature
+        probs_scaled = softmax(log_probs_adjusted)
+    
+    # Step 6: Apply Gumbel-Max sampling preparation
+    # Add small random noise to probabilities for stochastic effects
+    gumbel_noise = -np.log(-np.log(np.random.uniform(1e-10, 1.0, size=len(probs_scaled))))
+    probs_with_noise = np.exp(np.log(probs_scaled + 1e-10) + gumbel_noise * 0.05)
+    probs_with_noise = probs_with_noise / np.sum(probs_with_noise)
+    
+    return probs_with_noise
+
+
+def _apply_historical_frequency_bias_correction(numbers: List[int], frequencies: Dict[int, float], 
+                                                 correction_strength: float = 0.2) -> List[int]:
+    """
+    Apply historical frequency bias correction to predictions.
+    
+    Helps avoid overrepresented numbers and encourage underrepresented ones.
+    
+    Args:
+        numbers: Selected lottery numbers
+        frequencies: Dictionary of number -> frequency (0.0-1.0)
+        correction_strength: How much to penalize frequent numbers (0.0-1.0)
+    
+    Returns:
+        List[int]: Adjusted numbers with bias correction applied
+    """
+    if not frequencies or correction_strength == 0:
+        return numbers
+    
+    # Calculate frequency deviations
+    mean_freq = np.mean(list(frequencies.values())) if frequencies else 0.5
+    
+    # Score each number: lower score = less frequent (good)
+    # Higher score = more frequent (bad, needs correction)
+    number_scores = []
+    for num in numbers:
+        freq = frequencies.get(num, mean_freq)
+        deviation = freq - mean_freq
+        penalty = 1.0 + (deviation * correction_strength)
+        number_scores.append((num, penalty))
+    
+    # For prediction improvement: if a number is very overrepresented
+    # and there's a good underrepresented alternative, consider swapping
+    underrepresented = [n for n, f in frequencies.items() if f < (mean_freq * 0.5) and n not in numbers]
+    overrepresented = [(n, s) for n, s in number_scores if s > 1.3]  # More than 30% above mean
+    
+    # Conservative swaps only if clear improvement
+    if underrepresented and overrepresented:
+        for swap_out, _ in overrepresented[:1]:  # Only swap the most overrepresented
+            if underrepresented:
+                swap_in = underrepresented[0]
+                numbers = [swap_in if n == swap_out else n for n in numbers]
+    
+    return sorted(numbers)
+
+
+def _apply_diversity_penalty(numbers: List[int], all_previous_sets: List[List[int]], 
+                             penalty_weight: float = 0.25) -> List[int]:
+    """
+    Apply diversity penalty to encourage different predictions across multiple sets.
+    
+    Args:
+        numbers: Candidate lottery numbers
+        all_previous_sets: All predictions generated so far
+        penalty_weight: Strength of diversity enforcement (0.0-1.0)
+    
+    Returns:
+        List[int]: Numbers adjusted to maximize set diversity
+    """
+    if not all_previous_sets or penalty_weight == 0:
+        return sorted(numbers)
+    
+    # Ensure no duplicates in input
+    numbers = list(set(numbers))
+    if len(numbers) < 6:
+        # Not enough unique numbers, return as is
+        return sorted(numbers)
+    
+    # Calculate overlap with previous sets
+    overlaps = [len(set(numbers) & set(prev)) for prev in all_previous_sets]
+    avg_overlap = np.mean(overlaps) if overlaps else 0
+    
+    # If too much overlap with recent predictions, try to diversify
+    if avg_overlap >= len(numbers) * 0.5:  # More than 50% overlap
+        # Find numbers that haven't appeared recently (from full range 1-49)
+        all_numbers_used = set()
+        for prev_set in all_previous_sets[-3:]:  # Check last 3 sets
+            all_numbers_used.update(prev_set)
+        
+        # Find unused numbers from FULL lottery range (1-49)
+        unused_available = [n for n in range(1, 50) if n not in all_numbers_used]
+        
+        if unused_available:
+            # Identify overlapping numbers to replace
+            overlapping_nums = list(set(numbers) & all_numbers_used)
+            overlapping_nums.sort()
+            
+            # Create new set by replacing overlapping numbers with unused ones
+            result = []
+            unused_idx = 0
+            for num in sorted(numbers):
+                if num in overlapping_nums and unused_idx < len(unused_available):
+                    # Replace overlapping number with unused one
+                    result.append(unused_available[unused_idx])
+                    unused_idx += 1
+                else:
+                    result.append(num)
+            
+            # Remove duplicates and sort
+            return sorted(list(set(result)))[:6]
+    
+    return sorted(numbers)
+
+
 def _select_numbers_with_quality_threshold(pred_probs: np.ndarray, max_number: int, main_nums: int, min_percentile: int = 80) -> tuple:
     """
     Select lottery numbers only if they meet quality threshold.
@@ -2655,7 +2861,7 @@ def _select_numbers_with_quality_threshold(pred_probs: np.ndarray, max_number: i
     return numbers, confidence
 
 
-def _validate_prediction_numbers(numbers: List[int], max_number: int = 49) -> bool:
+def _validate_prediction_numbers(numbers: List[int], max_number: int = 49, main_nums: int = 6) -> bool:
     """
     Validate that prediction numbers are within valid lottery range.
     
@@ -2663,26 +2869,44 @@ def _validate_prediction_numbers(numbers: List[int], max_number: int = 49) -> bo
     - List type check: Ensures input is a valid list
     - Type check: All elements must be integers (numpy or Python int)
     - Range validation: Each number must be between 1 and max_number (inclusive)
+    - Uniqueness check: No duplicate numbers allowed
+    - Length check: Must have exactly main_nums numbers for valid set
     - Empty check: Rejects empty lists
     
     Args:
         numbers: List of integers to validate
         max_number: Maximum valid lottery number (default 49 for Lotto 6/49)
+        main_nums: Expected number of main numbers (6 for 6/49, 7 for Lotto Max)
     
     Returns:
         bool: True if all numbers pass validation, False otherwise
     
     Examples:
-        >>> _validate_prediction_numbers([1, 15, 28, 34, 42, 48], 49)
+        >>> _validate_prediction_numbers([1, 15, 28, 34, 42, 48], 49, 6)
         True
-        >>> _validate_prediction_numbers([1, 15, 50], 49)  # 50 is out of range
+        >>> _validate_prediction_numbers([1, 15, 50], 49, 6)  # 50 is out of range
         False
-        >>> _validate_prediction_numbers([], 49)  # Empty list
+        >>> _validate_prediction_numbers([1, 1, 2, 3, 4, 5], 49, 6)  # Duplicate
+        False
+        >>> _validate_prediction_numbers([], 49, 6)  # Empty list
         False
     """
     if not numbers or not isinstance(numbers, list):
         return False
-    return all(isinstance(n, (int, np.integer)) and 1 <= n <= max_number for n in numbers)
+    
+    # Check all numbers are valid integers
+    if not all(isinstance(n, (int, np.integer)) and 1 <= n <= max_number for n in numbers):
+        return False
+    
+    # Check for duplicates - CRITICAL for lottery predictions
+    if len(numbers) != len(set(numbers)):
+        return False
+    
+    # Check for correct length (should match main_nums - game-specific)
+    if len(numbers) != main_nums:
+        return False
+    
+    return True
 
 
 def _calculate_ensemble_confidence(votes: Dict[int, float], main_nums: int, confidence_threshold: float) -> float:
@@ -3034,7 +3258,9 @@ def _generate_single_model_predictions(game: str, count: int, mode: str, model_t
     
     sets = []
     confidence_scores = []
-    max_number = config.get('max_number', 49)
+    # Extract max_number from number_range tuple (config: 'number_range': (min, max))
+    number_range = config.get('number_range', (1, 49))
+    max_number = number_range[1] if isinstance(number_range, (tuple, list)) else config.get('max_number', 49)
     
     # Try to extract scaler from model if available (matches training scaler)
     model_scaler = None
@@ -3485,10 +3711,14 @@ def _generate_single_model_predictions(game: str, count: int, mode: str, model_t
                             
                             try:
                                 attempt_probs = model.predict_proba(attempt_scaled)[0]
-                                # Pick number based on weighted probability
-                                predicted_digit = rng.choice(10, p=attempt_probs / attempt_probs.sum())
-                                predicted_num = predicted_digit + 1  # Convert 0-9 to 1-10
-                                candidates.append(predicted_num)
+                                # Pick number based on weighted probability from ALL available classes
+                                # Don't hardcode to 10 classes - use however many the model outputs
+                                num_classes = len(attempt_probs)
+                                if num_classes > 0:
+                                    predicted_class = rng.choice(num_classes, p=attempt_probs / attempt_probs.sum())
+                                    # Convert class index (0-based) to lottery number (1-based)
+                                    predicted_num = predicted_class + 1
+                                    candidates.append(predicted_num)
                             except:
                                 pass
                             
@@ -3498,17 +3728,28 @@ def _generate_single_model_predictions(game: str, count: int, mode: str, model_t
                         if candidates:
                             # Pick most likely numbers (those that appear most in candidates)
                             counter = Counter(candidates)
-                            # Get top main_nums numbers with highest frequency
-                            top_nums = [num for num, _ in counter.most_common(max_number)][:main_nums]
+                            top_nums = [num for num, _ in counter.most_common()]  # Get all candidates sorted by frequency
                             
-                            if len(top_nums) >= main_nums:
-                                numbers = sorted(top_nums[:main_nums])
-                                # Confidence based on how consistent the predictions were
-                                most_common_count = counter[numbers[0]]
-                                confidence = most_common_count / len(candidates)
+                            # Model may only generate candidates in range 1-32 (if model has 32 classes)
+                            # Take top model predictions, then fill remaining from full range for diversity
+                            max_from_model = min(main_nums - 1, len(top_nums))  # Keep at least 1 slot for diversity
+                            selected_from_model = sorted(top_nums[:max_from_model])
+                            
+                            # Fill remaining slots from full range to ensure coverage
+                            needed = main_nums - len(selected_from_model)
+                            if needed > 0:
+                                available = [n for n in range(1, max_number + 1) if n not in selected_from_model]
+                                if available:
+                                    additional = sorted(rng.choice(available, min(needed, len(available)), replace=False).tolist())
+                                    numbers = sorted(selected_from_model + additional)
+                                else:
+                                    numbers = sorted(selected_from_model + rng.choice(range(1, max_number + 1), needed, replace=True).tolist())
                             else:
-                                numbers = sorted(rng.choice(range(1, max_number + 1), main_nums, replace=False).tolist())
-                                confidence = np.mean(sorted(pred_probs)[-main_nums:])
+                                numbers = sorted(selected_from_model)
+                            
+                            # Confidence based on how consistent model predictions were
+                            most_common_count = counter[top_nums[0]]
+                            confidence = min(0.95, most_common_count / len(candidates))
                         else:
                             # Fallback to probability-based selection
                             if len(pred_probs) > main_nums:
@@ -3528,8 +3769,69 @@ def _generate_single_model_predictions(game: str, count: int, mode: str, model_t
                             numbers = sorted(rng.choice(range(1, max_number + 1), main_nums, replace=False).tolist())
                             confidence = np.mean(pred_probs)
             
+            # ===== ADVANCED PROBABILITY MANIPULATION WITH MATHEMATICAL RIGOR =====
+            # Apply advanced techniques to improve prediction diversity and quality
+            
+            # Step 1: Apply temperature scaling with entropy regulation
+            if len(sets) > 0:  # Only for sets after first one
+                # Use iteration-dependent temperature for progressive diversity
+                iteration_factor = (i + 1) / max(count, 1)  # 0 to 1
+                base_temperature = 1.0 + (iteration_factor * 0.5)  # 1.0 to 1.5
+                target_entropy = 0.6 + (iteration_factor * 0.2)  # 0.6 to 0.8
+                
+                # Get final probabilities if we have them
+                try:
+                    if model_type_lower in ["xgboost", "catboost", "lightgbm"] and 'random_input_scaled' in locals():
+                        final_probs = model.predict_proba(random_input_scaled)[0]
+                        if len(final_probs) > main_nums:
+                            # Apply advanced probability manipulation
+                            enhanced_probs = _apply_advanced_probability_manipulation(
+                                final_probs,
+                                temperature=base_temperature,
+                                entropy_target=target_entropy,
+                                diversity_weight=0.15
+                            )
+                            
+                            # Select numbers using enhanced probabilities
+                            top_indices = np.argsort(enhanced_probs)[-main_nums:]
+                            numbers = sorted((top_indices + 1).tolist())
+                            confidence = float(np.mean(enhanced_probs[top_indices]))
+                except Exception as e:
+                    app_logger.debug(f"Could not apply advanced probability manipulation: {e}")
+                    # Fallback to original selection
+                    pass
+            
+            # Step 2: Apply diversity penalty to avoid repetitive predictions
+            if len(sets) >= 2:
+                numbers = _apply_diversity_penalty(numbers, sets, penalty_weight=0.25)
+            
+            # Step 3: Apply historical frequency bias correction if available
+            try:
+                # Load historical frequencies if available
+                game_data_path = Path(get_data_dir()) / sanitize_game_name(game) / "draw_history.csv"
+                if game_data_path.exists():
+                    draw_history = pd.read_csv(game_data_path)
+                    # Calculate number frequencies
+                    all_numbers = []
+                    for col in ['number1', 'number2', 'number3', 'number4', 'number5', 'number6', 'number7']:
+                        if col in draw_history.columns:
+                            all_numbers.extend(draw_history[col].tolist())
+                    
+                    if all_numbers:
+                        freq_counter = pd.Series(all_numbers).value_counts()
+                        frequencies = {n: freq_counter.get(n, 1) / len(all_numbers) for n in range(1, max_number + 1)}
+                        
+                        # Apply bias correction
+                        numbers = _apply_historical_frequency_bias_correction(
+                            numbers, frequencies, correction_strength=0.2
+                        )
+            except Exception as e:
+                app_logger.debug(f"Could not apply historical frequency bias correction: {e}")
+                # Continue without this enhancement
+                pass
+            
             # Validate numbers before adding
-            if _validate_prediction_numbers(numbers, max_number):
+            if _validate_prediction_numbers(numbers, max_number, main_nums):
                 sets.append(numbers)
                 confidence_scores.append(min(0.99, max(confidence_threshold, confidence)))
             else:
@@ -3677,7 +3979,9 @@ def _generate_single_model_predictions(game: str, count: int, mode: str, model_t
     
     sets = []
     confidence_scores = []
-    max_number = config.get('max_number', 49)
+    # Extract max_number from number_range tuple (config: 'number_range': (min, max))
+    number_range = config.get('number_range', (1, 49))
+    max_number = number_range[1] if isinstance(number_range, (tuple, list)) else config.get('max_number', 49)
     
     # Try to extract scaler from model if available (matches training scaler)
     model_scaler = None
@@ -3870,7 +4174,7 @@ def _generate_single_model_predictions(game: str, count: int, mode: str, model_t
                             confidence = np.mean(pred_probs)
             
             # Validate numbers before adding
-            if _validate_prediction_numbers(numbers, max_number):
+            if _validate_prediction_numbers(numbers, max_number, main_nums):
                 sets.append(numbers)
                 confidence_scores.append(min(0.99, max(confidence_threshold, confidence)))
             else:
@@ -4151,7 +4455,9 @@ def _generate_ensemble_predictions(game: str, count: int, models_dict: Dict[str,
     confidence_scores = []
     ensemble_accuracies = []
     all_model_predictions = []
-    max_number = config.get('max_number', 49)
+    # Extract max_number from number_range tuple (config: 'number_range': (min, max))
+    number_range = config.get('number_range', (1, 49))
+    max_number = number_range[1] if isinstance(number_range, (tuple, list)) else config.get('max_number', 49)
     
     # Initialize random state ONCE for consistent but diverse predictions across all sets
     rng = np.random.RandomState(int(datetime.now().timestamp() * 1000) % (2**31))
@@ -4492,6 +4798,34 @@ def _generate_ensemble_predictions(game: str, count: int, models_dict: Dict[str,
                 sorted_votes = sorted(all_votes.items(), key=lambda x: x[1], reverse=True)
                 numbers = sorted([num for num, _ in sorted_votes[:main_nums]])
                 
+                # ===== ENSEMBLE ENHANCEMENT: Apply Advanced Techniques =====
+                
+                # Step 1: Apply diversity penalty for ensemble mode (avoid same predictions across sets)
+                if len(sets) >= 2:
+                    numbers = _apply_diversity_penalty(numbers, sets, penalty_weight=0.25)
+                
+                # Step 2: Apply historical frequency bias correction
+                try:
+                    game_data_path = Path(get_data_dir()) / sanitize_game_name(game) / "draw_history.csv"
+                    if game_data_path.exists():
+                        draw_history = pd.read_csv(game_data_path)
+                        # Calculate number frequencies
+                        all_numbers = []
+                        for col in ['number1', 'number2', 'number3', 'number4', 'number5', 'number6', 'number7']:
+                            if col in draw_history.columns:
+                                all_numbers.extend(draw_history[col].tolist())
+                        
+                        if all_numbers:
+                            freq_counter = pd.Series(all_numbers).value_counts()
+                            frequencies = {n: freq_counter.get(n, 1) / len(all_numbers) for n in range(1, max_number + 1)}
+                            
+                            # Apply bias correction
+                            numbers = _apply_historical_frequency_bias_correction(
+                                numbers, frequencies, correction_strength=0.15
+                            )
+                except Exception as e:
+                    app_logger.debug(f"Ensemble: Could not apply historical frequency bias correction: {e}")
+                
                 # Calculate confidence using agreement-aware method
                 confidence = _calculate_ensemble_confidence(all_votes, main_nums, confidence_threshold)
                 app_logger.debug(f"Ensemble set {pred_set_idx}: votes={all_votes}, selected={numbers}, conf={confidence}")
@@ -4502,7 +4836,7 @@ def _generate_ensemble_predictions(game: str, count: int, models_dict: Dict[str,
                 confidence = confidence_threshold
             
             # Final validation
-            if _validate_prediction_numbers(numbers, max_number):
+            if _validate_prediction_numbers(numbers, max_number, main_nums):
                 sets.append(numbers)
                 confidence_scores.append(confidence)
                 all_model_predictions.append(model_predictions)

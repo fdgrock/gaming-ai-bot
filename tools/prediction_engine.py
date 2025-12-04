@@ -42,7 +42,7 @@ class ProbabilityGenerator:
     def __init__(self, game: str):
         """Initialize with game configuration."""
         self.game = game
-        self.game_lower = game.lower().replace(" ", "_")
+        self.game_lower = game.lower().replace(" ", "_").replace("/", "_")
         
         # Game configuration
         self.game_config = {
@@ -306,7 +306,7 @@ class PredictionEngine:
     def __init__(self, game: str):
         """Initialize prediction engine."""
         self.game = game
-        self.game_lower = game.lower().replace(" ", "_")
+        self.game_lower = game.lower().replace(" ", "_").replace("/", "_")
         self.prob_gen = ProbabilityGenerator(game)
         self.sampling = SamplingStrategy()
         self.ensemble = EnsembleWeighting()
