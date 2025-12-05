@@ -10534,3 +10534,1537 @@ Received a label value of 32 which is outside the valid range of [0, 28).  Label
 2025-12-04 08:32:38 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
 2025-12-04 08:33:03 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
 2025-12-04 08:33:06 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
+2025-12-04 11:22:17 - lottery_ai - INFO - logger.py:138 - Advanced ML Training page rendered
+2025-12-04 11:22:26 - lottery_ai - INFO - logger.py:138 - Model manager rendered
+2025-12-04 11:23:10 - lottery_ai - INFO - logger.py:138 - Model manager rendered
+2025-12-04 12:06:29 - lottery_ai - INFO - logger.py:138 - Dashboard rendered successfully
+2025-12-04 12:06:39 - lottery_ai - ERROR - logger.py:138 - Error rendering training page: 'AdvancedFeatureGenerator' object has no attribute 'get_raw_files'
+2025-12-04 12:16:44 - lottery_ai - INFO - logger.py:138 - Dashboard rendered successfully
+2025-12-04 12:16:57 - lottery_ai - ERROR - logger.py:138 - Error rendering training page: 'AdvancedFeatureGenerator' object has no attribute 'get_raw_files'
+2025-12-04 12:17:08 - lottery_ai - INFO - logger.py:138 - Dashboard rendered successfully
+2025-12-04 12:17:45 - lottery_ai - INFO - logger.py:138 - Dashboard rendered successfully
+2025-12-04 12:17:55 - lottery_ai - INFO - logger.py:138 - Training page rendered
+2025-12-04 12:35:20 - lottery_ai - INFO - logger.py:138 - Generating advanced LSTM sequences with window_size=25
+2025-12-04 12:35:26 - lottery_ai - INFO - logger.py:138 - ✓ Generated 1236 advanced LSTM sequences with 45 features
+2025-12-04 12:35:26 - lottery_ai - INFO - logger.py:138 - Saved FeatureSchema to C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\data\features\lstm\lotto_max\feature_schema.json
+2025-12-04 12:35:26 - lottery_ai - INFO - logger.py:138 - ✓ Saved LSTM sequences to C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\data\features\lstm\lotto_max\advanced_lstm_w25_t20251204_123526.npz
+2025-12-04 12:35:27 - lottery_ai - INFO - logger.py:138 - Training page rendered
+2025-12-04 12:35:59 - lottery_ai - INFO - logger.py:138 - Generating advanced CNN embeddings (dim=64)
+2025-12-04 12:36:04 - lottery_ai - INFO - logger.py:138 - ✓ Generated 1237 advanced CNN embeddings
+2025-12-04 12:36:04 - lottery_ai - INFO - logger.py:138 - Saved FeatureSchema to C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\data\features\cnn\lotto_max\feature_schema.json
+2025-12-04 12:36:04 - lottery_ai - INFO - logger.py:138 - ✓ Saved CNN embeddings to C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\data\features\cnn\lotto_max\advanced_cnn_w24_e64_t20251204_123604.npz
+2025-12-04 12:36:04 - lottery_ai - INFO - logger.py:138 - Training page rendered
+2025-12-04 12:36:22 - lottery_ai - INFO - logger.py:138 - Generating Transformer features for CSV export (output_dim=20)
+2025-12-04 12:36:27 - lottery_ai - INFO - logger.py:138 - ✓ Generated 1261 Transformer feature vectors with shape (1261, 20)
+2025-12-04 12:36:27 - lottery_ai - INFO - logger.py:138 - Saved FeatureSchema to C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\data\features\transformer\lotto_max\feature_schema.json
+2025-12-04 12:36:27 - lottery_ai - INFO - logger.py:138 - ✓ Saved Transformer features to C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\data\features\transformer\lotto_max\transformer_features_20251204_123627.csv
+2025-12-04 12:36:27 - lottery_ai - INFO - logger.py:138 - ✓ Saved metadata to C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\data\features\transformer\lotto_max\transformer_metadata_20251204_123627.json
+2025-12-04 12:36:27 - lottery_ai - INFO - logger.py:138 - Training page rendered
+2025-12-04 12:36:51 - lottery_ai - INFO - logger.py:138 - Generating comprehensive XGBoost features...
+2025-12-04 12:36:57 - lottery_ai - INFO - logger.py:138 - Padded XGBoost features from 77 to 85
+2025-12-04 12:36:57 - lottery_ai - INFO - logger.py:138 - ✓ Generated 85 advanced XGBoost features for 1261 draws (target: 85)
+2025-12-04 12:36:57 - lottery_ai - INFO - logger.py:138 - Saved FeatureSchema to C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\data\features\xgboost\lotto_max\feature_schema.json
+2025-12-04 12:36:57 - lottery_ai - INFO - logger.py:138 - ✓ Saved XGBoost features to C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\data\features\xgboost\lotto_max\advanced_xgboost_features_t20251204_123657.csv
+2025-12-04 12:36:58 - lottery_ai - INFO - logger.py:138 - Training page rendered
+2025-12-04 12:37:27 - lottery_ai - INFO - logger.py:138 - Generating CatBoost features optimized for categorical boosting...
+2025-12-04 12:37:32 - lottery_ai - INFO - logger.py:138 - Saved FeatureSchema to C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\data\features\catboost\lotto_max\feature_schema.json
+2025-12-04 12:37:33 - lottery_ai - INFO - logger.py:138 - ✓ Saved CatBoost features to C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\data\features\catboost\lotto_max\catboost_features_t20251204_123732.csv
+2025-12-04 12:37:33 - lottery_ai - INFO - logger.py:138 - Training page rendered
+2025-12-04 12:37:39 - lottery_ai - INFO - logger.py:138 - Generating LightGBM features optimized for gradient boosting...
+2025-12-04 12:37:44 - lottery_ai - INFO - logger.py:138 - Saved FeatureSchema to C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\data\features\lightgbm\lotto_max\feature_schema.json
+2025-12-04 12:37:44 - lottery_ai - INFO - logger.py:138 - ✓ Saved LightGBM features to C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\data\features\lightgbm\lotto_max\lightgbm_features_t20251204_123744.csv
+2025-12-04 12:37:45 - lottery_ai - INFO - logger.py:138 - Training page rendered
+2025-12-04 12:38:37 - lottery_ai - INFO - logger.py:138 - Training page rendered
+2025-12-04 12:38:42 - lottery_ai - INFO - logger.py:138 - Generating advanced LSTM sequences with window_size=25
+2025-12-04 12:38:52 - lottery_ai - INFO - logger.py:138 - ✓ Generated 2159 advanced LSTM sequences with 45 features
+2025-12-04 12:38:52 - lottery_ai - INFO - logger.py:138 - Saved FeatureSchema to C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\data\features\lstm\lotto_6_49\feature_schema.json
+2025-12-04 12:38:52 - lottery_ai - INFO - logger.py:138 - ✓ Saved LSTM sequences to C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\data\features\lstm\lotto_6_49\advanced_lstm_w25_t20251204_123852.npz
+2025-12-04 12:38:52 - lottery_ai - INFO - logger.py:138 - Training page rendered
+2025-12-04 12:38:56 - lottery_ai - INFO - logger.py:138 - Generating advanced CNN embeddings (dim=64)
+2025-12-04 12:39:02 - lottery_ai - INFO - logger.py:138 - ✓ Generated 2160 advanced CNN embeddings
+2025-12-04 12:39:02 - lottery_ai - INFO - logger.py:138 - Saved FeatureSchema to C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\data\features\cnn\lotto_6_49\feature_schema.json
+2025-12-04 12:39:02 - lottery_ai - INFO - logger.py:138 - ✓ Saved CNN embeddings to C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\data\features\cnn\lotto_6_49\advanced_cnn_w24_e64_t20251204_123902.npz
+2025-12-04 12:39:03 - lottery_ai - INFO - logger.py:138 - Training page rendered
+2025-12-04 12:39:34 - lottery_ai - INFO - logger.py:138 - Generating Transformer features for CSV export (output_dim=20)
+2025-12-04 12:39:41 - lottery_ai - INFO - logger.py:138 - ✓ Generated 2184 Transformer feature vectors with shape (2184, 20)
+2025-12-04 12:39:41 - lottery_ai - INFO - logger.py:138 - Saved FeatureSchema to C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\data\features\transformer\lotto_6_49\feature_schema.json
+2025-12-04 12:39:41 - lottery_ai - INFO - logger.py:138 - ✓ Saved Transformer features to C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\data\features\transformer\lotto_6_49\transformer_features_20251204_123941.csv
+2025-12-04 12:39:41 - lottery_ai - INFO - logger.py:138 - ✓ Saved metadata to C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\data\features\transformer\lotto_6_49\transformer_metadata_20251204_123941.json
+2025-12-04 12:39:41 - lottery_ai - INFO - logger.py:138 - Training page rendered
+2025-12-04 12:39:46 - lottery_ai - INFO - logger.py:138 - Generating comprehensive XGBoost features...
+2025-12-04 12:39:58 - lottery_ai - INFO - logger.py:138 - Padded XGBoost features from 77 to 85
+2025-12-04 12:39:58 - lottery_ai - INFO - logger.py:138 - ✓ Generated 85 advanced XGBoost features for 2184 draws (target: 85)
+2025-12-04 12:39:58 - lottery_ai - INFO - logger.py:138 - Saved FeatureSchema to C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\data\features\xgboost\lotto_6_49\feature_schema.json
+2025-12-04 12:39:58 - lottery_ai - INFO - logger.py:138 - ✓ Saved XGBoost features to C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\data\features\xgboost\lotto_6_49\advanced_xgboost_features_t20251204_123958.csv
+2025-12-04 12:39:58 - lottery_ai - INFO - logger.py:138 - Training page rendered
+2025-12-04 12:40:04 - lottery_ai - INFO - logger.py:138 - Generating CatBoost features optimized for categorical boosting...
+2025-12-04 12:40:15 - lottery_ai - INFO - logger.py:138 - Saved FeatureSchema to C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\data\features\catboost\lotto_6_49\feature_schema.json
+2025-12-04 12:40:15 - lottery_ai - INFO - logger.py:138 - ✓ Saved CatBoost features to C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\data\features\catboost\lotto_6_49\catboost_features_t20251204_124015.csv
+2025-12-04 12:40:16 - lottery_ai - INFO - logger.py:138 - Training page rendered
+2025-12-04 12:40:20 - lottery_ai - INFO - logger.py:138 - Generating LightGBM features optimized for gradient boosting...
+2025-12-04 12:40:31 - lottery_ai - INFO - logger.py:138 - Saved FeatureSchema to C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\data\features\lightgbm\lotto_6_49\feature_schema.json
+2025-12-04 12:40:31 - lottery_ai - INFO - logger.py:138 - ✓ Saved LightGBM features to C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\data\features\lightgbm\lotto_6_49\lightgbm_features_t20251204_124031.csv
+2025-12-04 12:40:31 - lottery_ai - INFO - logger.py:138 - Training page rendered
+2025-12-04 12:45:31 - lottery_ai - INFO - logger.py:138 - Training page rendered
+2025-12-04 12:49:19 - lottery_ai - INFO - logger.py:138 - Loading training data for Lotto Max (XGBoost model)...
+2025-12-04 12:49:19 - lottery_ai - INFO - logger.py:138 - Loading training data for Lotto Max...
+2025-12-04 12:49:19 - lottery_ai - INFO - logger.py:138 - Auto-detected max_number=50 for game 'Lotto Max'
+2025-12-04 12:49:19 - lottery_ai - INFO - logger.py:138 - Loaded 1261 raw CSV samples
+2025-12-04 12:49:19 - lottery_ai - INFO - logger.py:138 - Loaded 1261 XGBoost features
+2025-12-04 12:49:19 - lottery_ai - INFO - logger.py:138 - Aligning features to minimum sample count: 1261
+2025-12-04 12:49:19 - lottery_ai - INFO - logger.py:138 - 🎯 PROPER: Extracting 50-class targets from 17 files
+2025-12-04 12:49:19 - lottery_ai - INFO - logger.py:138 -   training_data_2009.csv: 2009-09-25 → 2009-12-25 (14 draws)
+2025-12-04 12:49:19 - lottery_ai - INFO - logger.py:138 -   training_data_2010.csv: 2010-01-01 → 2010-12-31 (53 draws)
+2025-12-04 12:49:19 - lottery_ai - INFO - logger.py:138 -   training_data_2011.csv: 2011-01-07 → 2011-12-30 (52 draws)
+2025-12-04 12:49:19 - lottery_ai - INFO - logger.py:138 -   training_data_2012.csv: 2012-01-06 → 2012-12-28 (52 draws)
+2025-12-04 12:49:19 - lottery_ai - INFO - logger.py:138 -   training_data_2013.csv: 2013-01-04 → 2013-12-27 (52 draws)
+2025-12-04 12:49:19 - lottery_ai - INFO - logger.py:138 -   training_data_2014.csv: 2014-01-03 → 2014-12-26 (52 draws)
+2025-12-04 12:49:19 - lottery_ai - INFO - logger.py:138 -   training_data_2015.csv: 2015-01-02 → 2015-12-25 (52 draws)
+2025-12-04 12:49:19 - lottery_ai - INFO - logger.py:138 -   training_data_2016.csv: 2016-01-01 → 2016-12-30 (53 draws)
+2025-12-04 12:49:19 - lottery_ai - INFO - logger.py:138 -   training_data_2017.csv: 2017-01-06 → 2017-12-29 (52 draws)
+2025-12-04 12:49:19 - lottery_ai - INFO - logger.py:138 -   training_data_2018.csv: 2018-01-05 → 2018-12-28 (52 draws)
+2025-12-04 12:49:19 - lottery_ai - INFO - logger.py:138 -   training_data_2019.csv: 2019-01-04 → 2019-12-31 (86 draws)
+2025-12-04 12:49:19 - lottery_ai - INFO - logger.py:138 -   training_data_2020.csv: 2020-01-03 → 2020-12-29 (104 draws)
+2025-12-04 12:49:19 - lottery_ai - INFO - logger.py:138 -   training_data_2021.csv: 2021-01-01 → 2021-12-31 (105 draws)
+2025-12-04 12:49:19 - lottery_ai - INFO - logger.py:138 -   training_data_2022.csv: 2022-01-04 → 2022-12-30 (104 draws)
+2025-12-04 12:49:19 - lottery_ai - INFO - logger.py:138 -   training_data_2023.csv: 2023-01-03 → 2023-12-29 (104 draws)
+2025-12-04 12:49:19 - lottery_ai - INFO - logger.py:138 -   training_data_2024.csv: 2024-01-02 → 2024-12-31 (105 draws)
+2025-12-04 12:49:19 - lottery_ai - INFO - logger.py:138 -   training_data_2025.csv: 2025-01-01 → 2025-12-02 (169 draws)
+2025-12-04 12:49:19 - lottery_ai - INFO - logger.py:138 -   Extracted 1261 valid targets
+2025-12-04 12:49:19 - lottery_ai - INFO - logger.py:138 -   Target classes found: 28 (expected 50)
+2025-12-04 12:49:19 - lottery_ai - INFO - logger.py:138 -   Range: [0 - 32] (should be [0 - 49])
+2025-12-04 12:49:19 - lottery_ai - INFO - logger.py:138 -   ✅ LAG DISABLED: Predicting SAME draw
+2025-12-04 12:49:19 - lottery_ai - INFO - logger.py:138 - Training data shape: (1261, 93), Target shape: (1261,)
+2025-12-04 12:49:19 - lottery_ai - INFO - logger.py:138 - Target distribution: {np.int64(0): np.int64(180), np.int64(1): np.int64(169), np.int64(2): np.int64(131), np.int64(3): np.int64(107), np.int64(4): np.int64(111), np.int64(5): np.int64(71), np.int64(6): np.int64(97), np.int64(7): np.int64(65), np.int64(8): np.int64(62), np.int64(9): np.int64(47), np.int64(10): np.int64(40), np.int64(11): np.int64(33), np.int64(12): np.int64(27), np.int64(13): np.int64(24), np.int64(14): np.int64(17), np.int64(15): np.int64(9), np.int64(16): np.int64(14), np.int64(17): np.int64(15), np.int64(18): np.int64(12), np.int64(19): np.int64(7), np.int64(20): np.int64(4), np.int64(21): np.int64(7), np.int64(22): np.int64(4), np.int64(23): np.int64(1), np.int64(24): np.int64(2), np.int64(25): np.int64(3), np.int64(29): np.int64(1), np.int64(32): np.int64(1)}
+2025-12-04 12:49:19 - lottery_ai - INFO - logger.py:138 - First 5 targets: [4 7 4 3 3]
+2025-12-04 12:49:19 - lottery_ai - INFO - logger.py:138 - Last 5 targets: [ 9  6 11  0  6]
+2025-12-04 12:49:19 - lottery_ai - INFO - logger.py:138 - First 5 feature sums: [30002002.38849021 51037494.82889318 65002373.25103501 78957061.35581648
+ 93492374.91700645]
+2025-12-04 12:49:19 - lottery_ai - INFO - logger.py:138 - Last 5 feature sums: [1.25619859e+08 1.55043873e+08 1.67749647e+08 1.84043971e+08
+ 1.98619684e+08]
+2025-12-04 12:49:19 - lottery_ai - INFO - logger.py:138 - ✅ Loaded 1261 samples with 93 features
+2025-12-04 12:49:19 - lottery_ai - INFO - logger.py:138 - Target distribution: {np.int64(0): np.int64(180), np.int64(1): np.int64(169), np.int64(2): np.int64(131), np.int64(3): np.int64(107), np.int64(4): np.int64(111), np.int64(5): np.int64(71), np.int64(6): np.int64(97), np.int64(7): np.int64(65), np.int64(8): np.int64(62), np.int64(9): np.int64(47), np.int64(10): np.int64(40), np.int64(11): np.int64(33), np.int64(12): np.int64(27), np.int64(13): np.int64(24), np.int64(14): np.int64(17), np.int64(15): np.int64(9), np.int64(16): np.int64(14), np.int64(17): np.int64(15), np.int64(18): np.int64(12), np.int64(19): np.int64(7), np.int64(20): np.int64(4), np.int64(21): np.int64(7), np.int64(22): np.int64(4), np.int64(23): np.int64(1), np.int64(24): np.int64(2), np.int64(25): np.int64(3), np.int64(29): np.int64(1), np.int64(32): np.int64(1)}
+2025-12-04 12:49:19 - lottery_ai - INFO - logger.py:138 -   raw_csv: 1261 samples
+2025-12-04 12:49:19 - lottery_ai - INFO - logger.py:138 -   xgboost: 1261 samples
+2025-12-04 12:49:19 - lottery_ai - INFO - logger.py:138 - Starting XGBoost training...
+2025-12-04 12:49:19 - lottery_ai - INFO - logger.py:138 -   - Epochs: 150
+2025-12-04 12:49:19 - lottery_ai - INFO - logger.py:138 -   - Learning Rate: 0.01
+2025-12-04 12:49:19 - lottery_ai - INFO - logger.py:138 -   - Batch Size: 64
+2025-12-04 12:49:19 - lottery_ai - INFO - logger.py:138 -   - Validation Split: 20.0%
+2025-12-04 12:49:19 - lottery_ai - INFO - logger.py:138 - Starting advanced XGBoost training with deep ensemble configuration...
+2025-12-04 12:49:22 - lottery_ai - INFO - logger.py:138 - Row-level Accuracy: 0.9960 | Partial Matches: 1.00/7
+2025-12-04 12:49:22 - lottery_ai - WARNING - logger.py:138 - Probability calibration warning: Requesting 2-fold cross-validation but provided less than 2 examples for at least one class.
+2025-12-04 12:49:22 - lottery_ai - INFO - logger.py:138 - Per-class Performance:
+2025-12-04 12:49:22 - lottery_ai - INFO - logger.py:138 -   Class 0: Precision=1.0000, Recall=1.0000, F1=1.0000, Support=29
+2025-12-04 12:49:22 - lottery_ai - INFO - logger.py:138 -   Class 1: Precision=1.0000, Recall=1.0000, F1=1.0000, Support=36
+2025-12-04 12:49:22 - lottery_ai - INFO - logger.py:138 -   Class 2: Precision=1.0000, Recall=1.0000, F1=1.0000, Support=26
+2025-12-04 12:49:22 - lottery_ai - INFO - logger.py:138 -   Class 3: Precision=1.0000, Recall=1.0000, F1=1.0000, Support=27
+2025-12-04 12:49:22 - lottery_ai - INFO - logger.py:138 -   Class 4: Precision=1.0000, Recall=1.0000, F1=1.0000, Support=21
+2025-12-04 12:49:22 - lottery_ai - INFO - logger.py:138 -   Class 5: Precision=1.0000, Recall=1.0000, F1=1.0000, Support=15
+2025-12-04 12:49:22 - lottery_ai - INFO - logger.py:138 -   Class 6: Precision=1.0000, Recall=1.0000, F1=1.0000, Support=20
+2025-12-04 12:49:22 - lottery_ai - INFO - logger.py:138 -   Class 7: Precision=1.0000, Recall=1.0000, F1=1.0000, Support=9
+2025-12-04 12:49:22 - lottery_ai - INFO - logger.py:138 -   Class 8: Precision=1.0000, Recall=1.0000, F1=1.0000, Support=11
+2025-12-04 12:49:22 - lottery_ai - INFO - logger.py:138 -   Class 9: Precision=1.0000, Recall=1.0000, F1=1.0000, Support=12
+2025-12-04 12:49:22 - lottery_ai - INFO - logger.py:138 -   Class 10: Precision=1.0000, Recall=1.0000, F1=1.0000, Support=6
+2025-12-04 12:49:22 - lottery_ai - INFO - logger.py:138 -   Class 11: Precision=1.0000, Recall=1.0000, F1=1.0000, Support=7
+2025-12-04 12:49:22 - lottery_ai - INFO - logger.py:138 -   Class 12: Precision=1.0000, Recall=1.0000, F1=1.0000, Support=5
+2025-12-04 12:49:22 - lottery_ai - INFO - logger.py:138 -   Class 13: Precision=1.0000, Recall=1.0000, F1=1.0000, Support=6
+2025-12-04 12:49:22 - lottery_ai - INFO - logger.py:138 -   Class 14: Precision=1.0000, Recall=1.0000, F1=1.0000, Support=5
+2025-12-04 12:49:22 - lottery_ai - INFO - logger.py:138 -   Class 16: Precision=1.0000, Recall=1.0000, F1=1.0000, Support=3
+2025-12-04 12:49:22 - lottery_ai - INFO - logger.py:138 -   Class 17: Precision=1.0000, Recall=1.0000, F1=1.0000, Support=3
+2025-12-04 12:49:22 - lottery_ai - INFO - logger.py:138 -   Class 18: Precision=0.5000, Recall=1.0000, F1=0.6667, Support=3
+2025-12-04 12:49:22 - lottery_ai - INFO - logger.py:138 -   Class 19: Precision=1.0000, Recall=0.2500, F1=0.4000, Support=4
+2025-12-04 12:49:22 - lottery_ai - INFO - logger.py:138 -   Class 20: Precision=1.0000, Recall=1.0000, F1=1.0000, Support=1
+2025-12-04 12:49:22 - lottery_ai - INFO - logger.py:138 -   Class 21: Precision=1.0000, Recall=1.0000, F1=1.0000, Support=3
+2025-12-04 12:49:22 - lottery_ai - INFO - logger.py:138 -   Class 22: Precision=0.0000, Recall=0.0000, F1=0.0000, Support=0
+2025-12-04 12:49:22 - lottery_ai - INFO - logger.py:138 -   Class 23: Precision=0.0000, Recall=0.0000, F1=0.0000, Support=1
+2025-12-04 12:49:22 - lottery_ai - INFO - logger.py:138 - Advanced XGBoost training complete - Accuracy: 0.9842 | Row Accuracy: 0.9960 | Estimators: 150
+2025-12-04 12:49:22 - lottery_ai - INFO - logger.py:138 - ✅ XGBoost training complete - Accuracy: 0.9842
+2025-12-04 12:49:22 - lottery_ai - INFO - logger.py:138 - Saving model with metadata...
+2025-12-04 12:49:22 - lottery_ai - INFO - logger.py:138 - Saved xgboost model to models\lotto_max\xgboost\xgboost_lotto_max_20251204_124922.joblib
+2025-12-04 12:49:22 - lottery_ai - WARNING - logger.py:138 - No feature schema found for xgboost, model saved but not registered
+2025-12-04 12:49:22 - lottery_ai - INFO - logger.py:138 - Model saved to models\lotto_max\xgboost\xgboost_lotto_max_20251204_124922
+2025-12-04 12:49:22 - lottery_ai - INFO - logger.py:138 - ✅ Model saved to: models\lotto_max\xgboost\xgboost_lotto_max_20251204_124922
+2025-12-04 12:49:22 - lottery_ai - INFO - logger.py:138 - XGBoost Model Details:
+2025-12-04 12:49:22 - lottery_ai - INFO - logger.py:138 -   - Location: models\lotto_max\xgboost\xgboost_lotto_max_20251204_124922
+2025-12-04 12:49:22 - lottery_ai - INFO - logger.py:138 -   - Accuracy: 0.9842
+2025-12-04 12:49:22 - lottery_ai - INFO - logger.py:138 -   - Precision: 0.9901
+2025-12-04 12:49:22 - lottery_ai - INFO - logger.py:138 -   - Recall: 0.9842
+2025-12-04 12:49:22 - lottery_ai - INFO - logger.py:138 -   - F1 Score: 0.9826
+2025-12-04 12:49:22 - lottery_ai - INFO - logger.py:138 - Per-Class Metrics Displayed:
+2025-12-04 12:49:22 - lottery_ai - INFO - logger.py:138 - Training Data Summary:
+2025-12-04 12:49:22 - lottery_ai - INFO - logger.py:138 -   - Total Samples: 1,261
+2025-12-04 12:49:22 - lottery_ai - INFO - logger.py:138 -   - Total Features: 93
+2025-12-04 12:49:22 - lottery_ai - INFO - logger.py:138 -   - Data Sources: raw_csv, xgboost
+2025-12-04 12:49:22 - lottery_ai - INFO - logger.py:138 -     • raw_csv: 1261
+2025-12-04 12:49:22 - lottery_ai - INFO - logger.py:138 -     • xgboost: 1261
+2025-12-04 12:49:22 - lottery_ai - INFO - logger.py:138 - ✅ XGBoost model training completed successfully!
+2025-12-04 12:49:22 - lottery_ai - INFO - logger.py:138 - 📁 Model Location: models\lotto_max\xgboost\xgboost_lotto_max_20251204_124922
+2025-12-04 12:49:22 - lottery_ai - INFO - logger.py:138 - ================================================================================
+2025-12-04 12:49:23 - lottery_ai - INFO - logger.py:138 - Training page rendered
+2025-12-04 12:49:59 - lottery_ai - INFO - logger.py:138 - Training page rendered
+2025-12-04 12:50:15 - lottery_ai - INFO - logger.py:138 - Loading training data for Lotto 6/49 (XGBoost model)...
+2025-12-04 12:50:15 - lottery_ai - INFO - logger.py:138 - Loading training data for Lotto 6/49...
+2025-12-04 12:50:15 - lottery_ai - INFO - logger.py:138 - Auto-detected max_number=49 for game 'Lotto 6/49'
+2025-12-04 12:50:15 - lottery_ai - INFO - logger.py:138 - Loaded 2184 raw CSV samples
+2025-12-04 12:50:15 - lottery_ai - INFO - logger.py:138 - Loaded 2184 XGBoost features
+2025-12-04 12:50:15 - lottery_ai - INFO - logger.py:138 - Aligning features to minimum sample count: 2184
+2025-12-04 12:50:15 - lottery_ai - INFO - logger.py:138 - 🎯 PROPER: Extracting 49-class targets from 21 files
+2025-12-04 12:50:15 - lottery_ai - INFO - logger.py:138 -   training_data_2005.csv: 2005-01-01 → 2005-12-31 (105 draws)
+2025-12-04 12:50:15 - lottery_ai - INFO - logger.py:138 -   training_data_2006.csv: 2006-01-04 → 2006-12-30 (104 draws)
+2025-12-04 12:50:15 - lottery_ai - INFO - logger.py:138 -   training_data_2007.csv: 2007-01-03 → 2007-12-29 (104 draws)
+2025-12-04 12:50:15 - lottery_ai - INFO - logger.py:138 -   training_data_2008.csv: 2008-01-02 → 2008-12-31 (105 draws)
+2025-12-04 12:50:15 - lottery_ai - INFO - logger.py:138 -   training_data_2009.csv: 2009-01-03 → 2009-12-30 (104 draws)
+2025-12-04 12:50:15 - lottery_ai - INFO - logger.py:138 -   training_data_2010.csv: 2010-01-02 → 2010-12-29 (104 draws)
+2025-12-04 12:50:15 - lottery_ai - INFO - logger.py:138 -   training_data_2011.csv: 2011-01-01 → 2011-12-31 (105 draws)
+2025-12-04 12:50:15 - lottery_ai - INFO - logger.py:138 -   training_data_2012.csv: 2012-01-04 → 2012-12-29 (104 draws)
+2025-12-04 12:50:15 - lottery_ai - INFO - logger.py:138 -   training_data_2013.csv: 2013-01-02 → 2013-12-28 (104 draws)
+2025-12-04 12:50:15 - lottery_ai - INFO - logger.py:138 -   training_data_2014.csv: 2014-01-01 → 2014-12-31 (105 draws)
+2025-12-04 12:50:15 - lottery_ai - INFO - logger.py:138 -   training_data_2015.csv: 2015-01-03 → 2015-12-30 (104 draws)
+2025-12-04 12:50:15 - lottery_ai - INFO - logger.py:138 -   training_data_2016.csv: 2016-01-02 → 2016-12-31 (105 draws)
+2025-12-04 12:50:15 - lottery_ai - INFO - logger.py:138 -   training_data_2017.csv: 2017-01-04 → 2017-12-30 (104 draws)
+2025-12-04 12:50:15 - lottery_ai - INFO - logger.py:138 -   training_data_2018.csv: 2018-01-03 → 2018-12-29 (104 draws)
+2025-12-04 12:50:15 - lottery_ai - INFO - logger.py:138 -   training_data_2019.csv: 2019-01-02 → 2019-12-28 (104 draws)
+2025-12-04 12:50:15 - lottery_ai - INFO - logger.py:138 -   training_data_2020.csv: 2020-01-01 → 2020-12-30 (105 draws)
+2025-12-04 12:50:15 - lottery_ai - INFO - logger.py:138 -   training_data_2021.csv: 2021-01-02 → 2021-12-29 (104 draws)
+2025-12-04 12:50:15 - lottery_ai - INFO - logger.py:138 -   training_data_2022.csv: 2022-01-01 → 2022-12-31 (105 draws)
+2025-12-04 12:50:15 - lottery_ai - INFO - logger.py:138 -   training_data_2023.csv: 2023-01-04 → 2023-12-30 (104 draws)
+2025-12-04 12:50:15 - lottery_ai - INFO - logger.py:138 -   training_data_2024.csv: 2024-01-03 → 2024-12-28 (104 draws)
+2025-12-04 12:50:15 - lottery_ai - INFO - logger.py:138 -   training_data_2025.csv: 2025-01-01 → 2025-12-03 (97 draws)
+2025-12-04 12:50:15 - lottery_ai - INFO - logger.py:138 -   Extracted 2184 valid targets
+2025-12-04 12:50:15 - lottery_ai - INFO - logger.py:138 -   Target classes found: 32 (expected 49)
+2025-12-04 12:50:15 - lottery_ai - INFO - logger.py:138 -   Range: [0 - 32] (should be [0 - 48])
+2025-12-04 12:50:15 - lottery_ai - INFO - logger.py:138 -   ✅ LAG DISABLED: Predicting SAME draw
+2025-12-04 12:50:15 - lottery_ai - INFO - logger.py:138 - Training data shape: (2184, 93), Target shape: (2184,)
+2025-12-04 12:50:15 - lottery_ai - INFO - logger.py:138 - Target distribution: {np.int64(0): np.int64(220), np.int64(1): np.int64(244), np.int64(2): np.int64(223), np.int64(3): np.int64(208), np.int64(4): np.int64(153), np.int64(5): np.int64(147), np.int64(6): np.int64(132), np.int64(7): np.int64(112), np.int64(8): np.int64(123), np.int64(9): np.int64(92), np.int64(10): np.int64(86), np.int64(11): np.int64(67), np.int64(12): np.int64(56), np.int64(13): np.int64(50), np.int64(14): np.int64(46), np.int64(15): np.int64(39), np.int64(16): np.int64(24), np.int64(17): np.int64(30), np.int64(18): np.int64(18), np.int64(19): np.int64(25), np.int64(20): np.int64(18), np.int64(21): np.int64(11), np.int64(22): np.int64(16), np.int64(23): np.int64(11), np.int64(24): np.int64(6), np.int64(25): np.int64(9), np.int64(26): np.int64(8), np.int64(27): np.int64(1), np.int64(28): np.int64(2), np.int64(29): np.int64(4), np.int64(30): np.int64(2), np.int64(32): np.int64(1)}
+2025-12-04 12:50:15 - lottery_ai - INFO - logger.py:138 - First 5 targets: [9 0 2 0 0]
+2025-12-04 12:50:15 - lottery_ai - INFO - logger.py:138 - Last 5 targets: [13 10 10  4  0]
+2025-12-04 12:50:15 - lottery_ai - INFO - logger.py:138 - First 5 feature sums: [1774.2139835  1755.9987545  1535.60258935 1542.97229663 1601.75042804]
+2025-12-04 12:50:15 - lottery_ai - INFO - logger.py:138 - Last 5 feature sums: [21474127.68976286 15002165.52151651 15002141.59477374 15002011.5841494
+ 51474201.9810214 ]
+2025-12-04 12:50:15 - lottery_ai - INFO - logger.py:138 - ✅ Loaded 2184 samples with 93 features
+2025-12-04 12:50:15 - lottery_ai - INFO - logger.py:138 - Target distribution: {np.int64(0): np.int64(220), np.int64(1): np.int64(244), np.int64(2): np.int64(223), np.int64(3): np.int64(208), np.int64(4): np.int64(153), np.int64(5): np.int64(147), np.int64(6): np.int64(132), np.int64(7): np.int64(112), np.int64(8): np.int64(123), np.int64(9): np.int64(92), np.int64(10): np.int64(86), np.int64(11): np.int64(67), np.int64(12): np.int64(56), np.int64(13): np.int64(50), np.int64(14): np.int64(46), np.int64(15): np.int64(39), np.int64(16): np.int64(24), np.int64(17): np.int64(30), np.int64(18): np.int64(18), np.int64(19): np.int64(25), np.int64(20): np.int64(18), np.int64(21): np.int64(11), np.int64(22): np.int64(16), np.int64(23): np.int64(11), np.int64(24): np.int64(6), np.int64(25): np.int64(9), np.int64(26): np.int64(8), np.int64(27): np.int64(1), np.int64(28): np.int64(2), np.int64(29): np.int64(4), np.int64(30): np.int64(2), np.int64(32): np.int64(1)}
+2025-12-04 12:50:15 - lottery_ai - INFO - logger.py:138 -   raw_csv: 2184 samples
+2025-12-04 12:50:15 - lottery_ai - INFO - logger.py:138 -   xgboost: 2184 samples
+2025-12-04 12:50:15 - lottery_ai - INFO - logger.py:138 - Starting XGBoost training...
+2025-12-04 12:50:15 - lottery_ai - INFO - logger.py:138 -   - Epochs: 150
+2025-12-04 12:50:15 - lottery_ai - INFO - logger.py:138 -   - Learning Rate: 0.01
+2025-12-04 12:50:15 - lottery_ai - INFO - logger.py:138 -   - Batch Size: 64
+2025-12-04 12:50:15 - lottery_ai - INFO - logger.py:138 -   - Validation Split: 20.0%
+2025-12-04 12:50:15 - lottery_ai - INFO - logger.py:138 - Starting advanced XGBoost training with deep ensemble configuration...
+2025-12-04 12:50:19 - lottery_ai - INFO - logger.py:138 - Row-level Accuracy: 0.9931 | Partial Matches: 0.99/6
+2025-12-04 12:50:19 - lottery_ai - WARNING - logger.py:138 - Probability calibration warning: Requesting 2-fold cross-validation but provided less than 2 examples for at least one class.
+2025-12-04 12:50:19 - lottery_ai - INFO - logger.py:138 - Per-class Performance:
+2025-12-04 12:50:19 - lottery_ai - INFO - logger.py:138 -   Class 0: Precision=1.0000, Recall=1.0000, F1=1.0000, Support=43
+2025-12-04 12:50:19 - lottery_ai - INFO - logger.py:138 -   Class 1: Precision=1.0000, Recall=1.0000, F1=1.0000, Support=45
+2025-12-04 12:50:19 - lottery_ai - INFO - logger.py:138 -   Class 2: Precision=1.0000, Recall=1.0000, F1=1.0000, Support=44
+2025-12-04 12:50:19 - lottery_ai - INFO - logger.py:138 -   Class 3: Precision=1.0000, Recall=1.0000, F1=1.0000, Support=41
+2025-12-04 12:50:19 - lottery_ai - INFO - logger.py:138 -   Class 4: Precision=1.0000, Recall=1.0000, F1=1.0000, Support=36
+2025-12-04 12:50:19 - lottery_ai - INFO - logger.py:138 -   Class 5: Precision=1.0000, Recall=1.0000, F1=1.0000, Support=26
+2025-12-04 12:50:19 - lottery_ai - INFO - logger.py:138 -   Class 6: Precision=1.0000, Recall=1.0000, F1=1.0000, Support=36
+2025-12-04 12:50:19 - lottery_ai - INFO - logger.py:138 -   Class 7: Precision=1.0000, Recall=1.0000, F1=1.0000, Support=24
+2025-12-04 12:50:19 - lottery_ai - INFO - logger.py:138 -   Class 8: Precision=1.0000, Recall=1.0000, F1=1.0000, Support=27
+2025-12-04 12:50:19 - lottery_ai - INFO - logger.py:138 -   Class 9: Precision=1.0000, Recall=1.0000, F1=1.0000, Support=16
+2025-12-04 12:50:19 - lottery_ai - INFO - logger.py:138 -   Class 10: Precision=1.0000, Recall=1.0000, F1=1.0000, Support=17
+2025-12-04 12:50:19 - lottery_ai - INFO - logger.py:138 -   Class 11: Precision=1.0000, Recall=1.0000, F1=1.0000, Support=11
+2025-12-04 12:50:19 - lottery_ai - INFO - logger.py:138 -   Class 12: Precision=1.0000, Recall=1.0000, F1=1.0000, Support=6
+2025-12-04 12:50:19 - lottery_ai - INFO - logger.py:138 -   Class 13: Precision=1.0000, Recall=1.0000, F1=1.0000, Support=13
+2025-12-04 12:50:19 - lottery_ai - INFO - logger.py:138 -   Class 14: Precision=1.0000, Recall=1.0000, F1=1.0000, Support=5
+2025-12-04 12:50:19 - lottery_ai - INFO - logger.py:138 -   Class 15: Precision=1.0000, Recall=1.0000, F1=1.0000, Support=6
+2025-12-04 12:50:19 - lottery_ai - INFO - logger.py:138 -   Class 16: Precision=1.0000, Recall=1.0000, F1=1.0000, Support=7
+2025-12-04 12:50:19 - lottery_ai - INFO - logger.py:138 -   Class 17: Precision=1.0000, Recall=1.0000, F1=1.0000, Support=6
+2025-12-04 12:50:19 - lottery_ai - INFO - logger.py:138 -   Class 18: Precision=1.0000, Recall=1.0000, F1=1.0000, Support=4
+2025-12-04 12:50:19 - lottery_ai - INFO - logger.py:138 -   Class 19: Precision=1.0000, Recall=1.0000, F1=1.0000, Support=3
+2025-12-04 12:50:19 - lottery_ai - INFO - logger.py:138 -   Class 20: Precision=1.0000, Recall=1.0000, F1=1.0000, Support=2
+2025-12-04 12:50:19 - lottery_ai - INFO - logger.py:138 -   Class 21: Precision=1.0000, Recall=1.0000, F1=1.0000, Support=4
+2025-12-04 12:50:19 - lottery_ai - INFO - logger.py:138 -   Class 22: Precision=1.0000, Recall=1.0000, F1=1.0000, Support=1
+2025-12-04 12:50:19 - lottery_ai - INFO - logger.py:138 -   Class 23: Precision=1.0000, Recall=1.0000, F1=1.0000, Support=3
+2025-12-04 12:50:19 - lottery_ai - INFO - logger.py:138 -   Class 24: Precision=1.0000, Recall=1.0000, F1=1.0000, Support=2
+2025-12-04 12:50:19 - lottery_ai - INFO - logger.py:138 -   Class 25: Precision=1.0000, Recall=1.0000, F1=1.0000, Support=3
+2025-12-04 12:50:19 - lottery_ai - INFO - logger.py:138 -   Class 26: Precision=0.3333, Recall=1.0000, F1=0.5000, Support=2
+2025-12-04 12:50:19 - lottery_ai - INFO - logger.py:138 -   Class 28: Precision=0.0000, Recall=0.0000, F1=0.0000, Support=1
+2025-12-04 12:50:19 - lottery_ai - INFO - logger.py:138 -   Class 29: Precision=0.0000, Recall=0.0000, F1=0.0000, Support=1
+2025-12-04 12:50:19 - lottery_ai - INFO - logger.py:138 -   Class 30: Precision=0.0000, Recall=0.0000, F1=0.0000, Support=2
+2025-12-04 12:50:19 - lottery_ai - INFO - logger.py:138 - Advanced XGBoost training complete - Accuracy: 0.9908 | Row Accuracy: 0.9931 | Estimators: 150
+2025-12-04 12:50:19 - lottery_ai - INFO - logger.py:138 - ✅ XGBoost training complete - Accuracy: 0.9908
+2025-12-04 12:50:19 - lottery_ai - INFO - logger.py:138 - Saving model with metadata...
+2025-12-04 12:50:19 - lottery_ai - INFO - logger.py:138 - Saved xgboost model to models\lotto_6_49\xgboost\xgboost_lotto_6_49_20251204_125019.joblib
+2025-12-04 12:50:19 - lottery_ai - WARNING - logger.py:138 - No feature schema found for xgboost, model saved but not registered
+2025-12-04 12:50:19 - lottery_ai - INFO - logger.py:138 - Model saved to models\lotto_6_49\xgboost\xgboost_lotto_6_49_20251204_125019
+2025-12-04 12:50:19 - lottery_ai - INFO - logger.py:138 - ✅ Model saved to: models\lotto_6_49\xgboost\xgboost_lotto_6_49_20251204_125019
+2025-12-04 12:50:19 - lottery_ai - INFO - logger.py:138 - XGBoost Model Details:
+2025-12-04 12:50:19 - lottery_ai - INFO - logger.py:138 -   - Location: models\lotto_6_49\xgboost\xgboost_lotto_6_49_20251204_125019
+2025-12-04 12:50:19 - lottery_ai - INFO - logger.py:138 -   - Accuracy: 0.9908
+2025-12-04 12:50:19 - lottery_ai - INFO - logger.py:138 -   - Precision: 0.9878
+2025-12-04 12:50:19 - lottery_ai - INFO - logger.py:138 -   - Recall: 0.9908
+2025-12-04 12:50:19 - lottery_ai - INFO - logger.py:138 -   - F1 Score: 0.9886
+2025-12-04 12:50:19 - lottery_ai - INFO - logger.py:138 - Per-Class Metrics Displayed:
+2025-12-04 12:50:19 - lottery_ai - INFO - logger.py:138 - Training Data Summary:
+2025-12-04 12:50:19 - lottery_ai - INFO - logger.py:138 -   - Total Samples: 2,184
+2025-12-04 12:50:19 - lottery_ai - INFO - logger.py:138 -   - Total Features: 93
+2025-12-04 12:50:19 - lottery_ai - INFO - logger.py:138 -   - Data Sources: raw_csv, xgboost
+2025-12-04 12:50:19 - lottery_ai - INFO - logger.py:138 -     • raw_csv: 2184
+2025-12-04 12:50:19 - lottery_ai - INFO - logger.py:138 -     • xgboost: 2184
+2025-12-04 12:50:19 - lottery_ai - INFO - logger.py:138 - ✅ XGBoost model training completed successfully!
+2025-12-04 12:50:19 - lottery_ai - INFO - logger.py:138 - 📁 Model Location: models\lotto_6_49\xgboost\xgboost_lotto_6_49_20251204_125019
+2025-12-04 12:50:19 - lottery_ai - INFO - logger.py:138 - ================================================================================
+2025-12-04 12:50:19 - lottery_ai - INFO - logger.py:138 - Training page rendered
+2025-12-04 12:50:51 - lottery_ai - INFO - logger.py:138 - Training page rendered
+2025-12-04 12:51:02 - lottery_ai - INFO - logger.py:138 - Loading training data for Lotto 6/49 (CatBoost model)...
+2025-12-04 12:51:02 - lottery_ai - INFO - logger.py:138 - Loading training data for Lotto 6/49...
+2025-12-04 12:51:02 - lottery_ai - INFO - logger.py:138 - Auto-detected max_number=49 for game 'Lotto 6/49'
+2025-12-04 12:51:02 - lottery_ai - INFO - logger.py:138 - Loaded 2184 raw CSV samples
+2025-12-04 12:51:02 - lottery_ai - INFO - logger.py:138 - Loaded 2184 CatBoost features
+2025-12-04 12:51:02 - lottery_ai - INFO - logger.py:138 - Aligning features to minimum sample count: 2184
+2025-12-04 12:51:02 - lottery_ai - INFO - logger.py:138 - 🎯 PROPER: Extracting 49-class targets from 21 files
+2025-12-04 12:51:02 - lottery_ai - INFO - logger.py:138 -   training_data_2005.csv: 2005-01-01 → 2005-12-31 (105 draws)
+2025-12-04 12:51:02 - lottery_ai - INFO - logger.py:138 -   training_data_2006.csv: 2006-01-04 → 2006-12-30 (104 draws)
+2025-12-04 12:51:02 - lottery_ai - INFO - logger.py:138 -   training_data_2007.csv: 2007-01-03 → 2007-12-29 (104 draws)
+2025-12-04 12:51:02 - lottery_ai - INFO - logger.py:138 -   training_data_2008.csv: 2008-01-02 → 2008-12-31 (105 draws)
+2025-12-04 12:51:02 - lottery_ai - INFO - logger.py:138 -   training_data_2009.csv: 2009-01-03 → 2009-12-30 (104 draws)
+2025-12-04 12:51:02 - lottery_ai - INFO - logger.py:138 -   training_data_2010.csv: 2010-01-02 → 2010-12-29 (104 draws)
+2025-12-04 12:51:02 - lottery_ai - INFO - logger.py:138 -   training_data_2011.csv: 2011-01-01 → 2011-12-31 (105 draws)
+2025-12-04 12:51:02 - lottery_ai - INFO - logger.py:138 -   training_data_2012.csv: 2012-01-04 → 2012-12-29 (104 draws)
+2025-12-04 12:51:02 - lottery_ai - INFO - logger.py:138 -   training_data_2013.csv: 2013-01-02 → 2013-12-28 (104 draws)
+2025-12-04 12:51:02 - lottery_ai - INFO - logger.py:138 -   training_data_2014.csv: 2014-01-01 → 2014-12-31 (105 draws)
+2025-12-04 12:51:02 - lottery_ai - INFO - logger.py:138 -   training_data_2015.csv: 2015-01-03 → 2015-12-30 (104 draws)
+2025-12-04 12:51:02 - lottery_ai - INFO - logger.py:138 -   training_data_2016.csv: 2016-01-02 → 2016-12-31 (105 draws)
+2025-12-04 12:51:02 - lottery_ai - INFO - logger.py:138 -   training_data_2017.csv: 2017-01-04 → 2017-12-30 (104 draws)
+2025-12-04 12:51:02 - lottery_ai - INFO - logger.py:138 -   training_data_2018.csv: 2018-01-03 → 2018-12-29 (104 draws)
+2025-12-04 12:51:02 - lottery_ai - INFO - logger.py:138 -   training_data_2019.csv: 2019-01-02 → 2019-12-28 (104 draws)
+2025-12-04 12:51:02 - lottery_ai - INFO - logger.py:138 -   training_data_2020.csv: 2020-01-01 → 2020-12-30 (105 draws)
+2025-12-04 12:51:02 - lottery_ai - INFO - logger.py:138 -   training_data_2021.csv: 2021-01-02 → 2021-12-29 (104 draws)
+2025-12-04 12:51:02 - lottery_ai - INFO - logger.py:138 -   training_data_2022.csv: 2022-01-01 → 2022-12-31 (105 draws)
+2025-12-04 12:51:02 - lottery_ai - INFO - logger.py:138 -   training_data_2023.csv: 2023-01-04 → 2023-12-30 (104 draws)
+2025-12-04 12:51:02 - lottery_ai - INFO - logger.py:138 -   training_data_2024.csv: 2024-01-03 → 2024-12-28 (104 draws)
+2025-12-04 12:51:02 - lottery_ai - INFO - logger.py:138 -   training_data_2025.csv: 2025-01-01 → 2025-12-03 (97 draws)
+2025-12-04 12:51:02 - lottery_ai - INFO - logger.py:138 -   Extracted 2184 valid targets
+2025-12-04 12:51:02 - lottery_ai - INFO - logger.py:138 -   Target classes found: 32 (expected 49)
+2025-12-04 12:51:02 - lottery_ai - INFO - logger.py:138 -   Range: [0 - 32] (should be [0 - 48])
+2025-12-04 12:51:02 - lottery_ai - INFO - logger.py:138 -   ✅ LAG DISABLED: Predicting SAME draw
+2025-12-04 12:51:02 - lottery_ai - INFO - logger.py:138 - Training data shape: (2184, 93), Target shape: (2184,)
+2025-12-04 12:51:02 - lottery_ai - INFO - logger.py:138 - Target distribution: {np.int64(0): np.int64(220), np.int64(1): np.int64(244), np.int64(2): np.int64(223), np.int64(3): np.int64(208), np.int64(4): np.int64(153), np.int64(5): np.int64(147), np.int64(6): np.int64(132), np.int64(7): np.int64(112), np.int64(8): np.int64(123), np.int64(9): np.int64(92), np.int64(10): np.int64(86), np.int64(11): np.int64(67), np.int64(12): np.int64(56), np.int64(13): np.int64(50), np.int64(14): np.int64(46), np.int64(15): np.int64(39), np.int64(16): np.int64(24), np.int64(17): np.int64(30), np.int64(18): np.int64(18), np.int64(19): np.int64(25), np.int64(20): np.int64(18), np.int64(21): np.int64(11), np.int64(22): np.int64(16), np.int64(23): np.int64(11), np.int64(24): np.int64(6), np.int64(25): np.int64(9), np.int64(26): np.int64(8), np.int64(27): np.int64(1), np.int64(28): np.int64(2), np.int64(29): np.int64(4), np.int64(30): np.int64(2), np.int64(32): np.int64(1)}
+2025-12-04 12:51:02 - lottery_ai - INFO - logger.py:138 - First 5 targets: [9 0 2 0 0]
+2025-12-04 12:51:02 - lottery_ai - INFO - logger.py:138 - Last 5 targets: [13 10 10  4  0]
+2025-12-04 12:51:02 - lottery_ai - INFO - logger.py:138 - First 5 feature sums: [2055.58065016 2049.3320874  1785.6025893  1825.97229621 1881.08376095]
+2025-12-04 12:51:02 - lottery_ai - INFO - logger.py:138 - Last 5 feature sums: [21474435.11833429 15002444.55181953 15002445.01901616 15002253.91748271
+ 51474475.98102091]
+2025-12-04 12:51:02 - lottery_ai - INFO - logger.py:138 - ✅ Loaded 2184 samples with 93 features
+2025-12-04 12:51:02 - lottery_ai - INFO - logger.py:138 - Target distribution: {np.int64(0): np.int64(220), np.int64(1): np.int64(244), np.int64(2): np.int64(223), np.int64(3): np.int64(208), np.int64(4): np.int64(153), np.int64(5): np.int64(147), np.int64(6): np.int64(132), np.int64(7): np.int64(112), np.int64(8): np.int64(123), np.int64(9): np.int64(92), np.int64(10): np.int64(86), np.int64(11): np.int64(67), np.int64(12): np.int64(56), np.int64(13): np.int64(50), np.int64(14): np.int64(46), np.int64(15): np.int64(39), np.int64(16): np.int64(24), np.int64(17): np.int64(30), np.int64(18): np.int64(18), np.int64(19): np.int64(25), np.int64(20): np.int64(18), np.int64(21): np.int64(11), np.int64(22): np.int64(16), np.int64(23): np.int64(11), np.int64(24): np.int64(6), np.int64(25): np.int64(9), np.int64(26): np.int64(8), np.int64(27): np.int64(1), np.int64(28): np.int64(2), np.int64(29): np.int64(4), np.int64(30): np.int64(2), np.int64(32): np.int64(1)}
+2025-12-04 12:51:02 - lottery_ai - INFO - logger.py:138 -   raw_csv: 2184 samples
+2025-12-04 12:51:02 - lottery_ai - INFO - logger.py:138 -   catboost: 2184 samples
+2025-12-04 12:51:02 - lottery_ai - INFO - logger.py:138 - Starting CatBoost training...
+2025-12-04 12:51:02 - lottery_ai - INFO - logger.py:138 -   - Epochs: 150
+2025-12-04 12:51:02 - lottery_ai - INFO - logger.py:138 -   - Learning Rate: 0.01
+2025-12-04 12:51:02 - lottery_ai - INFO - logger.py:138 -   - Validation Split: 20.0%
+2025-12-04 12:51:02 - lottery_ai - INFO - logger.py:138 - Starting CatBoost training optimized for lottery data...
+2025-12-04 12:59:27 - lottery_ai - INFO - logger.py:138 - Per-class Performance:
+2025-12-04 12:59:27 - lottery_ai - INFO - logger.py:138 -   Class 0: Precision=1.0000, Recall=1.0000, F1=1.0000, Support=43
+2025-12-04 12:59:27 - lottery_ai - INFO - logger.py:138 -   Class 1: Precision=1.0000, Recall=1.0000, F1=1.0000, Support=45
+2025-12-04 12:59:27 - lottery_ai - INFO - logger.py:138 -   Class 2: Precision=1.0000, Recall=1.0000, F1=1.0000, Support=44
+2025-12-04 12:59:27 - lottery_ai - INFO - logger.py:138 -   Class 3: Precision=1.0000, Recall=1.0000, F1=1.0000, Support=41
+2025-12-04 12:59:27 - lottery_ai - INFO - logger.py:138 -   Class 4: Precision=1.0000, Recall=1.0000, F1=1.0000, Support=36
+2025-12-04 12:59:27 - lottery_ai - INFO - logger.py:138 -   Class 5: Precision=1.0000, Recall=1.0000, F1=1.0000, Support=26
+2025-12-04 12:59:27 - lottery_ai - INFO - logger.py:138 -   Class 6: Precision=1.0000, Recall=1.0000, F1=1.0000, Support=36
+2025-12-04 12:59:27 - lottery_ai - INFO - logger.py:138 -   Class 7: Precision=1.0000, Recall=1.0000, F1=1.0000, Support=24
+2025-12-04 12:59:27 - lottery_ai - INFO - logger.py:138 -   Class 8: Precision=1.0000, Recall=1.0000, F1=1.0000, Support=27
+2025-12-04 12:59:27 - lottery_ai - INFO - logger.py:138 -   Class 9: Precision=1.0000, Recall=1.0000, F1=1.0000, Support=16
+2025-12-04 12:59:27 - lottery_ai - INFO - logger.py:138 -   Class 10: Precision=1.0000, Recall=1.0000, F1=1.0000, Support=17
+2025-12-04 12:59:27 - lottery_ai - INFO - logger.py:138 -   Class 11: Precision=1.0000, Recall=1.0000, F1=1.0000, Support=11
+2025-12-04 12:59:27 - lottery_ai - INFO - logger.py:138 -   Class 12: Precision=1.0000, Recall=1.0000, F1=1.0000, Support=6
+2025-12-04 12:59:27 - lottery_ai - INFO - logger.py:138 -   Class 13: Precision=1.0000, Recall=1.0000, F1=1.0000, Support=13
+2025-12-04 12:59:27 - lottery_ai - INFO - logger.py:138 -   Class 14: Precision=1.0000, Recall=1.0000, F1=1.0000, Support=5
+2025-12-04 12:59:27 - lottery_ai - INFO - logger.py:138 -   Class 15: Precision=0.4615, Recall=1.0000, F1=0.6316, Support=6
+2025-12-04 12:59:27 - lottery_ai - INFO - logger.py:138 -   Class 16: Precision=0.0000, Recall=0.0000, F1=0.0000, Support=7
+2025-12-04 12:59:27 - lottery_ai - INFO - logger.py:138 -   Class 17: Precision=0.6000, Recall=1.0000, F1=0.7500, Support=6
+2025-12-04 12:59:27 - lottery_ai - INFO - logger.py:138 -   Class 18: Precision=0.0000, Recall=0.0000, F1=0.0000, Support=4
+2025-12-04 12:59:27 - lottery_ai - INFO - logger.py:138 -   Class 19: Precision=0.1250, Recall=1.0000, F1=0.2222, Support=3
+2025-12-04 12:59:27 - lottery_ai - INFO - logger.py:138 -   Class 20: Precision=0.0000, Recall=0.0000, F1=0.0000, Support=2
+2025-12-04 12:59:27 - lottery_ai - INFO - logger.py:138 -   Class 21: Precision=0.0000, Recall=0.0000, F1=0.0000, Support=4
+2025-12-04 12:59:27 - lottery_ai - INFO - logger.py:138 -   Class 22: Precision=0.0000, Recall=0.0000, F1=0.0000, Support=1
+2025-12-04 12:59:27 - lottery_ai - INFO - logger.py:138 -   Class 23: Precision=0.0000, Recall=0.0000, F1=0.0000, Support=3
+2025-12-04 12:59:27 - lottery_ai - INFO - logger.py:138 -   Class 24: Precision=0.0000, Recall=0.0000, F1=0.0000, Support=2
+2025-12-04 12:59:27 - lottery_ai - INFO - logger.py:138 -   Class 25: Precision=0.0000, Recall=0.0000, F1=0.0000, Support=3
+2025-12-04 12:59:27 - lottery_ai - INFO - logger.py:138 -   Class 26: Precision=0.0000, Recall=0.0000, F1=0.0000, Support=2
+2025-12-04 12:59:27 - lottery_ai - INFO - logger.py:138 -   Class 28: Precision=0.0000, Recall=0.0000, F1=0.0000, Support=1
+2025-12-04 12:59:27 - lottery_ai - INFO - logger.py:138 -   Class 29: Precision=0.0000, Recall=0.0000, F1=0.0000, Support=1
+2025-12-04 12:59:27 - lottery_ai - INFO - logger.py:138 -   Class 30: Precision=0.0000, Recall=0.0000, F1=0.0000, Support=2
+2025-12-04 12:59:27 - lottery_ai - INFO - logger.py:138 - CatBoost training complete - Accuracy: 0.9268, Iterations: 148
+2025-12-04 12:59:27 - lottery_ai - INFO - logger.py:138 - ✅ CatBoost training complete - Accuracy: 0.9268
+2025-12-04 12:59:27 - lottery_ai - INFO - logger.py:138 - Saving model with metadata...
+2025-12-04 12:59:27 - lottery_ai - INFO - logger.py:138 - Saved catboost model to models\lotto_6_49\catboost\catboost_lotto_6_49_20251204_125927.joblib
+2025-12-04 12:59:27 - lottery_ai - WARNING - logger.py:138 - No feature schema found for catboost, model saved but not registered
+2025-12-04 12:59:27 - lottery_ai - INFO - logger.py:138 - Model saved to models\lotto_6_49\catboost\catboost_lotto_6_49_20251204_125927
+2025-12-04 12:59:27 - lottery_ai - INFO - logger.py:138 - ✅ Model saved to: models\lotto_6_49\catboost\catboost_lotto_6_49_20251204_125927
+2025-12-04 12:59:27 - lottery_ai - INFO - logger.py:138 - CatBoost Model Details:
+2025-12-04 12:59:27 - lottery_ai - INFO - logger.py:138 -   - Location: models\lotto_6_49\catboost\catboost_lotto_6_49_20251204_125927
+2025-12-04 12:59:27 - lottery_ai - INFO - logger.py:138 -   - Accuracy: 0.9268
+2025-12-04 12:59:27 - lottery_ai - INFO - logger.py:138 -   - Precision: 0.9079
+2025-12-04 12:59:27 - lottery_ai - INFO - logger.py:138 -   - Recall: 0.9268
+2025-12-04 12:59:27 - lottery_ai - INFO - logger.py:138 -   - F1 Score: 0.9129
+2025-12-04 12:59:27 - lottery_ai - INFO - logger.py:138 - Per-Class Metrics Displayed:
+2025-12-04 12:59:27 - lottery_ai - INFO - logger.py:138 - Training Data Summary:
+2025-12-04 12:59:27 - lottery_ai - INFO - logger.py:138 -   - Total Samples: 2,184
+2025-12-04 12:59:27 - lottery_ai - INFO - logger.py:138 -   - Total Features: 93
+2025-12-04 12:59:27 - lottery_ai - INFO - logger.py:138 -   - Data Sources: raw_csv, catboost
+2025-12-04 12:59:27 - lottery_ai - INFO - logger.py:138 -     • raw_csv: 2184
+2025-12-04 12:59:27 - lottery_ai - INFO - logger.py:138 -     • catboost: 2184
+2025-12-04 12:59:27 - lottery_ai - INFO - logger.py:138 - ✅ CatBoost model training completed successfully!
+2025-12-04 12:59:27 - lottery_ai - INFO - logger.py:138 - 📁 Model Location: models\lotto_6_49\catboost\catboost_lotto_6_49_20251204_125927
+2025-12-04 12:59:27 - lottery_ai - INFO - logger.py:138 - ================================================================================
+2025-12-04 12:59:27 - lottery_ai - INFO - logger.py:138 - Training page rendered
+2025-12-04 13:00:06 - lottery_ai - INFO - logger.py:138 - Training page rendered
+2025-12-04 13:00:23 - lottery_ai - INFO - logger.py:138 - Loading training data for Lotto Max (CatBoost model)...
+2025-12-04 13:00:23 - lottery_ai - INFO - logger.py:138 - Loading training data for Lotto Max...
+2025-12-04 13:00:23 - lottery_ai - INFO - logger.py:138 - Auto-detected max_number=50 for game 'Lotto Max'
+2025-12-04 13:00:24 - lottery_ai - INFO - logger.py:138 - Loaded 1261 raw CSV samples
+2025-12-04 13:00:24 - lottery_ai - INFO - logger.py:138 - Loaded 1261 CatBoost features
+2025-12-04 13:00:24 - lottery_ai - INFO - logger.py:138 - Aligning features to minimum sample count: 1261
+2025-12-04 13:00:24 - lottery_ai - INFO - logger.py:138 - 🎯 PROPER: Extracting 50-class targets from 17 files
+2025-12-04 13:00:24 - lottery_ai - INFO - logger.py:138 -   training_data_2009.csv: 2009-09-25 → 2009-12-25 (14 draws)
+2025-12-04 13:00:24 - lottery_ai - INFO - logger.py:138 -   training_data_2010.csv: 2010-01-01 → 2010-12-31 (53 draws)
+2025-12-04 13:00:24 - lottery_ai - INFO - logger.py:138 -   training_data_2011.csv: 2011-01-07 → 2011-12-30 (52 draws)
+2025-12-04 13:00:24 - lottery_ai - INFO - logger.py:138 -   training_data_2012.csv: 2012-01-06 → 2012-12-28 (52 draws)
+2025-12-04 13:00:24 - lottery_ai - INFO - logger.py:138 -   training_data_2013.csv: 2013-01-04 → 2013-12-27 (52 draws)
+2025-12-04 13:00:24 - lottery_ai - INFO - logger.py:138 -   training_data_2014.csv: 2014-01-03 → 2014-12-26 (52 draws)
+2025-12-04 13:00:24 - lottery_ai - INFO - logger.py:138 -   training_data_2015.csv: 2015-01-02 → 2015-12-25 (52 draws)
+2025-12-04 13:00:24 - lottery_ai - INFO - logger.py:138 -   training_data_2016.csv: 2016-01-01 → 2016-12-30 (53 draws)
+2025-12-04 13:00:24 - lottery_ai - INFO - logger.py:138 -   training_data_2017.csv: 2017-01-06 → 2017-12-29 (52 draws)
+2025-12-04 13:00:24 - lottery_ai - INFO - logger.py:138 -   training_data_2018.csv: 2018-01-05 → 2018-12-28 (52 draws)
+2025-12-04 13:00:24 - lottery_ai - INFO - logger.py:138 -   training_data_2019.csv: 2019-01-04 → 2019-12-31 (86 draws)
+2025-12-04 13:00:24 - lottery_ai - INFO - logger.py:138 -   training_data_2020.csv: 2020-01-03 → 2020-12-29 (104 draws)
+2025-12-04 13:00:24 - lottery_ai - INFO - logger.py:138 -   training_data_2021.csv: 2021-01-01 → 2021-12-31 (105 draws)
+2025-12-04 13:00:24 - lottery_ai - INFO - logger.py:138 -   training_data_2022.csv: 2022-01-04 → 2022-12-30 (104 draws)
+2025-12-04 13:00:24 - lottery_ai - INFO - logger.py:138 -   training_data_2023.csv: 2023-01-03 → 2023-12-29 (104 draws)
+2025-12-04 13:00:24 - lottery_ai - INFO - logger.py:138 -   training_data_2024.csv: 2024-01-02 → 2024-12-31 (105 draws)
+2025-12-04 13:00:24 - lottery_ai - INFO - logger.py:138 -   training_data_2025.csv: 2025-01-01 → 2025-12-02 (169 draws)
+2025-12-04 13:00:24 - lottery_ai - INFO - logger.py:138 -   Extracted 1261 valid targets
+2025-12-04 13:00:24 - lottery_ai - INFO - logger.py:138 -   Target classes found: 28 (expected 50)
+2025-12-04 13:00:24 - lottery_ai - INFO - logger.py:138 -   Range: [0 - 32] (should be [0 - 49])
+2025-12-04 13:00:24 - lottery_ai - INFO - logger.py:138 -   ✅ LAG DISABLED: Predicting SAME draw
+2025-12-04 13:00:24 - lottery_ai - INFO - logger.py:138 - Training data shape: (1261, 93), Target shape: (1261,)
+2025-12-04 13:00:24 - lottery_ai - INFO - logger.py:138 - Target distribution: {np.int64(0): np.int64(180), np.int64(1): np.int64(169), np.int64(2): np.int64(131), np.int64(3): np.int64(107), np.int64(4): np.int64(111), np.int64(5): np.int64(71), np.int64(6): np.int64(97), np.int64(7): np.int64(65), np.int64(8): np.int64(62), np.int64(9): np.int64(47), np.int64(10): np.int64(40), np.int64(11): np.int64(33), np.int64(12): np.int64(27), np.int64(13): np.int64(24), np.int64(14): np.int64(17), np.int64(15): np.int64(9), np.int64(16): np.int64(14), np.int64(17): np.int64(15), np.int64(18): np.int64(12), np.int64(19): np.int64(7), np.int64(20): np.int64(4), np.int64(21): np.int64(7), np.int64(22): np.int64(4), np.int64(23): np.int64(1), np.int64(24): np.int64(2), np.int64(25): np.int64(3), np.int64(29): np.int64(1), np.int64(32): np.int64(1)}
+2025-12-04 13:00:24 - lottery_ai - INFO - logger.py:138 - First 5 targets: [4 7 4 3 3]
+2025-12-04 13:00:24 - lottery_ai - INFO - logger.py:138 - Last 5 targets: [ 9  6 11  0  6]
+2025-12-04 13:00:24 - lottery_ai - INFO - logger.py:138 - First 5 feature sums: [30002296.3027759  51037787.48960745 65002715.93674928 78957329.64153075
+ 93492576.34557785]
+2025-12-04 13:00:24 - lottery_ai - INFO - logger.py:138 - Last 5 feature sums: [1.25620156e+08 1.55044181e+08 1.67749932e+08 1.84044281e+08
+ 1.98619935e+08]
+2025-12-04 13:00:24 - lottery_ai - INFO - logger.py:138 - ✅ Loaded 1261 samples with 93 features
+2025-12-04 13:00:24 - lottery_ai - INFO - logger.py:138 - Target distribution: {np.int64(0): np.int64(180), np.int64(1): np.int64(169), np.int64(2): np.int64(131), np.int64(3): np.int64(107), np.int64(4): np.int64(111), np.int64(5): np.int64(71), np.int64(6): np.int64(97), np.int64(7): np.int64(65), np.int64(8): np.int64(62), np.int64(9): np.int64(47), np.int64(10): np.int64(40), np.int64(11): np.int64(33), np.int64(12): np.int64(27), np.int64(13): np.int64(24), np.int64(14): np.int64(17), np.int64(15): np.int64(9), np.int64(16): np.int64(14), np.int64(17): np.int64(15), np.int64(18): np.int64(12), np.int64(19): np.int64(7), np.int64(20): np.int64(4), np.int64(21): np.int64(7), np.int64(22): np.int64(4), np.int64(23): np.int64(1), np.int64(24): np.int64(2), np.int64(25): np.int64(3), np.int64(29): np.int64(1), np.int64(32): np.int64(1)}
+2025-12-04 13:00:24 - lottery_ai - INFO - logger.py:138 -   raw_csv: 1261 samples
+2025-12-04 13:00:24 - lottery_ai - INFO - logger.py:138 -   catboost: 1261 samples
+2025-12-04 13:00:24 - lottery_ai - INFO - logger.py:138 - Starting CatBoost training...
+2025-12-04 13:00:24 - lottery_ai - INFO - logger.py:138 -   - Epochs: 150
+2025-12-04 13:00:24 - lottery_ai - INFO - logger.py:138 -   - Learning Rate: 0.01
+2025-12-04 13:00:24 - lottery_ai - INFO - logger.py:138 -   - Validation Split: 20.0%
+2025-12-04 13:00:24 - lottery_ai - INFO - logger.py:138 - Starting CatBoost training optimized for lottery data...
+2025-12-04 13:09:31 - lottery_ai - INFO - logger.py:138 - Per-class Performance:
+2025-12-04 13:09:31 - lottery_ai - INFO - logger.py:138 -   Class 0: Precision=1.0000, Recall=1.0000, F1=1.0000, Support=29
+2025-12-04 13:09:31 - lottery_ai - INFO - logger.py:138 -   Class 1: Precision=1.0000, Recall=1.0000, F1=1.0000, Support=36
+2025-12-04 13:09:31 - lottery_ai - INFO - logger.py:138 -   Class 2: Precision=1.0000, Recall=1.0000, F1=1.0000, Support=26
+2025-12-04 13:09:31 - lottery_ai - INFO - logger.py:138 -   Class 3: Precision=1.0000, Recall=1.0000, F1=1.0000, Support=27
+2025-12-04 13:09:31 - lottery_ai - INFO - logger.py:138 -   Class 4: Precision=1.0000, Recall=1.0000, F1=1.0000, Support=21
+2025-12-04 13:09:31 - lottery_ai - INFO - logger.py:138 -   Class 5: Precision=1.0000, Recall=1.0000, F1=1.0000, Support=15
+2025-12-04 13:09:31 - lottery_ai - INFO - logger.py:138 -   Class 6: Precision=1.0000, Recall=1.0000, F1=1.0000, Support=20
+2025-12-04 13:09:31 - lottery_ai - INFO - logger.py:138 -   Class 7: Precision=1.0000, Recall=1.0000, F1=1.0000, Support=9
+2025-12-04 13:09:31 - lottery_ai - INFO - logger.py:138 -   Class 8: Precision=1.0000, Recall=1.0000, F1=1.0000, Support=11
+2025-12-04 13:09:31 - lottery_ai - INFO - logger.py:138 -   Class 9: Precision=1.0000, Recall=1.0000, F1=1.0000, Support=12
+2025-12-04 13:09:31 - lottery_ai - INFO - logger.py:138 -   Class 10: Precision=1.0000, Recall=1.0000, F1=1.0000, Support=6
+2025-12-04 13:09:31 - lottery_ai - INFO - logger.py:138 -   Class 11: Precision=1.0000, Recall=1.0000, F1=1.0000, Support=7
+2025-12-04 13:09:31 - lottery_ai - INFO - logger.py:138 -   Class 12: Precision=0.2500, Recall=1.0000, F1=0.4000, Support=5
+2025-12-04 13:09:31 - lottery_ai - INFO - logger.py:138 -   Class 13: Precision=0.2727, Recall=0.5000, F1=0.3529, Support=6
+2025-12-04 13:09:31 - lottery_ai - INFO - logger.py:138 -   Class 14: Precision=0.0000, Recall=0.0000, F1=0.0000, Support=5
+2025-12-04 13:09:31 - lottery_ai - INFO - logger.py:138 -   Class 16: Precision=0.0000, Recall=0.0000, F1=0.0000, Support=3
+2025-12-04 13:09:31 - lottery_ai - INFO - logger.py:138 -   Class 17: Precision=0.3333, Recall=0.3333, F1=0.3333, Support=3
+2025-12-04 13:09:31 - lottery_ai - INFO - logger.py:138 -   Class 18: Precision=0.0000, Recall=0.0000, F1=0.0000, Support=3
+2025-12-04 13:09:31 - lottery_ai - INFO - logger.py:138 -   Class 19: Precision=0.0000, Recall=0.0000, F1=0.0000, Support=4
+2025-12-04 13:09:31 - lottery_ai - INFO - logger.py:138 -   Class 20: Precision=0.0000, Recall=0.0000, F1=0.0000, Support=1
+2025-12-04 13:09:31 - lottery_ai - INFO - logger.py:138 -   Class 21: Precision=0.0000, Recall=0.0000, F1=0.0000, Support=3
+2025-12-04 13:09:31 - lottery_ai - INFO - logger.py:138 -   Class 23: Precision=0.0000, Recall=0.0000, F1=0.0000, Support=1
+2025-12-04 13:09:31 - lottery_ai - INFO - logger.py:138 - CatBoost training complete - Accuracy: 0.9012, Iterations: 137
+2025-12-04 13:09:31 - lottery_ai - INFO - logger.py:138 - ✅ CatBoost training complete - Accuracy: 0.9012
+2025-12-04 13:09:31 - lottery_ai - INFO - logger.py:138 - Saving model with metadata...
+2025-12-04 13:09:31 - lottery_ai - INFO - logger.py:138 - Saved catboost model to models\lotto_max\catboost\catboost_lotto_max_20251204_130931.joblib
+2025-12-04 13:09:31 - lottery_ai - WARNING - logger.py:138 - No feature schema found for catboost, model saved but not registered
+2025-12-04 13:09:31 - lottery_ai - INFO - logger.py:138 - Model saved to models\lotto_max\catboost\catboost_lotto_max_20251204_130931
+2025-12-04 13:09:31 - lottery_ai - INFO - logger.py:138 - ✅ Model saved to: models\lotto_max\catboost\catboost_lotto_max_20251204_130931
+2025-12-04 13:09:31 - lottery_ai - INFO - logger.py:138 - CatBoost Model Details:
+2025-12-04 13:09:32 - lottery_ai - INFO - logger.py:138 -   - Location: models\lotto_max\catboost\catboost_lotto_max_20251204_130931
+2025-12-04 13:09:32 - lottery_ai - INFO - logger.py:138 -   - Accuracy: 0.9012
+2025-12-04 13:09:32 - lottery_ai - INFO - logger.py:138 -   - Precision: 0.8810
+2025-12-04 13:09:32 - lottery_ai - INFO - logger.py:138 -   - Recall: 0.9012
+2025-12-04 13:09:32 - lottery_ai - INFO - logger.py:138 -   - F1 Score: 0.8858
+2025-12-04 13:09:32 - lottery_ai - INFO - logger.py:138 - Per-Class Metrics Displayed:
+2025-12-04 13:09:32 - lottery_ai - INFO - logger.py:138 - Training Data Summary:
+2025-12-04 13:09:32 - lottery_ai - INFO - logger.py:138 -   - Total Samples: 1,261
+2025-12-04 13:09:32 - lottery_ai - INFO - logger.py:138 -   - Total Features: 93
+2025-12-04 13:09:32 - lottery_ai - INFO - logger.py:138 -   - Data Sources: raw_csv, catboost
+2025-12-04 13:09:32 - lottery_ai - INFO - logger.py:138 -     • raw_csv: 1261
+2025-12-04 13:09:32 - lottery_ai - INFO - logger.py:138 -     • catboost: 1261
+2025-12-04 13:09:32 - lottery_ai - INFO - logger.py:138 - ✅ CatBoost model training completed successfully!
+2025-12-04 13:09:32 - lottery_ai - INFO - logger.py:138 - 📁 Model Location: models\lotto_max\catboost\catboost_lotto_max_20251204_130931
+2025-12-04 13:09:32 - lottery_ai - INFO - logger.py:138 - ================================================================================
+2025-12-04 13:09:32 - lottery_ai - INFO - logger.py:138 - Training page rendered
+2025-12-04 13:14:08 - lottery_ai - INFO - logger.py:138 - Training page rendered
+2025-12-04 13:14:18 - lottery_ai - INFO - logger.py:138 - Loading training data for Lotto Max (LightGBM model)...
+2025-12-04 13:14:18 - lottery_ai - INFO - logger.py:138 - Loading training data for Lotto Max...
+2025-12-04 13:14:18 - lottery_ai - INFO - logger.py:138 - Auto-detected max_number=50 for game 'Lotto Max'
+2025-12-04 13:14:18 - lottery_ai - INFO - logger.py:138 - Loaded 1261 raw CSV samples
+2025-12-04 13:14:18 - lottery_ai - INFO - logger.py:138 - Loading LightGBM features from 3 files
+2025-12-04 13:14:18 - lottery_ai - INFO - logger.py:138 -   Loaded lightgbm_features_t20251204_123744.csv: 1261 rows
+2025-12-04 13:14:18 - lottery_ai - INFO - logger.py:138 -     Sorted by draw_date: 2009-09-25 → 2025-12-02
+2025-12-04 13:14:18 - lottery_ai - INFO - logger.py:138 - Combined LightGBM features: shape (1261, 85)
+2025-12-04 13:14:18 - lottery_ai - INFO - logger.py:138 - Loaded 1261 LightGBM features
+2025-12-04 13:14:18 - lottery_ai - INFO - logger.py:138 - Aligning features to minimum sample count: 1261
+2025-12-04 13:14:18 - lottery_ai - INFO - logger.py:138 - 🎯 PROPER: Extracting 50-class targets from 17 files
+2025-12-04 13:14:18 - lottery_ai - INFO - logger.py:138 -   training_data_2009.csv: 2009-09-25 → 2009-12-25 (14 draws)
+2025-12-04 13:14:18 - lottery_ai - INFO - logger.py:138 -   training_data_2010.csv: 2010-01-01 → 2010-12-31 (53 draws)
+2025-12-04 13:14:18 - lottery_ai - INFO - logger.py:138 -   training_data_2011.csv: 2011-01-07 → 2011-12-30 (52 draws)
+2025-12-04 13:14:18 - lottery_ai - INFO - logger.py:138 -   training_data_2012.csv: 2012-01-06 → 2012-12-28 (52 draws)
+2025-12-04 13:14:18 - lottery_ai - INFO - logger.py:138 -   training_data_2013.csv: 2013-01-04 → 2013-12-27 (52 draws)
+2025-12-04 13:14:18 - lottery_ai - INFO - logger.py:138 -   training_data_2014.csv: 2014-01-03 → 2014-12-26 (52 draws)
+2025-12-04 13:14:18 - lottery_ai - INFO - logger.py:138 -   training_data_2015.csv: 2015-01-02 → 2015-12-25 (52 draws)
+2025-12-04 13:14:18 - lottery_ai - INFO - logger.py:138 -   training_data_2016.csv: 2016-01-01 → 2016-12-30 (53 draws)
+2025-12-04 13:14:18 - lottery_ai - INFO - logger.py:138 -   training_data_2017.csv: 2017-01-06 → 2017-12-29 (52 draws)
+2025-12-04 13:14:18 - lottery_ai - INFO - logger.py:138 -   training_data_2018.csv: 2018-01-05 → 2018-12-28 (52 draws)
+2025-12-04 13:14:18 - lottery_ai - INFO - logger.py:138 -   training_data_2019.csv: 2019-01-04 → 2019-12-31 (86 draws)
+2025-12-04 13:14:18 - lottery_ai - INFO - logger.py:138 -   training_data_2020.csv: 2020-01-03 → 2020-12-29 (104 draws)
+2025-12-04 13:14:18 - lottery_ai - INFO - logger.py:138 -   training_data_2021.csv: 2021-01-01 → 2021-12-31 (105 draws)
+2025-12-04 13:14:18 - lottery_ai - INFO - logger.py:138 -   training_data_2022.csv: 2022-01-04 → 2022-12-30 (104 draws)
+2025-12-04 13:14:18 - lottery_ai - INFO - logger.py:138 -   training_data_2023.csv: 2023-01-03 → 2023-12-29 (104 draws)
+2025-12-04 13:14:18 - lottery_ai - INFO - logger.py:138 -   training_data_2024.csv: 2024-01-02 → 2024-12-31 (105 draws)
+2025-12-04 13:14:18 - lottery_ai - INFO - logger.py:138 -   training_data_2025.csv: 2025-01-01 → 2025-12-02 (169 draws)
+2025-12-04 13:14:18 - lottery_ai - INFO - logger.py:138 -   Extracted 1261 valid targets
+2025-12-04 13:14:18 - lottery_ai - INFO - logger.py:138 -   Target classes found: 28 (expected 50)
+2025-12-04 13:14:18 - lottery_ai - INFO - logger.py:138 -   Range: [0 - 32] (should be [0 - 49])
+2025-12-04 13:14:18 - lottery_ai - INFO - logger.py:138 -   ✅ LAG DISABLED: Predicting SAME draw
+2025-12-04 13:14:18 - lottery_ai - INFO - logger.py:138 - Training data shape: (1261, 93), Target shape: (1261,)
+2025-12-04 13:14:18 - lottery_ai - INFO - logger.py:138 - Target distribution: {np.int64(0): np.int64(180), np.int64(1): np.int64(169), np.int64(2): np.int64(131), np.int64(3): np.int64(107), np.int64(4): np.int64(111), np.int64(5): np.int64(71), np.int64(6): np.int64(97), np.int64(7): np.int64(65), np.int64(8): np.int64(62), np.int64(9): np.int64(47), np.int64(10): np.int64(40), np.int64(11): np.int64(33), np.int64(12): np.int64(27), np.int64(13): np.int64(24), np.int64(14): np.int64(17), np.int64(15): np.int64(9), np.int64(16): np.int64(14), np.int64(17): np.int64(15), np.int64(18): np.int64(12), np.int64(19): np.int64(7), np.int64(20): np.int64(4), np.int64(21): np.int64(7), np.int64(22): np.int64(4), np.int64(23): np.int64(1), np.int64(24): np.int64(2), np.int64(25): np.int64(3), np.int64(29): np.int64(1), np.int64(32): np.int64(1)}
+2025-12-04 13:14:18 - lottery_ai - INFO - logger.py:138 - First 5 targets: [4 7 4 3 3]
+2025-12-04 13:14:18 - lottery_ai - INFO - logger.py:138 - Last 5 targets: [ 9  6 11  0  6]
+2025-12-04 13:14:18 - lottery_ai - INFO - logger.py:138 - First 5 feature sums: [30002296.3027759  51037787.48960745 65002715.93674928 78957329.64153075
+ 93492576.34557785]
+2025-12-04 13:14:18 - lottery_ai - INFO - logger.py:138 - Last 5 feature sums: [1.25620156e+08 1.55044181e+08 1.67749932e+08 1.84044281e+08
+ 1.98619935e+08]
+2025-12-04 13:14:18 - lottery_ai - INFO - logger.py:138 - ✅ Loaded 1261 samples with 93 features
+2025-12-04 13:14:18 - lottery_ai - INFO - logger.py:138 - Target distribution: {np.int64(0): np.int64(180), np.int64(1): np.int64(169), np.int64(2): np.int64(131), np.int64(3): np.int64(107), np.int64(4): np.int64(111), np.int64(5): np.int64(71), np.int64(6): np.int64(97), np.int64(7): np.int64(65), np.int64(8): np.int64(62), np.int64(9): np.int64(47), np.int64(10): np.int64(40), np.int64(11): np.int64(33), np.int64(12): np.int64(27), np.int64(13): np.int64(24), np.int64(14): np.int64(17), np.int64(15): np.int64(9), np.int64(16): np.int64(14), np.int64(17): np.int64(15), np.int64(18): np.int64(12), np.int64(19): np.int64(7), np.int64(20): np.int64(4), np.int64(21): np.int64(7), np.int64(22): np.int64(4), np.int64(23): np.int64(1), np.int64(24): np.int64(2), np.int64(25): np.int64(3), np.int64(29): np.int64(1), np.int64(32): np.int64(1)}
+2025-12-04 13:14:18 - lottery_ai - INFO - logger.py:138 -   raw_csv: 1261 samples
+2025-12-04 13:14:18 - lottery_ai - INFO - logger.py:138 -   lightgbm: 1261 samples
+2025-12-04 13:14:18 - lottery_ai - INFO - logger.py:138 - Starting LightGBM training...
+2025-12-04 13:14:18 - lottery_ai - INFO - logger.py:138 -   - Epochs: 150
+2025-12-04 13:14:18 - lottery_ai - INFO - logger.py:138 -   - Learning Rate: 0.01
+2025-12-04 13:14:18 - lottery_ai - INFO - logger.py:138 -   - Validation Split: 20.0%
+2025-12-04 13:14:18 - lottery_ai - INFO - logger.py:138 - Starting LightGBM training optimized for speed and accuracy...
+2025-12-04 13:14:20 - lottery_ai - INFO - logger.py:138 - Per-class Performance:
+2025-12-04 13:14:20 - lottery_ai - INFO - logger.py:138 -   Class 0: Precision=0.7632, Recall=1.0000, F1=0.8657, Support=29
+2025-12-04 13:14:20 - lottery_ai - INFO - logger.py:138 -   Class 1: Precision=1.0000, Recall=1.0000, F1=1.0000, Support=36
+2025-12-04 13:14:20 - lottery_ai - INFO - logger.py:138 -   Class 2: Precision=1.0000, Recall=1.0000, F1=1.0000, Support=26
+2025-12-04 13:14:20 - lottery_ai - INFO - logger.py:138 -   Class 3: Precision=1.0000, Recall=1.0000, F1=1.0000, Support=27
+2025-12-04 13:14:20 - lottery_ai - INFO - logger.py:138 -   Class 4: Precision=1.0000, Recall=1.0000, F1=1.0000, Support=21
+2025-12-04 13:14:20 - lottery_ai - INFO - logger.py:138 -   Class 5: Precision=1.0000, Recall=1.0000, F1=1.0000, Support=15
+2025-12-04 13:14:20 - lottery_ai - INFO - logger.py:138 -   Class 6: Precision=1.0000, Recall=1.0000, F1=1.0000, Support=20
+2025-12-04 13:14:20 - lottery_ai - INFO - logger.py:138 -   Class 7: Precision=1.0000, Recall=1.0000, F1=1.0000, Support=9
+2025-12-04 13:14:20 - lottery_ai - INFO - logger.py:138 -   Class 8: Precision=1.0000, Recall=1.0000, F1=1.0000, Support=11
+2025-12-04 13:14:20 - lottery_ai - INFO - logger.py:138 -   Class 9: Precision=1.0000, Recall=1.0000, F1=1.0000, Support=12
+2025-12-04 13:14:20 - lottery_ai - INFO - logger.py:138 -   Class 10: Precision=1.0000, Recall=1.0000, F1=1.0000, Support=6
+2025-12-04 13:14:20 - lottery_ai - INFO - logger.py:138 -   Class 11: Precision=1.0000, Recall=1.0000, F1=1.0000, Support=7
+2025-12-04 13:14:20 - lottery_ai - INFO - logger.py:138 -   Class 12: Precision=1.0000, Recall=1.0000, F1=1.0000, Support=5
+2025-12-04 13:14:20 - lottery_ai - INFO - logger.py:138 -   Class 13: Precision=1.0000, Recall=1.0000, F1=1.0000, Support=6
+2025-12-04 13:14:20 - lottery_ai - INFO - logger.py:138 -   Class 14: Precision=1.0000, Recall=1.0000, F1=1.0000, Support=5
+2025-12-04 13:14:20 - lottery_ai - INFO - logger.py:138 -   Class 16: Precision=1.0000, Recall=1.0000, F1=1.0000, Support=3
+2025-12-04 13:14:20 - lottery_ai - INFO - logger.py:138 -   Class 17: Precision=1.0000, Recall=1.0000, F1=1.0000, Support=3
+2025-12-04 13:14:20 - lottery_ai - INFO - logger.py:138 -   Class 18: Precision=1.0000, Recall=1.0000, F1=1.0000, Support=3
+2025-12-04 13:14:20 - lottery_ai - INFO - logger.py:138 -   Class 19: Precision=0.0000, Recall=0.0000, F1=0.0000, Support=4
+2025-12-04 13:14:20 - lottery_ai - INFO - logger.py:138 -   Class 20: Precision=0.0000, Recall=0.0000, F1=0.0000, Support=1
+2025-12-04 13:14:20 - lottery_ai - INFO - logger.py:138 -   Class 21: Precision=0.0000, Recall=0.0000, F1=0.0000, Support=3
+2025-12-04 13:14:20 - lottery_ai - INFO - logger.py:138 -   Class 23: Precision=0.0000, Recall=0.0000, F1=0.0000, Support=1
+2025-12-04 13:14:20 - lottery_ai - INFO - logger.py:138 - LightGBM training complete - Accuracy: 0.9644, Estimators: 150
+2025-12-04 13:14:20 - lottery_ai - INFO - logger.py:138 - ✅ LightGBM training complete - Accuracy: 0.9644
+2025-12-04 13:14:20 - lottery_ai - INFO - logger.py:138 - Saving model with metadata...
+2025-12-04 13:14:20 - lottery_ai - INFO - logger.py:138 - Saved lightgbm model to models\lotto_max\lightgbm\lightgbm_lotto_max_20251204_131420.joblib
+2025-12-04 13:14:20 - lottery_ai - WARNING - logger.py:138 - No feature schema found for lightgbm, model saved but not registered
+2025-12-04 13:14:20 - lottery_ai - INFO - logger.py:138 - Model saved to models\lotto_max\lightgbm\lightgbm_lotto_max_20251204_131420
+2025-12-04 13:14:20 - lottery_ai - INFO - logger.py:138 - ✅ Model saved to: models\lotto_max\lightgbm\lightgbm_lotto_max_20251204_131420
+2025-12-04 13:14:20 - lottery_ai - INFO - logger.py:138 - LightGBM Model Details:
+2025-12-04 13:14:20 - lottery_ai - INFO - logger.py:138 -   - Location: models\lotto_max\lightgbm\lightgbm_lotto_max_20251204_131420
+2025-12-04 13:14:20 - lottery_ai - INFO - logger.py:138 -   - Accuracy: 0.9644
+2025-12-04 13:14:20 - lottery_ai - INFO - logger.py:138 -   - Precision: 0.9373
+2025-12-04 13:14:20 - lottery_ai - INFO - logger.py:138 -   - Recall: 0.9644
+2025-12-04 13:14:20 - lottery_ai - INFO - logger.py:138 -   - F1 Score: 0.9490
+2025-12-04 13:14:20 - lottery_ai - INFO - logger.py:138 - Per-Class Metrics Displayed:
+2025-12-04 13:14:20 - lottery_ai - INFO - logger.py:138 - Training Data Summary:
+2025-12-04 13:14:20 - lottery_ai - INFO - logger.py:138 -   - Total Samples: 1,261
+2025-12-04 13:14:20 - lottery_ai - INFO - logger.py:138 -   - Total Features: 93
+2025-12-04 13:14:20 - lottery_ai - INFO - logger.py:138 -   - Data Sources: raw_csv, lightgbm
+2025-12-04 13:14:20 - lottery_ai - INFO - logger.py:138 -     • raw_csv: 1261
+2025-12-04 13:14:20 - lottery_ai - INFO - logger.py:138 -     • lightgbm: 1261
+2025-12-04 13:14:20 - lottery_ai - INFO - logger.py:138 - ✅ LightGBM model training completed successfully!
+2025-12-04 13:14:20 - lottery_ai - INFO - logger.py:138 - 📁 Model Location: models\lotto_max\lightgbm\lightgbm_lotto_max_20251204_131420
+2025-12-04 13:14:20 - lottery_ai - INFO - logger.py:138 - ================================================================================
+2025-12-04 13:14:20 - lottery_ai - INFO - logger.py:138 - Training page rendered
+2025-12-04 13:14:33 - lottery_ai - INFO - logger.py:138 - Training page rendered
+2025-12-04 13:14:41 - lottery_ai - INFO - logger.py:138 - Loading training data for Lotto 6/49 (LightGBM model)...
+2025-12-04 13:14:41 - lottery_ai - INFO - logger.py:138 - Loading training data for Lotto 6/49...
+2025-12-04 13:14:41 - lottery_ai - INFO - logger.py:138 - Auto-detected max_number=49 for game 'Lotto 6/49'
+2025-12-04 13:14:41 - lottery_ai - INFO - logger.py:138 - Loaded 2184 raw CSV samples
+2025-12-04 13:14:41 - lottery_ai - INFO - logger.py:138 - Loading LightGBM features from 3 files
+2025-12-04 13:14:41 - lottery_ai - INFO - logger.py:138 -   Loaded lightgbm_features_t20251204_124031.csv: 2184 rows
+2025-12-04 13:14:41 - lottery_ai - INFO - logger.py:138 -     Sorted by draw_date: 2005-01-01 → 2025-12-03
+2025-12-04 13:14:41 - lottery_ai - INFO - logger.py:138 - Combined LightGBM features: shape (2184, 85)
+2025-12-04 13:14:41 - lottery_ai - INFO - logger.py:138 - Loaded 2184 LightGBM features
+2025-12-04 13:14:41 - lottery_ai - INFO - logger.py:138 - Aligning features to minimum sample count: 2184
+2025-12-04 13:14:41 - lottery_ai - INFO - logger.py:138 - 🎯 PROPER: Extracting 49-class targets from 21 files
+2025-12-04 13:14:41 - lottery_ai - INFO - logger.py:138 -   training_data_2005.csv: 2005-01-01 → 2005-12-31 (105 draws)
+2025-12-04 13:14:41 - lottery_ai - INFO - logger.py:138 -   training_data_2006.csv: 2006-01-04 → 2006-12-30 (104 draws)
+2025-12-04 13:14:41 - lottery_ai - INFO - logger.py:138 -   training_data_2007.csv: 2007-01-03 → 2007-12-29 (104 draws)
+2025-12-04 13:14:41 - lottery_ai - INFO - logger.py:138 -   training_data_2008.csv: 2008-01-02 → 2008-12-31 (105 draws)
+2025-12-04 13:14:41 - lottery_ai - INFO - logger.py:138 -   training_data_2009.csv: 2009-01-03 → 2009-12-30 (104 draws)
+2025-12-04 13:14:41 - lottery_ai - INFO - logger.py:138 -   training_data_2010.csv: 2010-01-02 → 2010-12-29 (104 draws)
+2025-12-04 13:14:41 - lottery_ai - INFO - logger.py:138 -   training_data_2011.csv: 2011-01-01 → 2011-12-31 (105 draws)
+2025-12-04 13:14:41 - lottery_ai - INFO - logger.py:138 -   training_data_2012.csv: 2012-01-04 → 2012-12-29 (104 draws)
+2025-12-04 13:14:41 - lottery_ai - INFO - logger.py:138 -   training_data_2013.csv: 2013-01-02 → 2013-12-28 (104 draws)
+2025-12-04 13:14:41 - lottery_ai - INFO - logger.py:138 -   training_data_2014.csv: 2014-01-01 → 2014-12-31 (105 draws)
+2025-12-04 13:14:41 - lottery_ai - INFO - logger.py:138 -   training_data_2015.csv: 2015-01-03 → 2015-12-30 (104 draws)
+2025-12-04 13:14:41 - lottery_ai - INFO - logger.py:138 -   training_data_2016.csv: 2016-01-02 → 2016-12-31 (105 draws)
+2025-12-04 13:14:41 - lottery_ai - INFO - logger.py:138 -   training_data_2017.csv: 2017-01-04 → 2017-12-30 (104 draws)
+2025-12-04 13:14:41 - lottery_ai - INFO - logger.py:138 -   training_data_2018.csv: 2018-01-03 → 2018-12-29 (104 draws)
+2025-12-04 13:14:41 - lottery_ai - INFO - logger.py:138 -   training_data_2019.csv: 2019-01-02 → 2019-12-28 (104 draws)
+2025-12-04 13:14:41 - lottery_ai - INFO - logger.py:138 -   training_data_2020.csv: 2020-01-01 → 2020-12-30 (105 draws)
+2025-12-04 13:14:41 - lottery_ai - INFO - logger.py:138 -   training_data_2021.csv: 2021-01-02 → 2021-12-29 (104 draws)
+2025-12-04 13:14:41 - lottery_ai - INFO - logger.py:138 -   training_data_2022.csv: 2022-01-01 → 2022-12-31 (105 draws)
+2025-12-04 13:14:41 - lottery_ai - INFO - logger.py:138 -   training_data_2023.csv: 2023-01-04 → 2023-12-30 (104 draws)
+2025-12-04 13:14:41 - lottery_ai - INFO - logger.py:138 -   training_data_2024.csv: 2024-01-03 → 2024-12-28 (104 draws)
+2025-12-04 13:14:41 - lottery_ai - INFO - logger.py:138 -   training_data_2025.csv: 2025-01-01 → 2025-12-03 (97 draws)
+2025-12-04 13:14:41 - lottery_ai - INFO - logger.py:138 -   Extracted 2184 valid targets
+2025-12-04 13:14:41 - lottery_ai - INFO - logger.py:138 -   Target classes found: 32 (expected 49)
+2025-12-04 13:14:41 - lottery_ai - INFO - logger.py:138 -   Range: [0 - 32] (should be [0 - 48])
+2025-12-04 13:14:41 - lottery_ai - INFO - logger.py:138 -   ✅ LAG DISABLED: Predicting SAME draw
+2025-12-04 13:14:41 - lottery_ai - INFO - logger.py:138 - Training data shape: (2184, 93), Target shape: (2184,)
+2025-12-04 13:14:41 - lottery_ai - INFO - logger.py:138 - Target distribution: {np.int64(0): np.int64(220), np.int64(1): np.int64(244), np.int64(2): np.int64(223), np.int64(3): np.int64(208), np.int64(4): np.int64(153), np.int64(5): np.int64(147), np.int64(6): np.int64(132), np.int64(7): np.int64(112), np.int64(8): np.int64(123), np.int64(9): np.int64(92), np.int64(10): np.int64(86), np.int64(11): np.int64(67), np.int64(12): np.int64(56), np.int64(13): np.int64(50), np.int64(14): np.int64(46), np.int64(15): np.int64(39), np.int64(16): np.int64(24), np.int64(17): np.int64(30), np.int64(18): np.int64(18), np.int64(19): np.int64(25), np.int64(20): np.int64(18), np.int64(21): np.int64(11), np.int64(22): np.int64(16), np.int64(23): np.int64(11), np.int64(24): np.int64(6), np.int64(25): np.int64(9), np.int64(26): np.int64(8), np.int64(27): np.int64(1), np.int64(28): np.int64(2), np.int64(29): np.int64(4), np.int64(30): np.int64(2), np.int64(32): np.int64(1)}
+2025-12-04 13:14:41 - lottery_ai - INFO - logger.py:138 - First 5 targets: [9 0 2 0 0]
+2025-12-04 13:14:41 - lottery_ai - INFO - logger.py:138 - Last 5 targets: [13 10 10  4  0]
+2025-12-04 13:14:41 - lottery_ai - INFO - logger.py:138 - First 5 feature sums: [2055.58065016 2049.3320874  1785.6025893  1825.97229621 1881.08376095]
+2025-12-04 13:14:41 - lottery_ai - INFO - logger.py:138 - Last 5 feature sums: [21474435.11833429 15002444.55181953 15002445.01901616 15002253.91748271
+ 51474475.98102091]
+2025-12-04 13:14:41 - lottery_ai - INFO - logger.py:138 - ✅ Loaded 2184 samples with 93 features
+2025-12-04 13:14:41 - lottery_ai - INFO - logger.py:138 - Target distribution: {np.int64(0): np.int64(220), np.int64(1): np.int64(244), np.int64(2): np.int64(223), np.int64(3): np.int64(208), np.int64(4): np.int64(153), np.int64(5): np.int64(147), np.int64(6): np.int64(132), np.int64(7): np.int64(112), np.int64(8): np.int64(123), np.int64(9): np.int64(92), np.int64(10): np.int64(86), np.int64(11): np.int64(67), np.int64(12): np.int64(56), np.int64(13): np.int64(50), np.int64(14): np.int64(46), np.int64(15): np.int64(39), np.int64(16): np.int64(24), np.int64(17): np.int64(30), np.int64(18): np.int64(18), np.int64(19): np.int64(25), np.int64(20): np.int64(18), np.int64(21): np.int64(11), np.int64(22): np.int64(16), np.int64(23): np.int64(11), np.int64(24): np.int64(6), np.int64(25): np.int64(9), np.int64(26): np.int64(8), np.int64(27): np.int64(1), np.int64(28): np.int64(2), np.int64(29): np.int64(4), np.int64(30): np.int64(2), np.int64(32): np.int64(1)}
+2025-12-04 13:14:41 - lottery_ai - INFO - logger.py:138 -   raw_csv: 2184 samples
+2025-12-04 13:14:41 - lottery_ai - INFO - logger.py:138 -   lightgbm: 2184 samples
+2025-12-04 13:14:41 - lottery_ai - INFO - logger.py:138 - Starting LightGBM training...
+2025-12-04 13:14:41 - lottery_ai - INFO - logger.py:138 -   - Epochs: 150
+2025-12-04 13:14:41 - lottery_ai - INFO - logger.py:138 -   - Learning Rate: 0.01
+2025-12-04 13:14:41 - lottery_ai - INFO - logger.py:138 -   - Validation Split: 20.0%
+2025-12-04 13:14:41 - lottery_ai - INFO - logger.py:138 - Starting LightGBM training optimized for speed and accuracy...
+2025-12-04 13:14:43 - lottery_ai - INFO - logger.py:138 - Per-class Performance:
+2025-12-04 13:14:43 - lottery_ai - INFO - logger.py:138 -   Class 0: Precision=1.0000, Recall=1.0000, F1=1.0000, Support=43
+2025-12-04 13:14:43 - lottery_ai - INFO - logger.py:138 -   Class 1: Precision=0.7143, Recall=1.0000, F1=0.8333, Support=45
+2025-12-04 13:14:43 - lottery_ai - INFO - logger.py:138 -   Class 2: Precision=1.0000, Recall=1.0000, F1=1.0000, Support=44
+2025-12-04 13:14:43 - lottery_ai - INFO - logger.py:138 -   Class 3: Precision=1.0000, Recall=1.0000, F1=1.0000, Support=41
+2025-12-04 13:14:43 - lottery_ai - INFO - logger.py:138 -   Class 4: Precision=1.0000, Recall=1.0000, F1=1.0000, Support=36
+2025-12-04 13:14:43 - lottery_ai - INFO - logger.py:138 -   Class 5: Precision=1.0000, Recall=1.0000, F1=1.0000, Support=26
+2025-12-04 13:14:43 - lottery_ai - INFO - logger.py:138 -   Class 6: Precision=1.0000, Recall=1.0000, F1=1.0000, Support=36
+2025-12-04 13:14:43 - lottery_ai - INFO - logger.py:138 -   Class 7: Precision=1.0000, Recall=1.0000, F1=1.0000, Support=24
+2025-12-04 13:14:43 - lottery_ai - INFO - logger.py:138 -   Class 8: Precision=1.0000, Recall=1.0000, F1=1.0000, Support=27
+2025-12-04 13:14:43 - lottery_ai - INFO - logger.py:138 -   Class 9: Precision=1.0000, Recall=1.0000, F1=1.0000, Support=16
+2025-12-04 13:14:43 - lottery_ai - INFO - logger.py:138 -   Class 10: Precision=1.0000, Recall=1.0000, F1=1.0000, Support=17
+2025-12-04 13:14:43 - lottery_ai - INFO - logger.py:138 -   Class 11: Precision=1.0000, Recall=1.0000, F1=1.0000, Support=11
+2025-12-04 13:14:43 - lottery_ai - INFO - logger.py:138 -   Class 12: Precision=1.0000, Recall=1.0000, F1=1.0000, Support=6
+2025-12-04 13:14:43 - lottery_ai - INFO - logger.py:138 -   Class 13: Precision=1.0000, Recall=1.0000, F1=1.0000, Support=13
+2025-12-04 13:14:43 - lottery_ai - INFO - logger.py:138 -   Class 14: Precision=1.0000, Recall=1.0000, F1=1.0000, Support=5
+2025-12-04 13:14:43 - lottery_ai - INFO - logger.py:138 -   Class 15: Precision=1.0000, Recall=1.0000, F1=1.0000, Support=6
+2025-12-04 13:14:43 - lottery_ai - INFO - logger.py:138 -   Class 16: Precision=1.0000, Recall=1.0000, F1=1.0000, Support=7
+2025-12-04 13:14:43 - lottery_ai - INFO - logger.py:138 -   Class 17: Precision=1.0000, Recall=1.0000, F1=1.0000, Support=6
+2025-12-04 13:14:43 - lottery_ai - INFO - logger.py:138 -   Class 18: Precision=1.0000, Recall=1.0000, F1=1.0000, Support=4
+2025-12-04 13:14:43 - lottery_ai - INFO - logger.py:138 -   Class 19: Precision=1.0000, Recall=1.0000, F1=1.0000, Support=3
+2025-12-04 13:14:43 - lottery_ai - INFO - logger.py:138 -   Class 20: Precision=1.0000, Recall=1.0000, F1=1.0000, Support=2
+2025-12-04 13:14:43 - lottery_ai - INFO - logger.py:138 -   Class 21: Precision=0.0000, Recall=0.0000, F1=0.0000, Support=4
+2025-12-04 13:14:43 - lottery_ai - INFO - logger.py:138 -   Class 22: Precision=1.0000, Recall=1.0000, F1=1.0000, Support=1
+2025-12-04 13:14:43 - lottery_ai - INFO - logger.py:138 -   Class 23: Precision=0.0000, Recall=0.0000, F1=0.0000, Support=3
+2025-12-04 13:14:43 - lottery_ai - INFO - logger.py:138 -   Class 24: Precision=0.0000, Recall=0.0000, F1=0.0000, Support=2
+2025-12-04 13:14:43 - lottery_ai - INFO - logger.py:138 -   Class 25: Precision=0.0000, Recall=0.0000, F1=0.0000, Support=3
+2025-12-04 13:14:43 - lottery_ai - INFO - logger.py:138 -   Class 26: Precision=0.0000, Recall=0.0000, F1=0.0000, Support=2
+2025-12-04 13:14:43 - lottery_ai - INFO - logger.py:138 -   Class 28: Precision=0.0000, Recall=0.0000, F1=0.0000, Support=1
+2025-12-04 13:14:43 - lottery_ai - INFO - logger.py:138 -   Class 29: Precision=0.0000, Recall=0.0000, F1=0.0000, Support=1
+2025-12-04 13:14:43 - lottery_ai - INFO - logger.py:138 -   Class 30: Precision=0.0000, Recall=0.0000, F1=0.0000, Support=2
+2025-12-04 13:14:43 - lottery_ai - INFO - logger.py:138 - LightGBM training complete - Accuracy: 0.9588, Estimators: 150
+2025-12-04 13:14:43 - lottery_ai - INFO - logger.py:138 - ✅ LightGBM training complete - Accuracy: 0.9588
+2025-12-04 13:14:43 - lottery_ai - INFO - logger.py:138 - Saving model with metadata...
+2025-12-04 13:14:43 - lottery_ai - INFO - logger.py:138 - Saved lightgbm model to models\lotto_6_49\lightgbm\lightgbm_lotto_6_49_20251204_131443.joblib
+2025-12-04 13:14:43 - lottery_ai - WARNING - logger.py:138 - No feature schema found for lightgbm, model saved but not registered
+2025-12-04 13:14:43 - lottery_ai - INFO - logger.py:138 - Model saved to models\lotto_6_49\lightgbm\lightgbm_lotto_6_49_20251204_131443
+2025-12-04 13:14:43 - lottery_ai - INFO - logger.py:138 - ✅ Model saved to: models\lotto_6_49\lightgbm\lightgbm_lotto_6_49_20251204_131443
+2025-12-04 13:14:43 - lottery_ai - INFO - logger.py:138 - LightGBM Model Details:
+2025-12-04 13:14:43 - lottery_ai - INFO - logger.py:138 -   - Location: models\lotto_6_49\lightgbm\lightgbm_lotto_6_49_20251204_131443
+2025-12-04 13:14:43 - lottery_ai - INFO - logger.py:138 -   - Accuracy: 0.9588
+2025-12-04 13:14:43 - lottery_ai - INFO - logger.py:138 -   - Precision: 0.9294
+2025-12-04 13:14:43 - lottery_ai - INFO - logger.py:138 -   - Recall: 0.9588
+2025-12-04 13:14:43 - lottery_ai - INFO - logger.py:138 -   - F1 Score: 0.9416
+2025-12-04 13:14:43 - lottery_ai - INFO - logger.py:138 - Per-Class Metrics Displayed:
+2025-12-04 13:14:43 - lottery_ai - INFO - logger.py:138 - Training Data Summary:
+2025-12-04 13:14:43 - lottery_ai - INFO - logger.py:138 -   - Total Samples: 2,184
+2025-12-04 13:14:43 - lottery_ai - INFO - logger.py:138 -   - Total Features: 93
+2025-12-04 13:14:43 - lottery_ai - INFO - logger.py:138 -   - Data Sources: raw_csv, lightgbm
+2025-12-04 13:14:43 - lottery_ai - INFO - logger.py:138 -     • raw_csv: 2184
+2025-12-04 13:14:43 - lottery_ai - INFO - logger.py:138 -     • lightgbm: 2184
+2025-12-04 13:14:43 - lottery_ai - INFO - logger.py:138 - ✅ LightGBM model training completed successfully!
+2025-12-04 13:14:43 - lottery_ai - INFO - logger.py:138 - 📁 Model Location: models\lotto_6_49\lightgbm\lightgbm_lotto_6_49_20251204_131443
+2025-12-04 13:14:43 - lottery_ai - INFO - logger.py:138 - ================================================================================
+2025-12-04 13:14:43 - lottery_ai - INFO - logger.py:138 - Training page rendered
+2025-12-04 13:14:54 - lottery_ai - INFO - logger.py:138 - Training page rendered
+2025-12-04 13:14:59 - lottery_ai - INFO - logger.py:138 - Training page rendered
+2025-12-04 13:15:11 - lottery_ai - INFO - logger.py:138 - Loading training data for Lotto Max (LSTM model)...
+2025-12-04 13:15:11 - lottery_ai - INFO - logger.py:138 - Loading training data for Lotto Max...
+2025-12-04 13:15:11 - lottery_ai - INFO - logger.py:138 - Auto-detected max_number=50 for game 'Lotto Max'
+2025-12-04 13:15:11 - lottery_ai - INFO - logger.py:138 - Loaded 1261 raw CSV samples
+2025-12-04 13:15:11 - lottery_ai - INFO - logger.py:138 - Loaded 1236 LSTM sequence features
+2025-12-04 13:15:11 - lottery_ai - INFO - logger.py:138 - Aligning features to minimum sample count: 1236
+2025-12-04 13:15:11 - lottery_ai - INFO - logger.py:138 - 🎯 PROPER: Extracting 50-class targets from 17 files
+2025-12-04 13:15:11 - lottery_ai - INFO - logger.py:138 -   training_data_2009.csv: 2009-09-25 → 2009-12-25 (14 draws)
+2025-12-04 13:15:11 - lottery_ai - INFO - logger.py:138 -   training_data_2010.csv: 2010-01-01 → 2010-12-31 (53 draws)
+2025-12-04 13:15:11 - lottery_ai - INFO - logger.py:138 -   training_data_2011.csv: 2011-01-07 → 2011-12-30 (52 draws)
+2025-12-04 13:15:11 - lottery_ai - INFO - logger.py:138 -   training_data_2012.csv: 2012-01-06 → 2012-12-28 (52 draws)
+2025-12-04 13:15:11 - lottery_ai - INFO - logger.py:138 -   training_data_2013.csv: 2013-01-04 → 2013-12-27 (52 draws)
+2025-12-04 13:15:11 - lottery_ai - INFO - logger.py:138 -   training_data_2014.csv: 2014-01-03 → 2014-12-26 (52 draws)
+2025-12-04 13:15:11 - lottery_ai - INFO - logger.py:138 -   training_data_2015.csv: 2015-01-02 → 2015-12-25 (52 draws)
+2025-12-04 13:15:11 - lottery_ai - INFO - logger.py:138 -   training_data_2016.csv: 2016-01-01 → 2016-12-30 (53 draws)
+2025-12-04 13:15:11 - lottery_ai - INFO - logger.py:138 -   training_data_2017.csv: 2017-01-06 → 2017-12-29 (52 draws)
+2025-12-04 13:15:11 - lottery_ai - INFO - logger.py:138 -   training_data_2018.csv: 2018-01-05 → 2018-12-28 (52 draws)
+2025-12-04 13:15:11 - lottery_ai - INFO - logger.py:138 -   training_data_2019.csv: 2019-01-04 → 2019-12-31 (86 draws)
+2025-12-04 13:15:11 - lottery_ai - INFO - logger.py:138 -   training_data_2020.csv: 2020-01-03 → 2020-12-29 (104 draws)
+2025-12-04 13:15:11 - lottery_ai - INFO - logger.py:138 -   training_data_2021.csv: 2021-01-01 → 2021-12-31 (105 draws)
+2025-12-04 13:15:12 - lottery_ai - INFO - logger.py:138 -   training_data_2022.csv: 2022-01-04 → 2022-12-30 (104 draws)
+2025-12-04 13:15:12 - lottery_ai - INFO - logger.py:138 -   training_data_2023.csv: 2023-01-03 → 2023-12-29 (104 draws)
+2025-12-04 13:15:12 - lottery_ai - INFO - logger.py:138 -   training_data_2024.csv: 2024-01-02 → 2024-12-31 (105 draws)
+2025-12-04 13:15:12 - lottery_ai - INFO - logger.py:138 -   training_data_2025.csv: 2025-01-01 → 2025-12-02 (169 draws)
+2025-12-04 13:15:12 - lottery_ai - INFO - logger.py:138 -   Extracted 1261 valid targets
+2025-12-04 13:15:12 - lottery_ai - INFO - logger.py:138 -   Target classes found: 28 (expected 50)
+2025-12-04 13:15:12 - lottery_ai - INFO - logger.py:138 -   Range: [0 - 32] (should be [0 - 49])
+2025-12-04 13:15:12 - lottery_ai - INFO - logger.py:138 -   ✅ LAG DISABLED: Predicting SAME draw
+2025-12-04 13:15:12 - lottery_ai - WARNING - logger.py:138 - Target count (1261) > Feature count (1236). Trimming targets to match features.
+2025-12-04 13:15:12 - lottery_ai - INFO - logger.py:138 - Training data shape: (1236, 1133), Target shape: (1236,)
+2025-12-04 13:15:12 - lottery_ai - INFO - logger.py:138 - Target distribution: {np.int64(0): np.int64(176), np.int64(1): np.int64(168), np.int64(2): np.int64(128), np.int64(3): np.int64(105), np.int64(4): np.int64(109), np.int64(5): np.int64(70), np.int64(6): np.int64(95), np.int64(7): np.int64(64), np.int64(8): np.int64(61), np.int64(9): np.int64(44), np.int64(10): np.int64(39), np.int64(11): np.int64(30), np.int64(12): np.int64(27), np.int64(13): np.int64(23), np.int64(14): np.int64(17), np.int64(15): np.int64(9), np.int64(16): np.int64(14), np.int64(17): np.int64(15), np.int64(18): np.int64(12), np.int64(19): np.int64(7), np.int64(20): np.int64(4), np.int64(21): np.int64(7), np.int64(22): np.int64(4), np.int64(23): np.int64(1), np.int64(24): np.int64(2), np.int64(25): np.int64(3), np.int64(29): np.int64(1), np.int64(32): np.int64(1)}
+2025-12-04 13:15:12 - lottery_ai - INFO - logger.py:138 - First 5 targets: [4 7 4 3 3]
+2025-12-04 13:15:12 - lottery_ai - INFO - logger.py:138 - Last 5 targets: [ 3 13  3 11  1]
+2025-12-04 13:15:12 - lottery_ai - INFO - logger.py:138 - First 5 feature sums: [10000306.21665169 15000327.33206045 20000387.50127258 25000313.91030466
+ 30166533.71993153]
+2025-12-04 13:15:12 - lottery_ai - INFO - logger.py:138 - Last 5 feature sums: [1.24000045e+09 1.20500034e+09 1.25000046e+09 5.00040182e+06
+ 1.10003826e+07]
+2025-12-04 13:15:12 - lottery_ai - INFO - logger.py:138 - ✅ Loaded 1236 samples with 1133 features
+2025-12-04 13:15:12 - lottery_ai - INFO - logger.py:138 - Target distribution: {np.int64(0): np.int64(176), np.int64(1): np.int64(168), np.int64(2): np.int64(128), np.int64(3): np.int64(105), np.int64(4): np.int64(109), np.int64(5): np.int64(70), np.int64(6): np.int64(95), np.int64(7): np.int64(64), np.int64(8): np.int64(61), np.int64(9): np.int64(44), np.int64(10): np.int64(39), np.int64(11): np.int64(30), np.int64(12): np.int64(27), np.int64(13): np.int64(23), np.int64(14): np.int64(17), np.int64(15): np.int64(9), np.int64(16): np.int64(14), np.int64(17): np.int64(15), np.int64(18): np.int64(12), np.int64(19): np.int64(7), np.int64(20): np.int64(4), np.int64(21): np.int64(7), np.int64(22): np.int64(4), np.int64(23): np.int64(1), np.int64(24): np.int64(2), np.int64(25): np.int64(3), np.int64(29): np.int64(1), np.int64(32): np.int64(1)}
+2025-12-04 13:15:12 - lottery_ai - INFO - logger.py:138 -   raw_csv: 1261 samples
+2025-12-04 13:15:12 - lottery_ai - INFO - logger.py:138 -   lstm: 1236 samples
+2025-12-04 13:15:12 - lottery_ai - INFO - logger.py:138 - Starting LSTM training...
+2025-12-04 13:15:12 - lottery_ai - INFO - logger.py:138 -   - Epochs: 150
+2025-12-04 13:15:12 - lottery_ai - INFO - logger.py:138 -   - Learning Rate: 0.01
+2025-12-04 13:15:12 - lottery_ai - INFO - logger.py:138 - Starting Advanced LSTM training with deep bidirectional architecture...
+2025-12-04 13:15:12 - lottery_ai - INFO - logger.py:138 - Advanced LSTM model built with 333,601 parameters
+2025-12-04 13:15:22 - lottery_ai - INFO - logger.py:138 - Row-level Accuracy: 0.3655 | Partial Matches: 0.37/7
+2025-12-04 13:15:22 - lottery_ai - INFO - logger.py:138 - Per-class Performance:
+2025-12-04 13:15:22 - lottery_ai - INFO - logger.py:138 -   Class 0: Precision=0.1493, Recall=0.3571, F1=0.2105, Support=28
+2025-12-04 13:15:22 - lottery_ai - INFO - logger.py:138 -   Class 1: Precision=0.5000, Recall=0.0278, F1=0.0526, Support=36
+2025-12-04 13:15:22 - lottery_ai - INFO - logger.py:138 -   Class 2: Precision=0.0000, Recall=0.0000, F1=0.0000, Support=24
+2025-12-04 13:15:22 - lottery_ai - INFO - logger.py:138 -   Class 3: Precision=0.0667, Recall=0.0370, F1=0.0476, Support=27
+2025-12-04 13:15:22 - lottery_ai - INFO - logger.py:138 -   Class 4: Precision=0.0000, Recall=0.0000, F1=0.0000, Support=20
+2025-12-04 13:15:22 - lottery_ai - INFO - logger.py:138 -   Class 5: Precision=0.0926, Recall=0.3571, F1=0.1471, Support=14
+2025-12-04 13:15:22 - lottery_ai - INFO - logger.py:138 -   Class 6: Precision=0.1250, Recall=0.1500, F1=0.1364, Support=20
+2025-12-04 13:15:22 - lottery_ai - INFO - logger.py:138 -   Class 7: Precision=0.0000, Recall=0.0000, F1=0.0000, Support=9
+2025-12-04 13:15:22 - lottery_ai - INFO - logger.py:138 -   Class 8: Precision=0.0339, Recall=0.2000, F1=0.0580, Support=10
+2025-12-04 13:15:22 - lottery_ai - INFO - logger.py:138 -   Class 9: Precision=0.0000, Recall=0.0000, F1=0.0000, Support=10
+2025-12-04 13:15:22 - lottery_ai - INFO - logger.py:138 -   Class 10: Precision=0.0000, Recall=0.0000, F1=0.0000, Support=6
+2025-12-04 13:15:22 - lottery_ai - INFO - logger.py:138 -   Class 11: Precision=0.0000, Recall=0.0000, F1=0.0000, Support=4
+2025-12-04 13:15:22 - lottery_ai - INFO - logger.py:138 -   Class 12: Precision=0.0000, Recall=0.0000, F1=0.0000, Support=6
+2025-12-04 13:15:22 - lottery_ai - INFO - logger.py:138 -   Class 13: Precision=0.0000, Recall=0.0000, F1=0.0000, Support=6
+2025-12-04 13:15:22 - lottery_ai - INFO - logger.py:138 -   Class 14: Precision=0.0000, Recall=0.0000, F1=0.0000, Support=6
+2025-12-04 13:15:22 - lottery_ai - INFO - logger.py:138 -   Class 16: Precision=0.0000, Recall=0.0000, F1=0.0000, Support=3
+2025-12-04 13:15:22 - lottery_ai - INFO - logger.py:138 -   Class 17: Precision=0.0000, Recall=0.0000, F1=0.0000, Support=3
+2025-12-04 13:15:22 - lottery_ai - INFO - logger.py:138 -   Class 18: Precision=0.0000, Recall=0.0000, F1=0.0000, Support=3
+2025-12-04 13:15:22 - lottery_ai - INFO - logger.py:138 -   Class 19: Precision=0.0000, Recall=0.0000, F1=0.0000, Support=4
+2025-12-04 13:15:22 - lottery_ai - INFO - logger.py:138 -   Class 20: Precision=0.0000, Recall=0.0000, F1=0.0000, Support=1
+2025-12-04 13:15:22 - lottery_ai - INFO - logger.py:138 -   Class 21: Precision=0.0000, Recall=0.0000, F1=0.0000, Support=3
+2025-12-04 13:15:22 - lottery_ai - INFO - logger.py:138 -   Class 23: Precision=0.0000, Recall=0.0000, F1=0.0000, Support=1
+2025-12-04 13:15:22 - lottery_ai - INFO - logger.py:138 -   Class 26: Precision=0.0000, Recall=0.0000, F1=0.0000, Support=1
+2025-12-04 13:15:22 - lottery_ai - INFO - logger.py:138 -   Class 27: Precision=0.0000, Recall=0.0000, F1=0.0000, Support=1
+2025-12-04 13:15:22 - lottery_ai - INFO - logger.py:138 - Advanced LSTM training complete - Accuracy: 0.0884 | Row Accuracy: 0.3655 | Parameters: 333,601
+2025-12-04 13:15:22 - lottery_ai - INFO - logger.py:138 - ✅ LSTM training complete - Accuracy: 0.0884
+2025-12-04 13:15:22 - lottery_ai - INFO - logger.py:138 - Saving model with metadata...
+2025-12-04 13:15:22 - lottery_ai - INFO - logger.py:138 - Saved lstm model to models\lotto_max\lstm\lstm_lotto_max_20251204_131522.keras
+2025-12-04 13:15:22 - lottery_ai - WARNING - logger.py:138 - No feature schema found for lstm, model saved but not registered
+2025-12-04 13:15:22 - lottery_ai - INFO - logger.py:138 - Model saved to models\lotto_max\lstm\lstm_lotto_max_20251204_131522
+2025-12-04 13:15:22 - lottery_ai - INFO - logger.py:138 - ✅ Model saved to: models\lotto_max\lstm\lstm_lotto_max_20251204_131522
+2025-12-04 13:15:22 - lottery_ai - INFO - logger.py:138 - LSTM Model Details:
+2025-12-04 13:15:22 - lottery_ai - INFO - logger.py:138 -   - Location: models\lotto_max\lstm\lstm_lotto_max_20251204_131522
+2025-12-04 13:15:22 - lottery_ai - INFO - logger.py:138 -   - Accuracy: 0.0884
+2025-12-04 13:15:22 - lottery_ai - INFO - logger.py:138 -   - Precision: 0.1129
+2025-12-04 13:15:22 - lottery_ai - INFO - logger.py:138 -   - Recall: 0.0884
+2025-12-04 13:15:22 - lottery_ai - INFO - logger.py:138 -   - F1 Score: 0.0580
+2025-12-04 13:15:22 - lottery_ai - INFO - logger.py:138 - Per-Class Metrics Displayed:
+2025-12-04 13:15:22 - lottery_ai - INFO - logger.py:138 - Training Data Summary:
+2025-12-04 13:15:22 - lottery_ai - INFO - logger.py:138 -   - Total Samples: 1,236
+2025-12-04 13:15:22 - lottery_ai - INFO - logger.py:138 -   - Total Features: 1133
+2025-12-04 13:15:22 - lottery_ai - INFO - logger.py:138 -   - Data Sources: raw_csv, lstm
+2025-12-04 13:15:22 - lottery_ai - INFO - logger.py:138 -     • raw_csv: 1261
+2025-12-04 13:15:22 - lottery_ai - INFO - logger.py:138 -     • lstm: 1236
+2025-12-04 13:15:22 - lottery_ai - INFO - logger.py:138 - ✅ LSTM model training completed successfully!
+2025-12-04 13:15:23 - lottery_ai - INFO - logger.py:138 - 📁 Model Location: models\lotto_max\lstm\lstm_lotto_max_20251204_131522
+2025-12-04 13:15:23 - lottery_ai - INFO - logger.py:138 - ================================================================================
+2025-12-04 13:15:23 - lottery_ai - INFO - logger.py:138 - Training page rendered
+2025-12-04 13:15:38 - lottery_ai - INFO - logger.py:138 - Training page rendered
+2025-12-04 13:15:45 - lottery_ai - INFO - logger.py:138 - Loading training data for Lotto 6/49 (LSTM model)...
+2025-12-04 13:15:45 - lottery_ai - INFO - logger.py:138 - Loading training data for Lotto 6/49...
+2025-12-04 13:15:45 - lottery_ai - INFO - logger.py:138 - Auto-detected max_number=49 for game 'Lotto 6/49'
+2025-12-04 13:15:45 - lottery_ai - INFO - logger.py:138 - Loaded 2184 raw CSV samples
+2025-12-04 13:15:45 - lottery_ai - INFO - logger.py:138 - Loaded 2159 LSTM sequence features
+2025-12-04 13:15:45 - lottery_ai - INFO - logger.py:138 - Aligning features to minimum sample count: 2159
+2025-12-04 13:15:45 - lottery_ai - INFO - logger.py:138 - 🎯 PROPER: Extracting 49-class targets from 21 files
+2025-12-04 13:15:45 - lottery_ai - INFO - logger.py:138 -   training_data_2005.csv: 2005-01-01 → 2005-12-31 (105 draws)
+2025-12-04 13:15:45 - lottery_ai - INFO - logger.py:138 -   training_data_2006.csv: 2006-01-04 → 2006-12-30 (104 draws)
+2025-12-04 13:15:45 - lottery_ai - INFO - logger.py:138 -   training_data_2007.csv: 2007-01-03 → 2007-12-29 (104 draws)
+2025-12-04 13:15:45 - lottery_ai - INFO - logger.py:138 -   training_data_2008.csv: 2008-01-02 → 2008-12-31 (105 draws)
+2025-12-04 13:15:45 - lottery_ai - INFO - logger.py:138 -   training_data_2009.csv: 2009-01-03 → 2009-12-30 (104 draws)
+2025-12-04 13:15:45 - lottery_ai - INFO - logger.py:138 -   training_data_2010.csv: 2010-01-02 → 2010-12-29 (104 draws)
+2025-12-04 13:15:45 - lottery_ai - INFO - logger.py:138 -   training_data_2011.csv: 2011-01-01 → 2011-12-31 (105 draws)
+2025-12-04 13:15:45 - lottery_ai - INFO - logger.py:138 -   training_data_2012.csv: 2012-01-04 → 2012-12-29 (104 draws)
+2025-12-04 13:15:45 - lottery_ai - INFO - logger.py:138 -   training_data_2013.csv: 2013-01-02 → 2013-12-28 (104 draws)
+2025-12-04 13:15:45 - lottery_ai - INFO - logger.py:138 -   training_data_2014.csv: 2014-01-01 → 2014-12-31 (105 draws)
+2025-12-04 13:15:45 - lottery_ai - INFO - logger.py:138 -   training_data_2015.csv: 2015-01-03 → 2015-12-30 (104 draws)
+2025-12-04 13:15:45 - lottery_ai - INFO - logger.py:138 -   training_data_2016.csv: 2016-01-02 → 2016-12-31 (105 draws)
+2025-12-04 13:15:45 - lottery_ai - INFO - logger.py:138 -   training_data_2017.csv: 2017-01-04 → 2017-12-30 (104 draws)
+2025-12-04 13:15:45 - lottery_ai - INFO - logger.py:138 -   training_data_2018.csv: 2018-01-03 → 2018-12-29 (104 draws)
+2025-12-04 13:15:45 - lottery_ai - INFO - logger.py:138 -   training_data_2019.csv: 2019-01-02 → 2019-12-28 (104 draws)
+2025-12-04 13:15:45 - lottery_ai - INFO - logger.py:138 -   training_data_2020.csv: 2020-01-01 → 2020-12-30 (105 draws)
+2025-12-04 13:15:45 - lottery_ai - INFO - logger.py:138 -   training_data_2021.csv: 2021-01-02 → 2021-12-29 (104 draws)
+2025-12-04 13:15:45 - lottery_ai - INFO - logger.py:138 -   training_data_2022.csv: 2022-01-01 → 2022-12-31 (105 draws)
+2025-12-04 13:15:45 - lottery_ai - INFO - logger.py:138 -   training_data_2023.csv: 2023-01-04 → 2023-12-30 (104 draws)
+2025-12-04 13:15:45 - lottery_ai - INFO - logger.py:138 -   training_data_2024.csv: 2024-01-03 → 2024-12-28 (104 draws)
+2025-12-04 13:15:45 - lottery_ai - INFO - logger.py:138 -   training_data_2025.csv: 2025-01-01 → 2025-12-03 (97 draws)
+2025-12-04 13:15:45 - lottery_ai - INFO - logger.py:138 -   Extracted 2184 valid targets
+2025-12-04 13:15:45 - lottery_ai - INFO - logger.py:138 -   Target classes found: 32 (expected 49)
+2025-12-04 13:15:45 - lottery_ai - INFO - logger.py:138 -   Range: [0 - 32] (should be [0 - 48])
+2025-12-04 13:15:45 - lottery_ai - INFO - logger.py:138 -   ✅ LAG DISABLED: Predicting SAME draw
+2025-12-04 13:15:45 - lottery_ai - WARNING - logger.py:138 - Target count (2184) > Feature count (2159). Trimming targets to match features.
+2025-12-04 13:15:45 - lottery_ai - INFO - logger.py:138 - Training data shape: (2159, 1133), Target shape: (2159,)
+2025-12-04 13:15:45 - lottery_ai - INFO - logger.py:138 - Target distribution: {np.int64(0): np.int64(217), np.int64(1): np.int64(241), np.int64(2): np.int64(222), np.int64(3): np.int64(208), np.int64(4): np.int64(149), np.int64(5): np.int64(146), np.int64(6): np.int64(131), np.int64(7): np.int64(112), np.int64(8): np.int64(121), np.int64(9): np.int64(92), np.int64(10): np.int64(83), np.int64(11): np.int64(66), np.int64(12): np.int64(55), np.int64(13): np.int64(49), np.int64(14): np.int64(46), np.int64(15): np.int64(39), np.int64(16): np.int64(23), np.int64(17): np.int64(30), np.int64(18): np.int64(18), np.int64(19): np.int64(25), np.int64(20): np.int64(17), np.int64(21): np.int64(11), np.int64(22): np.int64(16), np.int64(23): np.int64(10), np.int64(24): np.int64(6), np.int64(25): np.int64(8), np.int64(26): np.int64(8), np.int64(27): np.int64(1), np.int64(28): np.int64(2), np.int64(29): np.int64(4), np.int64(30): np.int64(2), np.int64(32): np.int64(1)}
+2025-12-04 13:15:45 - lottery_ai - INFO - logger.py:138 - First 5 targets: [9 0 2 0 0]
+2025-12-04 13:15:45 - lottery_ai - INFO - logger.py:138 - Last 5 targets: [ 2  4  2 13 11]
+2025-12-04 13:15:45 - lottery_ai - INFO - logger.py:138 - First 5 feature sums: [nan nan nan nan nan]
+2025-12-04 13:15:45 - lottery_ai - INFO - logger.py:138 - Last 5 feature sums: [5000365.52744407 5000415.9779259  5000398.47180734 5000427.18390194
+ 5000491.34795337]
+2025-12-04 13:15:46 - lottery_ai - INFO - logger.py:138 - ✅ Loaded 2159 samples with 1133 features
+2025-12-04 13:15:46 - lottery_ai - INFO - logger.py:138 - Target distribution: {np.int64(0): np.int64(217), np.int64(1): np.int64(241), np.int64(2): np.int64(222), np.int64(3): np.int64(208), np.int64(4): np.int64(149), np.int64(5): np.int64(146), np.int64(6): np.int64(131), np.int64(7): np.int64(112), np.int64(8): np.int64(121), np.int64(9): np.int64(92), np.int64(10): np.int64(83), np.int64(11): np.int64(66), np.int64(12): np.int64(55), np.int64(13): np.int64(49), np.int64(14): np.int64(46), np.int64(15): np.int64(39), np.int64(16): np.int64(23), np.int64(17): np.int64(30), np.int64(18): np.int64(18), np.int64(19): np.int64(25), np.int64(20): np.int64(17), np.int64(21): np.int64(11), np.int64(22): np.int64(16), np.int64(23): np.int64(10), np.int64(24): np.int64(6), np.int64(25): np.int64(8), np.int64(26): np.int64(8), np.int64(27): np.int64(1), np.int64(28): np.int64(2), np.int64(29): np.int64(4), np.int64(30): np.int64(2), np.int64(32): np.int64(1)}
+2025-12-04 13:15:46 - lottery_ai - INFO - logger.py:138 -   raw_csv: 2184 samples
+2025-12-04 13:15:46 - lottery_ai - INFO - logger.py:138 -   lstm: 2159 samples
+2025-12-04 13:15:46 - lottery_ai - INFO - logger.py:138 - Starting LSTM training...
+2025-12-04 13:15:46 - lottery_ai - INFO - logger.py:138 -   - Epochs: 150
+2025-12-04 13:15:46 - lottery_ai - INFO - logger.py:138 -   - Learning Rate: 0.01
+2025-12-04 13:15:46 - lottery_ai - INFO - logger.py:138 - Starting Advanced LSTM training with deep bidirectional architecture...
+2025-12-04 13:15:46 - lottery_ai - INFO - logger.py:138 - Advanced LSTM model built with 333,601 parameters
+2025-12-04 13:16:02 - lottery_ai - INFO - logger.py:138 - Row-level Accuracy: 0.5440 | Partial Matches: 0.54/6
+2025-12-04 13:16:02 - lottery_ai - INFO - logger.py:138 - Per-class Performance:
+2025-12-04 13:16:02 - lottery_ai - INFO - logger.py:138 -   Class 0: Precision=0.0000, Recall=0.0000, F1=0.0000, Support=43
+2025-12-04 13:16:02 - lottery_ai - INFO - logger.py:138 -   Class 1: Precision=0.1019, Recall=1.0000, F1=0.1849, Support=44
+2025-12-04 13:16:02 - lottery_ai - INFO - logger.py:138 -   Class 2: Precision=0.0000, Recall=0.0000, F1=0.0000, Support=47
+2025-12-04 13:16:02 - lottery_ai - INFO - logger.py:138 -   Class 3: Precision=0.0000, Recall=0.0000, F1=0.0000, Support=41
+2025-12-04 13:16:02 - lottery_ai - INFO - logger.py:138 -   Class 4: Precision=0.0000, Recall=0.0000, F1=0.0000, Support=33
+2025-12-04 13:16:02 - lottery_ai - INFO - logger.py:138 -   Class 5: Precision=0.0000, Recall=0.0000, F1=0.0000, Support=27
+2025-12-04 13:16:02 - lottery_ai - INFO - logger.py:138 -   Class 6: Precision=0.0000, Recall=0.0000, F1=0.0000, Support=38
+2025-12-04 13:16:02 - lottery_ai - INFO - logger.py:138 -   Class 7: Precision=0.0000, Recall=0.0000, F1=0.0000, Support=24
+2025-12-04 13:16:02 - lottery_ai - INFO - logger.py:138 -   Class 8: Precision=0.0000, Recall=0.0000, F1=0.0000, Support=26
+2025-12-04 13:16:02 - lottery_ai - INFO - logger.py:138 -   Class 9: Precision=0.0000, Recall=0.0000, F1=0.0000, Support=17
+2025-12-04 13:16:02 - lottery_ai - INFO - logger.py:138 -   Class 10: Precision=0.0000, Recall=0.0000, F1=0.0000, Support=14
+2025-12-04 13:16:02 - lottery_ai - INFO - logger.py:138 -   Class 11: Precision=0.0000, Recall=0.0000, F1=0.0000, Support=11
+2025-12-04 13:16:02 - lottery_ai - INFO - logger.py:138 -   Class 12: Precision=0.0000, Recall=0.0000, F1=0.0000, Support=5
+2025-12-04 13:16:02 - lottery_ai - INFO - logger.py:138 -   Class 13: Precision=0.0000, Recall=0.0000, F1=0.0000, Support=12
+2025-12-04 13:16:02 - lottery_ai - INFO - logger.py:138 -   Class 14: Precision=0.0000, Recall=0.0000, F1=0.0000, Support=6
+2025-12-04 13:16:02 - lottery_ai - INFO - logger.py:138 -   Class 15: Precision=0.0000, Recall=0.0000, F1=0.0000, Support=6
+2025-12-04 13:16:02 - lottery_ai - INFO - logger.py:138 -   Class 16: Precision=0.0000, Recall=0.0000, F1=0.0000, Support=6
+2025-12-04 13:16:02 - lottery_ai - INFO - logger.py:138 -   Class 17: Precision=0.0000, Recall=0.0000, F1=0.0000, Support=6
+2025-12-04 13:16:02 - lottery_ai - INFO - logger.py:138 -   Class 18: Precision=0.0000, Recall=0.0000, F1=0.0000, Support=4
+2025-12-04 13:16:02 - lottery_ai - INFO - logger.py:138 -   Class 19: Precision=0.0000, Recall=0.0000, F1=0.0000, Support=3
+2025-12-04 13:16:02 - lottery_ai - INFO - logger.py:138 -   Class 20: Precision=0.0000, Recall=0.0000, F1=0.0000, Support=1
+2025-12-04 13:16:02 - lottery_ai - INFO - logger.py:138 -   Class 21: Precision=0.0000, Recall=0.0000, F1=0.0000, Support=4
+2025-12-04 13:16:02 - lottery_ai - INFO - logger.py:138 -   Class 22: Precision=0.0000, Recall=0.0000, F1=0.0000, Support=1
+2025-12-04 13:16:02 - lottery_ai - INFO - logger.py:138 -   Class 23: Precision=0.0000, Recall=0.0000, F1=0.0000, Support=2
+2025-12-04 13:16:02 - lottery_ai - INFO - logger.py:138 -   Class 24: Precision=0.0000, Recall=0.0000, F1=0.0000, Support=2
+2025-12-04 13:16:02 - lottery_ai - INFO - logger.py:138 -   Class 25: Precision=0.0000, Recall=0.0000, F1=0.0000, Support=2
+2025-12-04 13:16:02 - lottery_ai - INFO - logger.py:138 -   Class 26: Precision=0.0000, Recall=0.0000, F1=0.0000, Support=2
+2025-12-04 13:16:02 - lottery_ai - INFO - logger.py:138 -   Class 28: Precision=0.0000, Recall=0.0000, F1=0.0000, Support=1
+2025-12-04 13:16:02 - lottery_ai - INFO - logger.py:138 -   Class 29: Precision=0.0000, Recall=0.0000, F1=0.0000, Support=1
+2025-12-04 13:16:02 - lottery_ai - INFO - logger.py:138 -   Class 30: Precision=0.0000, Recall=0.0000, F1=0.0000, Support=2
+2025-12-04 13:16:02 - lottery_ai - INFO - logger.py:138 -   Class 31: Precision=0.0000, Recall=0.0000, F1=0.0000, Support=1
+2025-12-04 13:16:02 - lottery_ai - INFO - logger.py:138 - Advanced LSTM training complete - Accuracy: 0.1019 | Row Accuracy: 0.5440 | Parameters: 333,601
+2025-12-04 13:16:02 - lottery_ai - INFO - logger.py:138 - ✅ LSTM training complete - Accuracy: 0.1019
+2025-12-04 13:16:02 - lottery_ai - INFO - logger.py:138 - Saving model with metadata...
+2025-12-04 13:16:02 - lottery_ai - INFO - logger.py:138 - Saved lstm model to models\lotto_6_49\lstm\lstm_lotto_6_49_20251204_131602.keras
+2025-12-04 13:16:02 - lottery_ai - WARNING - logger.py:138 - No feature schema found for lstm, model saved but not registered
+2025-12-04 13:16:02 - lottery_ai - INFO - logger.py:138 - Model saved to models\lotto_6_49\lstm\lstm_lotto_6_49_20251204_131602
+2025-12-04 13:16:02 - lottery_ai - INFO - logger.py:138 - ✅ Model saved to: models\lotto_6_49\lstm\lstm_lotto_6_49_20251204_131602
+2025-12-04 13:16:02 - lottery_ai - INFO - logger.py:138 - LSTM Model Details:
+2025-12-04 13:16:02 - lottery_ai - INFO - logger.py:138 -   - Location: models\lotto_6_49\lstm\lstm_lotto_6_49_20251204_131602
+2025-12-04 13:16:02 - lottery_ai - INFO - logger.py:138 -   - Accuracy: 0.1019
+2025-12-04 13:16:02 - lottery_ai - INFO - logger.py:138 -   - Precision: 0.0104
+2025-12-04 13:16:02 - lottery_ai - INFO - logger.py:138 -   - Recall: 0.1019
+2025-12-04 13:16:02 - lottery_ai - INFO - logger.py:138 -   - F1 Score: 0.0188
+2025-12-04 13:16:02 - lottery_ai - INFO - logger.py:138 - Per-Class Metrics Displayed:
+2025-12-04 13:16:02 - lottery_ai - INFO - logger.py:138 - Training Data Summary:
+2025-12-04 13:16:02 - lottery_ai - INFO - logger.py:138 -   - Total Samples: 2,159
+2025-12-04 13:16:02 - lottery_ai - INFO - logger.py:138 -   - Total Features: 1133
+2025-12-04 13:16:02 - lottery_ai - INFO - logger.py:138 -   - Data Sources: raw_csv, lstm
+2025-12-04 13:16:02 - lottery_ai - INFO - logger.py:138 -     • raw_csv: 2184
+2025-12-04 13:16:02 - lottery_ai - INFO - logger.py:138 -     • lstm: 2159
+2025-12-04 13:16:02 - lottery_ai - INFO - logger.py:138 - ✅ LSTM model training completed successfully!
+2025-12-04 13:16:02 - lottery_ai - INFO - logger.py:138 - 📁 Model Location: models\lotto_6_49\lstm\lstm_lotto_6_49_20251204_131602
+2025-12-04 13:16:02 - lottery_ai - INFO - logger.py:138 - ================================================================================
+2025-12-04 13:16:02 - lottery_ai - INFO - logger.py:138 - Training page rendered
+2025-12-04 15:45:22 - lottery_ai - INFO - logger.py:138 - Training page rendered
+2025-12-04 15:45:46 - lottery_ai - INFO - logger.py:138 - Loading training data for Lotto 6/49 (CNN model)...
+2025-12-04 15:45:46 - lottery_ai - INFO - logger.py:138 - Loading training data for Lotto 6/49...
+2025-12-04 15:45:46 - lottery_ai - INFO - logger.py:138 - Auto-detected max_number=49 for game 'Lotto 6/49'
+2025-12-04 15:45:46 - lottery_ai - INFO - logger.py:138 - Loaded 2184 raw CSV samples
+2025-12-04 15:45:46 - lottery_ai - INFO - logger.py:138 - Loaded 2160 CNN embeddings
+2025-12-04 15:45:46 - lottery_ai - INFO - logger.py:138 - Aligning features to minimum sample count: 2160
+2025-12-04 15:45:46 - lottery_ai - INFO - logger.py:138 - 🎯 PROPER: Extracting 49-class targets from 21 files
+2025-12-04 15:45:46 - lottery_ai - INFO - logger.py:138 -   training_data_2005.csv: 2005-01-01 → 2005-12-31 (105 draws)
+2025-12-04 15:45:46 - lottery_ai - INFO - logger.py:138 -   training_data_2006.csv: 2006-01-04 → 2006-12-30 (104 draws)
+2025-12-04 15:45:46 - lottery_ai - INFO - logger.py:138 -   training_data_2007.csv: 2007-01-03 → 2007-12-29 (104 draws)
+2025-12-04 15:45:46 - lottery_ai - INFO - logger.py:138 -   training_data_2008.csv: 2008-01-02 → 2008-12-31 (105 draws)
+2025-12-04 15:45:46 - lottery_ai - INFO - logger.py:138 -   training_data_2009.csv: 2009-01-03 → 2009-12-30 (104 draws)
+2025-12-04 15:45:46 - lottery_ai - INFO - logger.py:138 -   training_data_2010.csv: 2010-01-02 → 2010-12-29 (104 draws)
+2025-12-04 15:45:46 - lottery_ai - INFO - logger.py:138 -   training_data_2011.csv: 2011-01-01 → 2011-12-31 (105 draws)
+2025-12-04 15:45:46 - lottery_ai - INFO - logger.py:138 -   training_data_2012.csv: 2012-01-04 → 2012-12-29 (104 draws)
+2025-12-04 15:45:46 - lottery_ai - INFO - logger.py:138 -   training_data_2013.csv: 2013-01-02 → 2013-12-28 (104 draws)
+2025-12-04 15:45:47 - lottery_ai - INFO - logger.py:138 -   training_data_2014.csv: 2014-01-01 → 2014-12-31 (105 draws)
+2025-12-04 15:45:47 - lottery_ai - INFO - logger.py:138 -   training_data_2015.csv: 2015-01-03 → 2015-12-30 (104 draws)
+2025-12-04 15:45:47 - lottery_ai - INFO - logger.py:138 -   training_data_2016.csv: 2016-01-02 → 2016-12-31 (105 draws)
+2025-12-04 15:45:47 - lottery_ai - INFO - logger.py:138 -   training_data_2017.csv: 2017-01-04 → 2017-12-30 (104 draws)
+2025-12-04 15:45:47 - lottery_ai - INFO - logger.py:138 -   training_data_2018.csv: 2018-01-03 → 2018-12-29 (104 draws)
+2025-12-04 15:45:47 - lottery_ai - INFO - logger.py:138 -   training_data_2019.csv: 2019-01-02 → 2019-12-28 (104 draws)
+2025-12-04 15:45:47 - lottery_ai - INFO - logger.py:138 -   training_data_2020.csv: 2020-01-01 → 2020-12-30 (105 draws)
+2025-12-04 15:45:47 - lottery_ai - INFO - logger.py:138 -   training_data_2021.csv: 2021-01-02 → 2021-12-29 (104 draws)
+2025-12-04 15:45:47 - lottery_ai - INFO - logger.py:138 -   training_data_2022.csv: 2022-01-01 → 2022-12-31 (105 draws)
+2025-12-04 15:45:47 - lottery_ai - INFO - logger.py:138 -   training_data_2023.csv: 2023-01-04 → 2023-12-30 (104 draws)
+2025-12-04 15:45:47 - lottery_ai - INFO - logger.py:138 -   training_data_2024.csv: 2024-01-03 → 2024-12-28 (104 draws)
+2025-12-04 15:45:47 - lottery_ai - INFO - logger.py:138 -   training_data_2025.csv: 2025-01-01 → 2025-12-03 (97 draws)
+2025-12-04 15:45:47 - lottery_ai - INFO - logger.py:138 -   Extracted 2184 valid targets
+2025-12-04 15:45:47 - lottery_ai - INFO - logger.py:138 -   Target classes found: 32 (expected 49)
+2025-12-04 15:45:47 - lottery_ai - INFO - logger.py:138 -   Range: [0 - 32] (should be [0 - 48])
+2025-12-04 15:45:47 - lottery_ai - INFO - logger.py:138 -   ✅ LAG DISABLED: Predicting SAME draw
+2025-12-04 15:45:47 - lottery_ai - WARNING - logger.py:138 - Target count (2184) > Feature count (2160). Trimming targets to match features.
+2025-12-04 15:45:47 - lottery_ai - INFO - logger.py:138 - Training data shape: (2160, 72), Target shape: (2160,)
+2025-12-04 15:45:47 - lottery_ai - INFO - logger.py:138 - Target distribution: {np.int64(0): np.int64(217), np.int64(1): np.int64(241), np.int64(2): np.int64(222), np.int64(3): np.int64(208), np.int64(4): np.int64(149), np.int64(5): np.int64(146), np.int64(6): np.int64(131), np.int64(7): np.int64(112), np.int64(8): np.int64(121), np.int64(9): np.int64(92), np.int64(10): np.int64(84), np.int64(11): np.int64(66), np.int64(12): np.int64(55), np.int64(13): np.int64(49), np.int64(14): np.int64(46), np.int64(15): np.int64(39), np.int64(16): np.int64(23), np.int64(17): np.int64(30), np.int64(18): np.int64(18), np.int64(19): np.int64(25), np.int64(20): np.int64(17), np.int64(21): np.int64(11), np.int64(22): np.int64(16), np.int64(23): np.int64(10), np.int64(24): np.int64(6), np.int64(25): np.int64(8), np.int64(26): np.int64(8), np.int64(27): np.int64(1), np.int64(28): np.int64(2), np.int64(29): np.int64(4), np.int64(30): np.int64(2), np.int64(32): np.int64(1)}
+2025-12-04 15:45:47 - lottery_ai - INFO - logger.py:138 - First 5 targets: [9 0 2 0 0]
+2025-12-04 15:45:47 - lottery_ai - INFO - logger.py:138 - Last 5 targets: [ 4  2 13 11 10]
+2025-12-04 15:45:47 - lottery_ai - INFO - logger.py:138 - First 5 feature sums: [313.15357637 274.37812172 249.77353083 246.81707943 257.86452936]
+2025-12-04 15:45:47 - lottery_ai - INFO - logger.py:138 - Last 5 feature sums: [5000254.22399347 5000229.21123222 5000253.43911527 5000300.55741706
+ 5000348.67328602]
+2025-12-04 15:45:47 - lottery_ai - INFO - logger.py:138 - ✅ Loaded 2160 samples with 72 features
+2025-12-04 15:45:47 - lottery_ai - INFO - logger.py:138 - Target distribution: {np.int64(0): np.int64(217), np.int64(1): np.int64(241), np.int64(2): np.int64(222), np.int64(3): np.int64(208), np.int64(4): np.int64(149), np.int64(5): np.int64(146), np.int64(6): np.int64(131), np.int64(7): np.int64(112), np.int64(8): np.int64(121), np.int64(9): np.int64(92), np.int64(10): np.int64(84), np.int64(11): np.int64(66), np.int64(12): np.int64(55), np.int64(13): np.int64(49), np.int64(14): np.int64(46), np.int64(15): np.int64(39), np.int64(16): np.int64(23), np.int64(17): np.int64(30), np.int64(18): np.int64(18), np.int64(19): np.int64(25), np.int64(20): np.int64(17), np.int64(21): np.int64(11), np.int64(22): np.int64(16), np.int64(23): np.int64(10), np.int64(24): np.int64(6), np.int64(25): np.int64(8), np.int64(26): np.int64(8), np.int64(27): np.int64(1), np.int64(28): np.int64(2), np.int64(29): np.int64(4), np.int64(30): np.int64(2), np.int64(32): np.int64(1)}
+2025-12-04 15:45:47 - lottery_ai - INFO - logger.py:138 -   raw_csv: 2184 samples
+2025-12-04 15:45:47 - lottery_ai - INFO - logger.py:138 -   cnn: 2160 samples
+2025-12-04 15:45:47 - lottery_ai - INFO - logger.py:138 - Starting CNN training...
+2025-12-04 15:45:47 - lottery_ai - INFO - logger.py:138 -   - Epochs: 150
+2025-12-04 15:45:47 - lottery_ai - INFO - logger.py:138 -   - Learning Rate: 0.01
+2025-12-04 15:45:47 - lottery_ai - INFO - logger.py:138 - Starting Multi-Scale CNN training for lottery number prediction...
+2025-12-04 15:45:47 - lottery_ai - INFO - logger.py:138 - Multi-Scale CNN model built with 157,025 parameters
+2025-12-04 15:47:27 - lottery_ai - INFO - logger.py:138 - 🟩 CNN: Predicting on test set...
+2025-12-04 15:47:28 - lottery_ai - INFO - logger.py:138 - 🟩 CNN: Predictions complete. Calculating metrics...
+2025-12-04 15:47:28 - lottery_ai - INFO - logger.py:138 - Row-level Accuracy: 0.9908 | Partial Matches: 0.99/6
+2025-12-04 15:47:28 - lottery_ai - INFO - logger.py:138 - 🟩 CNN: Metrics calculated. Accuracy: 0.9353 | Row Accuracy: 0.9908
+2025-12-04 15:47:28 - lottery_ai - INFO - logger.py:138 - Multi-Scale CNN training complete - Accuracy: 0.9353, Parameters: 157,025
+2025-12-04 15:47:28 - lottery_ai - INFO - logger.py:138 - ✅ CNN training complete - Accuracy: 0.9353
+2025-12-04 15:47:28 - lottery_ai - INFO - logger.py:138 - Saving model with metadata...
+2025-12-04 15:47:28 - lottery_ai - INFO - logger.py:138 - Saved cnn model to models\lotto_6_49\cnn\cnn_lotto_6_49_20251204_154728.keras
+2025-12-04 15:47:28 - lottery_ai - WARNING - logger.py:138 - No feature schema found for cnn, model saved but not registered
+2025-12-04 15:47:28 - lottery_ai - INFO - logger.py:138 - Model saved to models\lotto_6_49\cnn\cnn_lotto_6_49_20251204_154728
+2025-12-04 15:47:28 - lottery_ai - INFO - logger.py:138 - ✅ Model saved to: models\lotto_6_49\cnn\cnn_lotto_6_49_20251204_154728
+2025-12-04 15:47:28 - lottery_ai - INFO - logger.py:138 - CNN Model Details:
+2025-12-04 15:47:28 - lottery_ai - INFO - logger.py:138 -   - Location: models\lotto_6_49\cnn\cnn_lotto_6_49_20251204_154728
+2025-12-04 15:47:28 - lottery_ai - INFO - logger.py:138 -   - Accuracy: 0.9353
+2025-12-04 15:47:28 - lottery_ai - INFO - logger.py:138 -   - Precision: 0.9138
+2025-12-04 15:47:28 - lottery_ai - INFO - logger.py:138 -   - Recall: 0.9353
+2025-12-04 15:47:28 - lottery_ai - INFO - logger.py:138 -   - F1 Score: 0.9212
+2025-12-04 15:47:28 - lottery_ai - INFO - logger.py:138 - Per-Class Metrics Displayed:
+2025-12-04 15:47:28 - lottery_ai - INFO - logger.py:138 - Training Data Summary:
+2025-12-04 15:47:28 - lottery_ai - INFO - logger.py:138 -   - Total Samples: 2,160
+2025-12-04 15:47:28 - lottery_ai - INFO - logger.py:138 -   - Total Features: 72
+2025-12-04 15:47:28 - lottery_ai - INFO - logger.py:138 -   - Data Sources: raw_csv, cnn
+2025-12-04 15:47:28 - lottery_ai - INFO - logger.py:138 -     • raw_csv: 2184
+2025-12-04 15:47:28 - lottery_ai - INFO - logger.py:138 -     • cnn: 2160
+2025-12-04 15:47:28 - lottery_ai - INFO - logger.py:138 - ✅ CNN model training completed successfully!
+2025-12-04 15:47:28 - lottery_ai - INFO - logger.py:138 - 📁 Model Location: models\lotto_6_49\cnn\cnn_lotto_6_49_20251204_154728
+2025-12-04 15:47:28 - lottery_ai - INFO - logger.py:138 - ================================================================================
+2025-12-04 15:47:28 - lottery_ai - INFO - logger.py:138 - Training page rendered
+2025-12-04 15:48:06 - lottery_ai - INFO - logger.py:138 - Training page rendered
+2025-12-04 15:48:26 - lottery_ai - INFO - logger.py:138 - Loading training data for Lotto Max (CNN model)...
+2025-12-04 15:48:26 - lottery_ai - INFO - logger.py:138 - Loading training data for Lotto Max...
+2025-12-04 15:48:26 - lottery_ai - INFO - logger.py:138 - Auto-detected max_number=50 for game 'Lotto Max'
+2025-12-04 15:48:26 - lottery_ai - INFO - logger.py:138 - Loaded 1261 raw CSV samples
+2025-12-04 15:48:26 - lottery_ai - INFO - logger.py:138 - Loaded 1237 CNN embeddings
+2025-12-04 15:48:26 - lottery_ai - INFO - logger.py:138 - Aligning features to minimum sample count: 1237
+2025-12-04 15:48:26 - lottery_ai - INFO - logger.py:138 - 🎯 PROPER: Extracting 50-class targets from 17 files
+2025-12-04 15:48:26 - lottery_ai - INFO - logger.py:138 -   training_data_2009.csv: 2009-09-25 → 2009-12-25 (14 draws)
+2025-12-04 15:48:26 - lottery_ai - INFO - logger.py:138 -   training_data_2010.csv: 2010-01-01 → 2010-12-31 (53 draws)
+2025-12-04 15:48:26 - lottery_ai - INFO - logger.py:138 -   training_data_2011.csv: 2011-01-07 → 2011-12-30 (52 draws)
+2025-12-04 15:48:26 - lottery_ai - INFO - logger.py:138 -   training_data_2012.csv: 2012-01-06 → 2012-12-28 (52 draws)
+2025-12-04 15:48:26 - lottery_ai - INFO - logger.py:138 -   training_data_2013.csv: 2013-01-04 → 2013-12-27 (52 draws)
+2025-12-04 15:48:26 - lottery_ai - INFO - logger.py:138 -   training_data_2014.csv: 2014-01-03 → 2014-12-26 (52 draws)
+2025-12-04 15:48:26 - lottery_ai - INFO - logger.py:138 -   training_data_2015.csv: 2015-01-02 → 2015-12-25 (52 draws)
+2025-12-04 15:48:26 - lottery_ai - INFO - logger.py:138 -   training_data_2016.csv: 2016-01-01 → 2016-12-30 (53 draws)
+2025-12-04 15:48:26 - lottery_ai - INFO - logger.py:138 -   training_data_2017.csv: 2017-01-06 → 2017-12-29 (52 draws)
+2025-12-04 15:48:26 - lottery_ai - INFO - logger.py:138 -   training_data_2018.csv: 2018-01-05 → 2018-12-28 (52 draws)
+2025-12-04 15:48:26 - lottery_ai - INFO - logger.py:138 -   training_data_2019.csv: 2019-01-04 → 2019-12-31 (86 draws)
+2025-12-04 15:48:26 - lottery_ai - INFO - logger.py:138 -   training_data_2020.csv: 2020-01-03 → 2020-12-29 (104 draws)
+2025-12-04 15:48:26 - lottery_ai - INFO - logger.py:138 -   training_data_2021.csv: 2021-01-01 → 2021-12-31 (105 draws)
+2025-12-04 15:48:26 - lottery_ai - INFO - logger.py:138 -   training_data_2022.csv: 2022-01-04 → 2022-12-30 (104 draws)
+2025-12-04 15:48:26 - lottery_ai - INFO - logger.py:138 -   training_data_2023.csv: 2023-01-03 → 2023-12-29 (104 draws)
+2025-12-04 15:48:26 - lottery_ai - INFO - logger.py:138 -   training_data_2024.csv: 2024-01-02 → 2024-12-31 (105 draws)
+2025-12-04 15:48:26 - lottery_ai - INFO - logger.py:138 -   training_data_2025.csv: 2025-01-01 → 2025-12-02 (169 draws)
+2025-12-04 15:48:26 - lottery_ai - INFO - logger.py:138 -   Extracted 1261 valid targets
+2025-12-04 15:48:26 - lottery_ai - INFO - logger.py:138 -   Target classes found: 28 (expected 50)
+2025-12-04 15:48:26 - lottery_ai - INFO - logger.py:138 -   Range: [0 - 32] (should be [0 - 49])
+2025-12-04 15:48:26 - lottery_ai - INFO - logger.py:138 -   ✅ LAG DISABLED: Predicting SAME draw
+2025-12-04 15:48:26 - lottery_ai - WARNING - logger.py:138 - Target count (1261) > Feature count (1237). Trimming targets to match features.
+2025-12-04 15:48:26 - lottery_ai - INFO - logger.py:138 - Training data shape: (1237, 72), Target shape: (1237,)
+2025-12-04 15:48:26 - lottery_ai - INFO - logger.py:138 - Target distribution: {np.int64(0): np.int64(176), np.int64(1): np.int64(168), np.int64(2): np.int64(128), np.int64(3): np.int64(105), np.int64(4): np.int64(109), np.int64(5): np.int64(70), np.int64(6): np.int64(95), np.int64(7): np.int64(64), np.int64(8): np.int64(61), np.int64(9): np.int64(44), np.int64(10): np.int64(40), np.int64(11): np.int64(30), np.int64(12): np.int64(27), np.int64(13): np.int64(23), np.int64(14): np.int64(17), np.int64(15): np.int64(9), np.int64(16): np.int64(14), np.int64(17): np.int64(15), np.int64(18): np.int64(12), np.int64(19): np.int64(7), np.int64(20): np.int64(4), np.int64(21): np.int64(7), np.int64(22): np.int64(4), np.int64(23): np.int64(1), np.int64(24): np.int64(2), np.int64(25): np.int64(3), np.int64(29): np.int64(1), np.int64(32): np.int64(1)}
+2025-12-04 15:48:26 - lottery_ai - INFO - logger.py:138 - First 5 targets: [4 7 4 3 3]
+2025-12-04 15:48:26 - lottery_ai - INFO - logger.py:138 - Last 5 targets: [13  3 11  1 10]
+2025-12-04 15:48:26 - lottery_ai - INFO - logger.py:138 - First 5 feature sums: [10000285.08135697 15000289.82171213 20000353.03471204 25000285.91129651
+ 30166512.01658786]
+2025-12-04 15:48:26 - lottery_ai - INFO - logger.py:138 - Last 5 feature sums: [ 5000252.01458384 50000347.50494386  5000300.42201633 11000256.38420778
+  5000348.67231939]
+2025-12-04 15:48:26 - lottery_ai - INFO - logger.py:138 - ✅ Loaded 1237 samples with 72 features
+2025-12-04 15:48:26 - lottery_ai - INFO - logger.py:138 - Target distribution: {np.int64(0): np.int64(176), np.int64(1): np.int64(168), np.int64(2): np.int64(128), np.int64(3): np.int64(105), np.int64(4): np.int64(109), np.int64(5): np.int64(70), np.int64(6): np.int64(95), np.int64(7): np.int64(64), np.int64(8): np.int64(61), np.int64(9): np.int64(44), np.int64(10): np.int64(40), np.int64(11): np.int64(30), np.int64(12): np.int64(27), np.int64(13): np.int64(23), np.int64(14): np.int64(17), np.int64(15): np.int64(9), np.int64(16): np.int64(14), np.int64(17): np.int64(15), np.int64(18): np.int64(12), np.int64(19): np.int64(7), np.int64(20): np.int64(4), np.int64(21): np.int64(7), np.int64(22): np.int64(4), np.int64(23): np.int64(1), np.int64(24): np.int64(2), np.int64(25): np.int64(3), np.int64(29): np.int64(1), np.int64(32): np.int64(1)}
+2025-12-04 15:48:26 - lottery_ai - INFO - logger.py:138 -   raw_csv: 1261 samples
+2025-12-04 15:48:26 - lottery_ai - INFO - logger.py:138 -   cnn: 1237 samples
+2025-12-04 15:48:26 - lottery_ai - INFO - logger.py:138 - Starting CNN training...
+2025-12-04 15:48:26 - lottery_ai - INFO - logger.py:138 -   - Epochs: 150
+2025-12-04 15:48:26 - lottery_ai - INFO - logger.py:138 -   - Learning Rate: 0.01
+2025-12-04 15:48:26 - lottery_ai - INFO - logger.py:138 - Starting Multi-Scale CNN training for lottery number prediction...
+2025-12-04 15:48:27 - lottery_ai - INFO - logger.py:138 - Multi-Scale CNN model built with 157,025 parameters
+2025-12-04 15:49:07 - lottery_ai - INFO - logger.py:138 - 🟩 CNN: Predicting on test set...
+2025-12-04 15:49:08 - lottery_ai - INFO - logger.py:138 - 🟩 CNN: Predictions complete. Calculating metrics...
+2025-12-04 15:49:08 - lottery_ai - INFO - logger.py:138 - Row-level Accuracy: 0.6707 | Partial Matches: 0.67/7
+2025-12-04 15:49:08 - lottery_ai - INFO - logger.py:138 - 🟩 CNN: Metrics calculated. Accuracy: 0.1325 | Row Accuracy: 0.6707
+2025-12-04 15:49:08 - lottery_ai - INFO - logger.py:138 - Multi-Scale CNN training complete - Accuracy: 0.1325, Parameters: 157,025
+2025-12-04 15:49:08 - lottery_ai - INFO - logger.py:138 - ✅ CNN training complete - Accuracy: 0.1325
+2025-12-04 15:49:08 - lottery_ai - INFO - logger.py:138 - Saving model with metadata...
+2025-12-04 15:49:08 - lottery_ai - INFO - logger.py:138 - Saved cnn model to models\lotto_max\cnn\cnn_lotto_max_20251204_154908.keras
+2025-12-04 15:49:08 - lottery_ai - WARNING - logger.py:138 - No feature schema found for cnn, model saved but not registered
+2025-12-04 15:49:08 - lottery_ai - INFO - logger.py:138 - Model saved to models\lotto_max\cnn\cnn_lotto_max_20251204_154908
+2025-12-04 15:49:08 - lottery_ai - INFO - logger.py:138 - ✅ Model saved to: models\lotto_max\cnn\cnn_lotto_max_20251204_154908
+2025-12-04 15:49:08 - lottery_ai - INFO - logger.py:138 - CNN Model Details:
+2025-12-04 15:49:08 - lottery_ai - INFO - logger.py:138 -   - Location: models\lotto_max\cnn\cnn_lotto_max_20251204_154908
+2025-12-04 15:49:08 - lottery_ai - INFO - logger.py:138 -   - Accuracy: 0.1325
+2025-12-04 15:49:08 - lottery_ai - INFO - logger.py:138 -   - Precision: 0.0281
+2025-12-04 15:49:08 - lottery_ai - INFO - logger.py:138 -   - Recall: 0.1325
+2025-12-04 15:49:08 - lottery_ai - INFO - logger.py:138 -   - F1 Score: 0.0461
+2025-12-04 15:49:08 - lottery_ai - INFO - logger.py:138 - Per-Class Metrics Displayed:
+2025-12-04 15:49:08 - lottery_ai - INFO - logger.py:138 - Training Data Summary:
+2025-12-04 15:49:08 - lottery_ai - INFO - logger.py:138 -   - Total Samples: 1,237
+2025-12-04 15:49:08 - lottery_ai - INFO - logger.py:138 -   - Total Features: 72
+2025-12-04 15:49:08 - lottery_ai - INFO - logger.py:138 -   - Data Sources: raw_csv, cnn
+2025-12-04 15:49:08 - lottery_ai - INFO - logger.py:138 -     • raw_csv: 1261
+2025-12-04 15:49:08 - lottery_ai - INFO - logger.py:138 -     • cnn: 1237
+2025-12-04 15:49:08 - lottery_ai - INFO - logger.py:138 - ✅ CNN model training completed successfully!
+2025-12-04 15:49:08 - lottery_ai - INFO - logger.py:138 - 📁 Model Location: models\lotto_max\cnn\cnn_lotto_max_20251204_154908
+2025-12-04 15:49:08 - lottery_ai - INFO - logger.py:138 - ================================================================================
+2025-12-04 15:49:08 - lottery_ai - INFO - logger.py:138 - Training page rendered
+2025-12-04 15:49:46 - lottery_ai - INFO - logger.py:138 - Training page rendered
+2025-12-04 15:49:56 - lottery_ai - INFO - logger.py:138 - Loading training data for Lotto Max (Transformer model)...
+2025-12-04 15:49:56 - lottery_ai - INFO - logger.py:138 - Loading training data for Lotto Max...
+2025-12-04 15:49:56 - lottery_ai - INFO - logger.py:138 - Auto-detected max_number=50 for game 'Lotto Max'
+2025-12-04 15:49:56 - lottery_ai - INFO - logger.py:138 - Loaded 1261 raw CSV samples
+2025-12-04 15:49:56 - lottery_ai - INFO - logger.py:138 - Loaded 1261 Transformer embeddings
+2025-12-04 15:49:56 - lottery_ai - INFO - logger.py:138 - Aligning features to minimum sample count: 1261
+2025-12-04 15:49:56 - lottery_ai - INFO - logger.py:138 - 🎯 PROPER: Extracting 50-class targets from 17 files
+2025-12-04 15:49:56 - lottery_ai - INFO - logger.py:138 -   training_data_2009.csv: 2009-09-25 → 2009-12-25 (14 draws)
+2025-12-04 15:49:56 - lottery_ai - INFO - logger.py:138 -   training_data_2010.csv: 2010-01-01 → 2010-12-31 (53 draws)
+2025-12-04 15:49:56 - lottery_ai - INFO - logger.py:138 -   training_data_2011.csv: 2011-01-07 → 2011-12-30 (52 draws)
+2025-12-04 15:49:56 - lottery_ai - INFO - logger.py:138 -   training_data_2012.csv: 2012-01-06 → 2012-12-28 (52 draws)
+2025-12-04 15:49:56 - lottery_ai - INFO - logger.py:138 -   training_data_2013.csv: 2013-01-04 → 2013-12-27 (52 draws)
+2025-12-04 15:49:56 - lottery_ai - INFO - logger.py:138 -   training_data_2014.csv: 2014-01-03 → 2014-12-26 (52 draws)
+2025-12-04 15:49:56 - lottery_ai - INFO - logger.py:138 -   training_data_2015.csv: 2015-01-02 → 2015-12-25 (52 draws)
+2025-12-04 15:49:56 - lottery_ai - INFO - logger.py:138 -   training_data_2016.csv: 2016-01-01 → 2016-12-30 (53 draws)
+2025-12-04 15:49:56 - lottery_ai - INFO - logger.py:138 -   training_data_2017.csv: 2017-01-06 → 2017-12-29 (52 draws)
+2025-12-04 15:49:56 - lottery_ai - INFO - logger.py:138 -   training_data_2018.csv: 2018-01-05 → 2018-12-28 (52 draws)
+2025-12-04 15:49:56 - lottery_ai - INFO - logger.py:138 -   training_data_2019.csv: 2019-01-04 → 2019-12-31 (86 draws)
+2025-12-04 15:49:56 - lottery_ai - INFO - logger.py:138 -   training_data_2020.csv: 2020-01-03 → 2020-12-29 (104 draws)
+2025-12-04 15:49:56 - lottery_ai - INFO - logger.py:138 -   training_data_2021.csv: 2021-01-01 → 2021-12-31 (105 draws)
+2025-12-04 15:49:56 - lottery_ai - INFO - logger.py:138 -   training_data_2022.csv: 2022-01-04 → 2022-12-30 (104 draws)
+2025-12-04 15:49:56 - lottery_ai - INFO - logger.py:138 -   training_data_2023.csv: 2023-01-03 → 2023-12-29 (104 draws)
+2025-12-04 15:49:56 - lottery_ai - INFO - logger.py:138 -   training_data_2024.csv: 2024-01-02 → 2024-12-31 (105 draws)
+2025-12-04 15:49:56 - lottery_ai - INFO - logger.py:138 -   training_data_2025.csv: 2025-01-01 → 2025-12-02 (169 draws)
+2025-12-04 15:49:56 - lottery_ai - INFO - logger.py:138 -   Extracted 1261 valid targets
+2025-12-04 15:49:56 - lottery_ai - INFO - logger.py:138 -   Target classes found: 28 (expected 50)
+2025-12-04 15:49:56 - lottery_ai - INFO - logger.py:138 -   Range: [0 - 32] (should be [0 - 49])
+2025-12-04 15:49:56 - lottery_ai - INFO - logger.py:138 -   ✅ LAG DISABLED: Predicting SAME draw
+2025-12-04 15:49:56 - lottery_ai - INFO - logger.py:138 - Training data shape: (1261, 28), Target shape: (1261,)
+2025-12-04 15:49:56 - lottery_ai - INFO - logger.py:138 - Target distribution: {np.int64(0): np.int64(180), np.int64(1): np.int64(169), np.int64(2): np.int64(131), np.int64(3): np.int64(107), np.int64(4): np.int64(111), np.int64(5): np.int64(71), np.int64(6): np.int64(97), np.int64(7): np.int64(65), np.int64(8): np.int64(62), np.int64(9): np.int64(47), np.int64(10): np.int64(40), np.int64(11): np.int64(33), np.int64(12): np.int64(27), np.int64(13): np.int64(24), np.int64(14): np.int64(17), np.int64(15): np.int64(9), np.int64(16): np.int64(14), np.int64(17): np.int64(15), np.int64(18): np.int64(12), np.int64(19): np.int64(7), np.int64(20): np.int64(4), np.int64(21): np.int64(7), np.int64(22): np.int64(4), np.int64(23): np.int64(1), np.int64(24): np.int64(2), np.int64(25): np.int64(3), np.int64(29): np.int64(1), np.int64(32): np.int64(1)}
+2025-12-04 15:49:56 - lottery_ai - INFO - logger.py:138 - First 5 targets: [4 7 4 3 3]
+2025-12-04 15:49:56 - lottery_ai - INFO - logger.py:138 - Last 5 targets: [ 9  6 11  0  6]
+2025-12-04 15:49:56 - lottery_ai - INFO - logger.py:138 - First 5 feature sums: [10000284.71593808 15000288.77951352 20000352.32877377 25000285.45672085
+ 30166510.89908252]
+2025-12-04 15:49:56 - lottery_ai - INFO - logger.py:138 - Last 5 feature sums: [40000333.22503635 50000331.48013709 55000282.40355973 60000308.70581972
+ 65000263.265397  ]
+2025-12-04 15:49:56 - lottery_ai - INFO - logger.py:138 - ✅ Loaded 1261 samples with 28 features
+2025-12-04 15:49:56 - lottery_ai - INFO - logger.py:138 - Target distribution: {np.int64(0): np.int64(180), np.int64(1): np.int64(169), np.int64(2): np.int64(131), np.int64(3): np.int64(107), np.int64(4): np.int64(111), np.int64(5): np.int64(71), np.int64(6): np.int64(97), np.int64(7): np.int64(65), np.int64(8): np.int64(62), np.int64(9): np.int64(47), np.int64(10): np.int64(40), np.int64(11): np.int64(33), np.int64(12): np.int64(27), np.int64(13): np.int64(24), np.int64(14): np.int64(17), np.int64(15): np.int64(9), np.int64(16): np.int64(14), np.int64(17): np.int64(15), np.int64(18): np.int64(12), np.int64(19): np.int64(7), np.int64(20): np.int64(4), np.int64(21): np.int64(7), np.int64(22): np.int64(4), np.int64(23): np.int64(1), np.int64(24): np.int64(2), np.int64(25): np.int64(3), np.int64(29): np.int64(1), np.int64(32): np.int64(1)}
+2025-12-04 15:49:56 - lottery_ai - INFO - logger.py:138 -   raw_csv: 1261 samples
+2025-12-04 15:49:56 - lottery_ai - INFO - logger.py:138 -   transformer: 1261 samples
+2025-12-04 15:49:56 - lottery_ai - INFO - logger.py:138 - Starting Transformer training...
+2025-12-04 15:49:56 - lottery_ai - INFO - logger.py:138 -   - Epochs: 150
+2025-12-04 15:49:56 - lottery_ai - INFO - logger.py:138 -   - Learning Rate: 0.01
+2025-12-04 15:49:56 - lottery_ai - INFO - logger.py:138 - Starting Advanced Transformer training with state-of-the-art architecture...
+2025-12-04 15:49:57 - lottery_ai - INFO - logger.py:138 - Advanced Transformer model built with 368,161 parameters
+2025-12-04 15:50:14 - lottery_ai - INFO - logger.py:138 - Row-level Accuracy: 0.6772 | Partial Matches: 0.68/7
+2025-12-04 15:50:14 - lottery_ai - INFO - logger.py:138 - Advanced Transformer training complete - Accuracy: 0.1378 | Row Accuracy: 0.6772 | Parameters: 368,161
+2025-12-04 15:50:14 - lottery_ai - INFO - logger.py:138 - ✅ Transformer training complete - Accuracy: 0.1378
+2025-12-04 15:50:14 - lottery_ai - INFO - logger.py:138 - Saving model with metadata...
+2025-12-04 15:50:14 - lottery_ai - INFO - logger.py:138 - Saved transformer model to models\lotto_max\transformer\transformer_lotto_max_20251204_155014.keras
+2025-12-04 15:50:14 - lottery_ai - WARNING - logger.py:138 - No feature schema found for transformer, model saved but not registered
+2025-12-04 15:50:14 - lottery_ai - INFO - logger.py:138 - Model saved to models\lotto_max\transformer\transformer_lotto_max_20251204_155014
+2025-12-04 15:50:14 - lottery_ai - INFO - logger.py:138 - ✅ Model saved to: models\lotto_max\transformer\transformer_lotto_max_20251204_155014
+2025-12-04 15:50:14 - lottery_ai - INFO - logger.py:138 - Transformer Model Details:
+2025-12-04 15:50:14 - lottery_ai - INFO - logger.py:138 -   - Location: models\lotto_max\transformer\transformer_lotto_max_20251204_155014
+2025-12-04 15:50:14 - lottery_ai - INFO - logger.py:138 -   - Accuracy: 0.1378
+2025-12-04 15:50:14 - lottery_ai - INFO - logger.py:138 -   - Precision: 0.0190
+2025-12-04 15:50:14 - lottery_ai - INFO - logger.py:138 -   - Recall: 0.1378
+2025-12-04 15:50:14 - lottery_ai - INFO - logger.py:138 -   - F1 Score: 0.0334
+2025-12-04 15:50:14 - lottery_ai - INFO - logger.py:138 - Training Data Summary:
+2025-12-04 15:50:14 - lottery_ai - INFO - logger.py:138 -   - Total Samples: 1,261
+2025-12-04 15:50:14 - lottery_ai - INFO - logger.py:138 -   - Total Features: 28
+2025-12-04 15:50:14 - lottery_ai - INFO - logger.py:138 -   - Data Sources: raw_csv, transformer
+2025-12-04 15:50:14 - lottery_ai - INFO - logger.py:138 -     • raw_csv: 1261
+2025-12-04 15:50:14 - lottery_ai - INFO - logger.py:138 -     • transformer: 1261
+2025-12-04 15:50:14 - lottery_ai - INFO - logger.py:138 - ✅ Transformer model training completed successfully!
+2025-12-04 15:50:14 - lottery_ai - INFO - logger.py:138 - 📁 Model Location: models\lotto_max\transformer\transformer_lotto_max_20251204_155014
+2025-12-04 15:50:14 - lottery_ai - INFO - logger.py:138 - ================================================================================
+2025-12-04 15:50:14 - lottery_ai - INFO - logger.py:138 - Training page rendered
+2025-12-04 15:51:09 - lottery_ai - INFO - logger.py:138 - Training page rendered
+2025-12-04 15:51:16 - lottery_ai - INFO - logger.py:138 - Loading training data for Lotto 6/49 (Transformer model)...
+2025-12-04 15:51:16 - lottery_ai - INFO - logger.py:138 - Loading training data for Lotto 6/49...
+2025-12-04 15:51:16 - lottery_ai - INFO - logger.py:138 - Auto-detected max_number=49 for game 'Lotto 6/49'
+2025-12-04 15:51:17 - lottery_ai - INFO - logger.py:138 - Loaded 2184 raw CSV samples
+2025-12-04 15:51:17 - lottery_ai - INFO - logger.py:138 - Loaded 2184 Transformer embeddings
+2025-12-04 15:51:17 - lottery_ai - INFO - logger.py:138 - Aligning features to minimum sample count: 2184
+2025-12-04 15:51:17 - lottery_ai - INFO - logger.py:138 - 🎯 PROPER: Extracting 49-class targets from 21 files
+2025-12-04 15:51:17 - lottery_ai - INFO - logger.py:138 -   training_data_2005.csv: 2005-01-01 → 2005-12-31 (105 draws)
+2025-12-04 15:51:17 - lottery_ai - INFO - logger.py:138 -   training_data_2006.csv: 2006-01-04 → 2006-12-30 (104 draws)
+2025-12-04 15:51:17 - lottery_ai - INFO - logger.py:138 -   training_data_2007.csv: 2007-01-03 → 2007-12-29 (104 draws)
+2025-12-04 15:51:17 - lottery_ai - INFO - logger.py:138 -   training_data_2008.csv: 2008-01-02 → 2008-12-31 (105 draws)
+2025-12-04 15:51:17 - lottery_ai - INFO - logger.py:138 -   training_data_2009.csv: 2009-01-03 → 2009-12-30 (104 draws)
+2025-12-04 15:51:17 - lottery_ai - INFO - logger.py:138 -   training_data_2010.csv: 2010-01-02 → 2010-12-29 (104 draws)
+2025-12-04 15:51:17 - lottery_ai - INFO - logger.py:138 -   training_data_2011.csv: 2011-01-01 → 2011-12-31 (105 draws)
+2025-12-04 15:51:17 - lottery_ai - INFO - logger.py:138 -   training_data_2012.csv: 2012-01-04 → 2012-12-29 (104 draws)
+2025-12-04 15:51:17 - lottery_ai - INFO - logger.py:138 -   training_data_2013.csv: 2013-01-02 → 2013-12-28 (104 draws)
+2025-12-04 15:51:17 - lottery_ai - INFO - logger.py:138 -   training_data_2014.csv: 2014-01-01 → 2014-12-31 (105 draws)
+2025-12-04 15:51:17 - lottery_ai - INFO - logger.py:138 -   training_data_2015.csv: 2015-01-03 → 2015-12-30 (104 draws)
+2025-12-04 15:51:17 - lottery_ai - INFO - logger.py:138 -   training_data_2016.csv: 2016-01-02 → 2016-12-31 (105 draws)
+2025-12-04 15:51:17 - lottery_ai - INFO - logger.py:138 -   training_data_2017.csv: 2017-01-04 → 2017-12-30 (104 draws)
+2025-12-04 15:51:17 - lottery_ai - INFO - logger.py:138 -   training_data_2018.csv: 2018-01-03 → 2018-12-29 (104 draws)
+2025-12-04 15:51:17 - lottery_ai - INFO - logger.py:138 -   training_data_2019.csv: 2019-01-02 → 2019-12-28 (104 draws)
+2025-12-04 15:51:17 - lottery_ai - INFO - logger.py:138 -   training_data_2020.csv: 2020-01-01 → 2020-12-30 (105 draws)
+2025-12-04 15:51:17 - lottery_ai - INFO - logger.py:138 -   training_data_2021.csv: 2021-01-02 → 2021-12-29 (104 draws)
+2025-12-04 15:51:17 - lottery_ai - INFO - logger.py:138 -   training_data_2022.csv: 2022-01-01 → 2022-12-31 (105 draws)
+2025-12-04 15:51:17 - lottery_ai - INFO - logger.py:138 -   training_data_2023.csv: 2023-01-04 → 2023-12-30 (104 draws)
+2025-12-04 15:51:17 - lottery_ai - INFO - logger.py:138 -   training_data_2024.csv: 2024-01-03 → 2024-12-28 (104 draws)
+2025-12-04 15:51:17 - lottery_ai - INFO - logger.py:138 -   training_data_2025.csv: 2025-01-01 → 2025-12-03 (97 draws)
+2025-12-04 15:51:17 - lottery_ai - INFO - logger.py:138 -   Extracted 2184 valid targets
+2025-12-04 15:51:17 - lottery_ai - INFO - logger.py:138 -   Target classes found: 32 (expected 49)
+2025-12-04 15:51:17 - lottery_ai - INFO - logger.py:138 -   Range: [0 - 32] (should be [0 - 48])
+2025-12-04 15:51:17 - lottery_ai - INFO - logger.py:138 -   ✅ LAG DISABLED: Predicting SAME draw
+2025-12-04 15:51:17 - lottery_ai - INFO - logger.py:138 - Training data shape: (2184, 28), Target shape: (2184,)
+2025-12-04 15:51:17 - lottery_ai - INFO - logger.py:138 - Target distribution: {np.int64(0): np.int64(220), np.int64(1): np.int64(244), np.int64(2): np.int64(223), np.int64(3): np.int64(208), np.int64(4): np.int64(153), np.int64(5): np.int64(147), np.int64(6): np.int64(132), np.int64(7): np.int64(112), np.int64(8): np.int64(123), np.int64(9): np.int64(92), np.int64(10): np.int64(86), np.int64(11): np.int64(67), np.int64(12): np.int64(56), np.int64(13): np.int64(50), np.int64(14): np.int64(46), np.int64(15): np.int64(39), np.int64(16): np.int64(24), np.int64(17): np.int64(30), np.int64(18): np.int64(18), np.int64(19): np.int64(25), np.int64(20): np.int64(18), np.int64(21): np.int64(11), np.int64(22): np.int64(16), np.int64(23): np.int64(11), np.int64(24): np.int64(6), np.int64(25): np.int64(9), np.int64(26): np.int64(8), np.int64(27): np.int64(1), np.int64(28): np.int64(2), np.int64(29): np.int64(4), np.int64(30): np.int64(2), np.int64(32): np.int64(1)}
+2025-12-04 15:51:17 - lottery_ai - INFO - logger.py:138 - First 5 targets: [9 0 2 0 0]
+2025-12-04 15:51:17 - lottery_ai - INFO - logger.py:138 - Last 5 targets: [13 10 10  4  0]
+2025-12-04 15:51:17 - lottery_ai - INFO - logger.py:138 - First 5 feature sums: [312.30170124 273.93852324 249.31943313 245.93843132 257.2534712 ]
+2025-12-04 15:51:17 - lottery_ai - INFO - logger.py:138 - Last 5 feature sums: [ 5000298.07351541  5000309.60527986  5000329.9433339   5000236.76533155
+ 15000233.57685179]
+2025-12-04 15:51:17 - lottery_ai - INFO - logger.py:138 - ✅ Loaded 2184 samples with 28 features
+2025-12-04 15:51:17 - lottery_ai - INFO - logger.py:138 - Target distribution: {np.int64(0): np.int64(220), np.int64(1): np.int64(244), np.int64(2): np.int64(223), np.int64(3): np.int64(208), np.int64(4): np.int64(153), np.int64(5): np.int64(147), np.int64(6): np.int64(132), np.int64(7): np.int64(112), np.int64(8): np.int64(123), np.int64(9): np.int64(92), np.int64(10): np.int64(86), np.int64(11): np.int64(67), np.int64(12): np.int64(56), np.int64(13): np.int64(50), np.int64(14): np.int64(46), np.int64(15): np.int64(39), np.int64(16): np.int64(24), np.int64(17): np.int64(30), np.int64(18): np.int64(18), np.int64(19): np.int64(25), np.int64(20): np.int64(18), np.int64(21): np.int64(11), np.int64(22): np.int64(16), np.int64(23): np.int64(11), np.int64(24): np.int64(6), np.int64(25): np.int64(9), np.int64(26): np.int64(8), np.int64(27): np.int64(1), np.int64(28): np.int64(2), np.int64(29): np.int64(4), np.int64(30): np.int64(2), np.int64(32): np.int64(1)}
+2025-12-04 15:51:17 - lottery_ai - INFO - logger.py:138 -   raw_csv: 2184 samples
+2025-12-04 15:51:17 - lottery_ai - INFO - logger.py:138 -   transformer: 2184 samples
+2025-12-04 15:51:17 - lottery_ai - INFO - logger.py:138 - Starting Transformer training...
+2025-12-04 15:51:17 - lottery_ai - INFO - logger.py:138 -   - Epochs: 150
+2025-12-04 15:51:17 - lottery_ai - INFO - logger.py:138 -   - Learning Rate: 0.01
+2025-12-04 15:51:17 - lottery_ai - INFO - logger.py:138 - Starting Advanced Transformer training with state-of-the-art architecture...
+2025-12-04 15:51:17 - lottery_ai - INFO - logger.py:138 - Advanced Transformer model built with 368,161 parameters
+2025-12-04 15:51:53 - lottery_ai - INFO - logger.py:138 - Row-level Accuracy: 0.5355 | Partial Matches: 0.54/6
+2025-12-04 15:51:53 - lottery_ai - INFO - logger.py:138 - Advanced Transformer training complete - Accuracy: 0.0984 | Row Accuracy: 0.5355 | Parameters: 368,161
+2025-12-04 15:51:53 - lottery_ai - INFO - logger.py:138 - ✅ Transformer training complete - Accuracy: 0.0984
+2025-12-04 15:51:53 - lottery_ai - INFO - logger.py:138 - Saving model with metadata...
+2025-12-04 15:51:53 - lottery_ai - INFO - logger.py:138 - Saved transformer model to models\lotto_6_49\transformer\transformer_lotto_6_49_20251204_155153.keras
+2025-12-04 15:51:53 - lottery_ai - WARNING - logger.py:138 - No feature schema found for transformer, model saved but not registered
+2025-12-04 15:51:53 - lottery_ai - INFO - logger.py:138 - Model saved to models\lotto_6_49\transformer\transformer_lotto_6_49_20251204_155153
+2025-12-04 15:51:53 - lottery_ai - INFO - logger.py:138 - ✅ Model saved to: models\lotto_6_49\transformer\transformer_lotto_6_49_20251204_155153
+2025-12-04 15:51:53 - lottery_ai - INFO - logger.py:138 - Transformer Model Details:
+2025-12-04 15:51:53 - lottery_ai - INFO - logger.py:138 -   - Location: models\lotto_6_49\transformer\transformer_lotto_6_49_20251204_155153
+2025-12-04 15:51:53 - lottery_ai - INFO - logger.py:138 -   - Accuracy: 0.0984
+2025-12-04 15:51:53 - lottery_ai - INFO - logger.py:138 -   - Precision: 0.0097
+2025-12-04 15:51:53 - lottery_ai - INFO - logger.py:138 -   - Recall: 0.0984
+2025-12-04 15:51:53 - lottery_ai - INFO - logger.py:138 -   - F1 Score: 0.0176
+2025-12-04 15:51:53 - lottery_ai - INFO - logger.py:138 - Training Data Summary:
+2025-12-04 15:51:53 - lottery_ai - INFO - logger.py:138 -   - Total Samples: 2,184
+2025-12-04 15:51:53 - lottery_ai - INFO - logger.py:138 -   - Total Features: 28
+2025-12-04 15:51:53 - lottery_ai - INFO - logger.py:138 -   - Data Sources: raw_csv, transformer
+2025-12-04 15:51:53 - lottery_ai - INFO - logger.py:138 -     • raw_csv: 2184
+2025-12-04 15:51:53 - lottery_ai - INFO - logger.py:138 -     • transformer: 2184
+2025-12-04 15:51:53 - lottery_ai - INFO - logger.py:138 - ✅ Transformer model training completed successfully!
+2025-12-04 15:51:53 - lottery_ai - INFO - logger.py:138 - 📁 Model Location: models\lotto_6_49\transformer\transformer_lotto_6_49_20251204_155153
+2025-12-04 15:51:53 - lottery_ai - INFO - logger.py:138 - ================================================================================
+2025-12-04 15:51:53 - lottery_ai - INFO - logger.py:138 - Training page rendered
+2025-12-04 19:29:06 - lottery_ai - INFO - logger.py:138 - Dashboard rendered successfully
+2025-12-04 19:29:25 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
+2025-12-04 19:34:21 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
+2025-12-04 19:34:26 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
+2025-12-04 19:34:49 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
+2025-12-04 19:44:04 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
+2025-12-04 19:44:12 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
+2025-12-04 19:44:16 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
+2025-12-04 19:44:29 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
+2025-12-04 19:44:34 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
+2025-12-04 19:44:44 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
+2025-12-04 19:44:50 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
+2025-12-04 19:45:03 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
+2025-12-04 19:45:05 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
+2025-12-04 19:45:09 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
+2025-12-04 19:49:50 - lottery_ai - INFO - logger.py:138 - Dashboard rendered successfully
+2025-12-04 19:50:00 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
+2025-12-04 19:50:05 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
+2025-12-04 19:50:12 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
+2025-12-04 19:50:17 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
+2025-12-04 19:51:03 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
+2025-12-04 19:51:09 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
+2025-12-04 19:51:35 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
+2025-12-04 19:51:38 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
+2025-12-04 19:52:05 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
+2025-12-04 19:52:10 - lottery_ai - INFO - logger.py:138 - Loaded 85 CATBOOST features for Lotto Max from catboost_features_t20251204_123732.csv
+2025-12-04 19:52:10 - lottery_ai - INFO - logger.py:138 - Loaded engineered features from catboost_features_t20251204_123732.csv with shape (1261, 85), using feature_dim=93
+2025-12-04 19:52:10 - lottery_ai - INFO - logger.py:138 - Using training features for catboost: shape=(1261, 85)
+2025-12-04 19:52:11 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
+2025-12-04 19:52:26 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
+2025-12-04 19:58:06 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
+2025-12-04 19:58:12 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
+2025-12-04 20:08:42 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
+2025-12-04 20:08:45 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
+2025-12-04 20:11:52 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
+2025-12-04 20:12:18 - lottery_ai - INFO - logger.py:138 - Dashboard rendered successfully
+2025-12-04 20:12:26 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
+2025-12-04 20:12:33 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
+2025-12-04 20:12:36 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
+2025-12-04 20:13:49 - lottery_ai - INFO - logger.py:138 - Loaded 85 CATBOOST features for Lotto Max from catboost_features_t20251204_123732.csv
+2025-12-04 20:13:49 - lottery_ai - INFO - logger.py:138 - Loaded engineered features from catboost_features_t20251204_123732.csv with shape (1261, 85), using feature_dim=93
+2025-12-04 20:13:49 - lottery_ai - INFO - logger.py:138 - Using training features for catboost: shape=(1261, 85)
+2025-12-04 20:13:50 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
+2025-12-04 20:14:00 - lottery_ai - INFO - logger.py:138 - Dashboard rendered successfully
+2025-12-04 20:14:27 - lottery_ai - INFO - logger.py:138 - Dashboard rendered successfully
+2025-12-04 20:54:17 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
+2025-12-04 20:54:32 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
+2025-12-04 20:55:14 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
+2025-12-04 20:55:19 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
+2025-12-04 21:07:03 - lottery_ai - INFO - logger.py:138 - Dashboard rendered successfully
+2025-12-04 21:07:13 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
+2025-12-04 21:07:30 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
+2025-12-04 21:07:31 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
+2025-12-04 21:07:35 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
+2025-12-04 21:07:55 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
+2025-12-04 21:07:59 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
+2025-12-04 21:08:12 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
+2025-12-04 21:08:17 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
+2025-12-04 21:21:36 - lottery_ai - INFO - logger.py:138 - Dashboard rendered successfully
+2025-12-04 21:21:45 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
+2025-12-04 21:21:53 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
+2025-12-04 21:21:59 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
+2025-12-04 21:22:16 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
+2025-12-04 21:22:33 - lottery_ai - INFO - logger.py:138 - Loaded CNN embeddings from advanced_cnn_w24_e64_t20251204_123604.npz with shape (1237, 64)
+2025-12-04 21:22:34 - lottery_ai - INFO - logger.py:138 - Using training features for cnn: shape=(1237, 64)
+2025-12-04 21:22:35 - lottery_ai - WARNING - logger.py:138 - Probability shape mismatch: expected 50, got 33
+2025-12-04 21:22:35 - lottery_ai - WARNING - logger.py:138 - Probability shape mismatch: expected 50, got 33
+2025-12-04 21:22:35 - lottery_ai - WARNING - logger.py:138 - Probability shape mismatch: expected 50, got 33
+2025-12-04 21:22:35 - lottery_ai - WARNING - logger.py:138 - Probability shape mismatch: expected 50, got 33
+2025-12-04 21:22:35 - lottery_ai - WARNING - logger.py:138 - Probability shape mismatch: expected 50, got 33
+2025-12-04 21:22:35 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
+2025-12-04 21:23:10 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
+2025-12-04 22:24:41 - lottery_ai - INFO - logger.py:138 - Dashboard rendered successfully
+2025-12-04 22:24:59 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
+2025-12-04 22:25:18 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
+2025-12-04 22:25:22 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
+2025-12-04 22:25:24 - lottery_ai - INFO - logger.py:138 - Loaded 85 CATBOOST features for Lotto Max from catboost_features_t20251204_123732.csv
+2025-12-04 22:25:24 - lottery_ai - INFO - logger.py:138 - Loaded engineered features from catboost_features_t20251204_123732.csv with shape (1261, 85), using feature_dim=93
+2025-12-04 22:25:24 - lottery_ai - INFO - logger.py:138 - Using training features for catboost: shape=(1261, 85)
+2025-12-04 22:25:25 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
+2025-12-04 22:31:42 - lottery_ai - INFO - logger.py:138 - Dashboard rendered successfully
+2025-12-04 22:31:58 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
+2025-12-04 22:32:04 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
+2025-12-04 22:32:10 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
+2025-12-04 22:32:16 - lottery_ai - INFO - logger.py:138 - Loaded 85 CATBOOST features for Lotto Max from catboost_features_t20251204_123732.csv
+2025-12-04 22:32:16 - lottery_ai - INFO - logger.py:138 - Loaded engineered features from catboost_features_t20251204_123732.csv with shape (1261, 85), using feature_dim=93
+2025-12-04 22:32:16 - lottery_ai - INFO - logger.py:138 - Using training features for catboost: shape=(1261, 85)
+2025-12-04 22:32:16 - lottery_ai - ERROR - logger.py:138 - Single model prediction error: name 'tracer' is not defined
+2025-12-04 22:32:17 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
+2025-12-04 22:57:28 - lottery_ai - INFO - logger.py:138 - Dashboard rendered successfully
+2025-12-04 23:10:12 - lottery_ai - INFO - logger.py:138 - Dashboard rendered successfully
+2025-12-04 23:10:30 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
+2025-12-04 23:11:05 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
+2025-12-04 23:11:35 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
+2025-12-04 23:11:38 - lottery_ai - INFO - logger.py:138 - Loaded 85 CATBOOST features for Lotto Max from catboost_features_t20251204_123732.csv
+2025-12-04 23:11:38 - lottery_ai - INFO - logger.py:138 - Loaded engineered features from catboost_features_t20251204_123732.csv with shape (1261, 85), using feature_dim=93
+2025-12-04 23:11:38 - lottery_ai - INFO - logger.py:138 - Using training features for catboost: shape=(1261, 85)
+2025-12-04 23:11:38 - lottery_ai - ERROR - logger.py:138 - Single model prediction error: name 'tracer' is not defined
+2025-12-04 23:11:39 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
+2025-12-04 23:13:52 - lottery_ai - INFO - logger.py:138 - Dashboard rendered successfully
+2025-12-04 23:15:09 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
+2025-12-04 23:19:35 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
+2025-12-04 23:19:39 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
+2025-12-04 23:19:42 - lottery_ai - INFO - logger.py:138 - Loaded 85 CATBOOST features for Lotto Max from catboost_features_t20251204_123732.csv
+2025-12-04 23:19:42 - lottery_ai - INFO - logger.py:138 - Loaded engineered features from catboost_features_t20251204_123732.csv with shape (1261, 85), using feature_dim=93
+2025-12-04 23:19:42 - lottery_ai - INFO - logger.py:138 - Using training features for catboost: shape=(1261, 85)
+2025-12-04 23:19:42 - lottery_ai - ERROR - logger.py:138 - Single model prediction error: name 'tracer' is not defined
+2025-12-04 23:19:43 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
+2025-12-04 23:35:53 - lottery_ai - INFO - logger.py:138 - Dashboard rendered successfully
+2025-12-04 23:36:07 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
+2025-12-04 23:36:15 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
+2025-12-04 23:36:23 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
+2025-12-04 23:36:25 - lottery_ai - INFO - logger.py:138 - Loaded 85 CATBOOST features for Lotto Max from catboost_features_t20251204_123732.csv
+2025-12-04 23:36:25 - lottery_ai - INFO - logger.py:138 - Loaded engineered features from catboost_features_t20251204_123732.csv with shape (1261, 85), using feature_dim=93
+2025-12-04 23:36:25 - lottery_ai - INFO - logger.py:138 - Using training features for catboost: shape=(1261, 85)
+2025-12-04 23:36:25 - lottery_ai - ERROR - logger.py:138 - Single model prediction error: name 'tracer' is not defined
+2025-12-04 23:36:25 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
+2025-12-04 23:37:50 - lottery_ai - INFO - logger.py:138 - Dashboard rendered successfully
+2025-12-04 23:37:59 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
+2025-12-04 23:38:08 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
+2025-12-04 23:38:12 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
+2025-12-04 23:38:16 - lottery_ai - INFO - logger.py:138 - Loaded 85 CATBOOST features for Lotto Max from catboost_features_t20251204_123732.csv
+2025-12-04 23:38:16 - lottery_ai - INFO - logger.py:138 - Loaded engineered features from catboost_features_t20251204_123732.csv with shape (1261, 85), using feature_dim=93
+2025-12-04 23:38:16 - lottery_ai - INFO - logger.py:138 - Using training features for catboost: shape=(1261, 85)
+2025-12-04 23:38:16 - lottery_ai - ERROR - logger.py:138 - Single model prediction error: name 'tracer' is not defined
+2025-12-04 23:38:17 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
+2025-12-04 23:43:05 - lottery_ai - INFO - logger.py:138 - Dashboard rendered successfully
+2025-12-04 23:43:18 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
+2025-12-04 23:43:33 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
+2025-12-04 23:43:37 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
+2025-12-04 23:43:40 - lottery_ai - INFO - logger.py:138 - Loaded 85 CATBOOST features for Lotto Max from catboost_features_t20251204_123732.csv
+2025-12-04 23:43:40 - lottery_ai - INFO - logger.py:138 - Loaded engineered features from catboost_features_t20251204_123732.csv with shape (1261, 85), using feature_dim=93
+2025-12-04 23:43:40 - lottery_ai - INFO - logger.py:138 - Using training features for catboost: shape=(1261, 85)
+2025-12-04 23:43:40 - lottery_ai - ERROR - logger.py:138 - Single model prediction error: name 'tracer' is not defined
+2025-12-04 23:43:41 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
+2025-12-04 23:48:28 - lottery_ai - INFO - logger.py:138 - Dashboard rendered successfully
+2025-12-04 23:48:48 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
+2025-12-04 23:48:56 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
+2025-12-04 23:49:00 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
+2025-12-04 23:49:02 - lottery_ai - INFO - logger.py:138 - Loaded 85 CATBOOST features for Lotto Max from catboost_features_t20251204_123732.csv
+2025-12-04 23:49:02 - lottery_ai - INFO - logger.py:138 - Loaded engineered features from catboost_features_t20251204_123732.csv with shape (1261, 85), using feature_dim=93
+2025-12-04 23:49:02 - lottery_ai - INFO - logger.py:138 - Using training features for catboost: shape=(1261, 85)
+2025-12-04 23:49:04 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
+2025-12-05 00:02:18 - lottery_ai - INFO - logger.py:138 - Dashboard rendered successfully
+2025-12-05 00:02:40 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
+2025-12-05 00:02:53 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
+2025-12-05 00:02:57 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
+2025-12-05 00:03:02 - lottery_ai - ERROR - logger.py:138 - Prediction error: Traceback (most recent call last):
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\streamlit_app\pages\predictions.py", line 1327, in _render_prediction_generator
+    seed=random_seed
+         ^^^^^^^^^^^
+NameError: name 'random_seed' is not defined
+
+2025-12-05 00:03:03 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
+2025-12-05 00:07:08 - lottery_ai - INFO - logger.py:138 - Dashboard rendered successfully
+2025-12-05 00:07:39 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
+2025-12-05 00:08:18 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
+2025-12-05 00:08:22 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
+2025-12-05 00:08:32 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
+2025-12-05 00:08:57 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
+2025-12-05 00:09:20 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
+2025-12-05 00:10:53 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
+2025-12-05 00:30:02 - lottery_ai - INFO - logger.py:138 - Dashboard rendered successfully
+2025-12-05 00:30:42 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
+2025-12-05 00:31:04 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
+2025-12-05 00:31:08 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
+2025-12-05 00:31:11 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
+2025-12-05 00:31:22 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
+2025-12-05 00:31:25 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
+2025-12-05 00:32:32 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
+2025-12-05 00:32:42 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
+2025-12-05 12:02:10 - lottery_ai - INFO - logger.py:138 - Dashboard rendered successfully
+2025-12-05 12:02:17 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
+2025-12-05 12:02:27 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
+2025-12-05 12:02:30 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
+2025-12-05 12:02:33 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
+2025-12-05 12:02:46 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
+2025-12-05 12:02:48 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
+2025-12-05 12:02:50 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
+2025-12-05 13:46:43 - lottery_ai - INFO - logger.py:138 - Dashboard rendered successfully
+2025-12-05 13:46:56 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
+2025-12-05 13:47:06 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
+2025-12-05 13:47:10 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
+2025-12-05 13:47:12 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
+2025-12-05 13:47:20 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
+2025-12-05 13:47:21 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
+2025-12-05 13:48:35 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
+2025-12-05 13:48:42 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
+2025-12-05 13:48:45 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
+2025-12-05 13:48:55 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
+2025-12-05 13:48:58 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
+2025-12-05 13:49:04 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
+2025-12-05 13:51:04 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
+2025-12-05 13:57:23 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
+2025-12-05 13:57:28 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
+2025-12-05 13:57:31 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
+2025-12-05 13:57:36 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
+2025-12-05 13:57:39 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
+2025-12-05 13:57:41 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
+2025-12-05 13:57:43 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
+2025-12-05 13:57:45 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
+2025-12-05 13:58:05 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
+2025-12-05 13:58:24 - lottery_ai - INFO - logger.py:138 - Dashboard rendered successfully
+2025-12-05 13:59:17 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
+2025-12-05 14:03:46 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
+2025-12-05 14:03:49 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
+2025-12-05 14:03:51 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
+2025-12-05 14:03:54 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
+2025-12-05 14:03:58 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
+2025-12-05 14:04:00 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
+2025-12-05 14:04:14 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
+2025-12-05 14:04:20 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
+2025-12-05 14:31:33 - lottery_ai - INFO - logger.py:138 - Dashboard rendered successfully
+2025-12-05 14:31:42 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
+2025-12-05 14:31:52 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
+2025-12-05 14:31:55 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
+2025-12-05 14:31:56 - lottery_ai - ERROR - logger.py:138 - Prediction error: Traceback (most recent call last):
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\tools\prediction_engine.py", line 310, in generate_model_probabilities
+    raise ValueError(f"Could not generate features for model {model_name}")
+ValueError: Could not generate features for model catboost_lotto_max_20251128_211920
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\tools\prediction_engine.py", line 597, in predict_single_model
+    model_probs = self.prob_gen.generate_model_probabilities(
+        model_name,
+        seed=current_seed
+    )
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\tools\prediction_engine.py", line 338, in generate_model_probabilities
+    raise RuntimeError(f"Failed to generate model probabilities for {model_name}: {str(e)}")
+RuntimeError: Failed to generate model probabilities for catboost_lotto_max_20251128_211920: Could not generate features for model catboost_lotto_max_20251128_211920
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\streamlit_app\pages\predictions.py", line 1353, in _render_prediction_generator
+    result_list = engine.predict_single_model(
+        model_name=selected_model_name,
+    ...<2 lines>...
+        seed=random_seed
+    )
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\tools\prediction_engine.py", line 608, in predict_single_model
+    raise RuntimeError(error_msg)
+RuntimeError: Failed to generate model probabilities: Failed to generate model probabilities for catboost_lotto_max_20251128_211920: Could not generate features for model catboost_lotto_max_20251128_211920
+
+2025-12-05 14:31:56 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
+2025-12-05 14:41:17 - lottery_ai - INFO - logger.py:138 - Dashboard rendered successfully
+2025-12-05 14:41:27 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
+2025-12-05 14:42:17 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
+2025-12-05 14:42:21 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
+2025-12-05 14:42:24 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
+2025-12-05 14:50:11 - lottery_ai - INFO - logger.py:138 - Dashboard rendered successfully
+2025-12-05 14:50:34 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
+2025-12-05 14:50:49 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
+2025-12-05 14:50:52 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
+2025-12-05 14:50:57 - lottery_ai - ERROR - logger.py:138 - Prediction error: Traceback (most recent call last):
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\tools\prediction_engine.py", line 364, in generate_model_probabilities
+    features = self.feature_generator.generate_features(historical_data, model_type)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'AdvancedFeatureGenerator' object has no attribute 'generate_features'
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\tools\prediction_engine.py", line 367, in generate_model_probabilities
+    raise ValueError(f"Could not generate features for model {model_name}: {str(e)}")
+ValueError: Could not generate features for model catboost_lotto_max_20251204_130931: 'AdvancedFeatureGenerator' object has no attribute 'generate_features'
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\tools\prediction_engine.py", line 662, in predict_single_model
+    model_probs = self.prob_gen.generate_model_probabilities(
+        model_name,
+        seed=current_seed
+    )
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\tools\prediction_engine.py", line 403, in generate_model_probabilities
+    raise RuntimeError(f"Failed to generate model probabilities for {model_name}: {str(e)}")
+RuntimeError: Failed to generate model probabilities for catboost_lotto_max_20251204_130931: Could not generate features for model catboost_lotto_max_20251204_130931: 'AdvancedFeatureGenerator' object has no attribute 'generate_features'
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\streamlit_app\pages\predictions.py", line 1353, in _render_prediction_generator
+    result_list = engine.predict_single_model(
+        model_name=selected_model_name,
+    ...<2 lines>...
+        seed=random_seed
+    )
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\tools\prediction_engine.py", line 673, in predict_single_model
+    raise RuntimeError(error_msg)
+RuntimeError: Failed to generate model probabilities: Failed to generate model probabilities for catboost_lotto_max_20251204_130931: Could not generate features for model catboost_lotto_max_20251204_130931: 'AdvancedFeatureGenerator' object has no attribute 'generate_features'
+
+2025-12-05 14:50:57 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
+2025-12-05 14:51:19 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
+2025-12-05 14:51:23 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
+2025-12-05 14:51:25 - lottery_ai - ERROR - logger.py:138 - Prediction error: Traceback (most recent call last):
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\tools\prediction_engine.py", line 364, in generate_model_probabilities
+    features = self.feature_generator.generate_features(historical_data, model_type)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'AdvancedFeatureGenerator' object has no attribute 'generate_features'
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\tools\prediction_engine.py", line 367, in generate_model_probabilities
+    raise ValueError(f"Could not generate features for model {model_name}: {str(e)}")
+ValueError: Could not generate features for model cnn_lotto_max_20251204_154908: 'AdvancedFeatureGenerator' object has no attribute 'generate_features'
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\tools\prediction_engine.py", line 662, in predict_single_model
+    model_probs = self.prob_gen.generate_model_probabilities(
+        model_name,
+        seed=current_seed
+    )
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\tools\prediction_engine.py", line 403, in generate_model_probabilities
+    raise RuntimeError(f"Failed to generate model probabilities for {model_name}: {str(e)}")
+RuntimeError: Failed to generate model probabilities for cnn_lotto_max_20251204_154908: Could not generate features for model cnn_lotto_max_20251204_154908: 'AdvancedFeatureGenerator' object has no attribute 'generate_features'
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\streamlit_app\pages\predictions.py", line 1353, in _render_prediction_generator
+    result_list = engine.predict_single_model(
+        model_name=selected_model_name,
+    ...<2 lines>...
+        seed=random_seed
+    )
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\tools\prediction_engine.py", line 673, in predict_single_model
+    raise RuntimeError(error_msg)
+RuntimeError: Failed to generate model probabilities: Failed to generate model probabilities for cnn_lotto_max_20251204_154908: Could not generate features for model cnn_lotto_max_20251204_154908: 'AdvancedFeatureGenerator' object has no attribute 'generate_features'
+
+2025-12-05 14:51:26 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
+2025-12-05 14:52:40 - lottery_ai - INFO - logger.py:138 - Dashboard rendered successfully
+2025-12-05 15:20:22 - lottery_ai - INFO - logger.py:138 - Generating CatBoost features optimized for categorical boosting...
+2025-12-05 15:20:24 - lottery_ai - ERROR - logger.py:138 - Error generating CatBoost features: Can only use .dt accessor with datetimelike values
+2025-12-05 15:22:03 - lottery_ai - INFO - logger.py:138 - Generating CatBoost features optimized for categorical boosting...
+2025-12-05 15:22:04 - lottery_ai - ERROR - logger.py:138 - Error generating CatBoost features: Can only use .dt accessor with datetimelike values
+2025-12-05 15:23:05 - lottery_ai - INFO - logger.py:138 - Generating CatBoost features optimized for categorical boosting...
+2025-12-05 15:23:06 - lottery_ai - INFO - logger.py:138 - Saved FeatureSchema to C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\data\features\catboost\lotto_max\feature_schema.json
+2025-12-05 15:23:07 - lottery_ai - INFO - logger.py:138 - Generating LightGBM features optimized for gradient boosting...
+2025-12-05 15:23:09 - lottery_ai - INFO - logger.py:138 - Saved FeatureSchema to C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\data\features\lightgbm\lotto_max\feature_schema.json
+2025-12-05 15:23:09 - lottery_ai - INFO - logger.py:138 - Generating advanced CNN embeddings (dim=64)
+2025-12-05 15:23:11 - lottery_ai - INFO - logger.py:138 - ✓ Generated 476 advanced CNN embeddings
+2025-12-05 15:23:11 - lottery_ai - INFO - logger.py:138 - Saved FeatureSchema to C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\data\features\cnn\lotto_max\feature_schema.json
+2025-12-05 15:30:18 - lottery_ai - INFO - logger.py:138 - Generating CatBoost features optimized for categorical boosting...
+2025-12-05 15:30:20 - lottery_ai - INFO - logger.py:138 - Saved FeatureSchema to C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\data\features\catboost\lotto_max\feature_schema.json
+2025-12-05 15:30:20 - lottery_ai - INFO - logger.py:138 - Generating LightGBM features optimized for gradient boosting...
+2025-12-05 15:30:22 - lottery_ai - INFO - logger.py:138 - Saved FeatureSchema to C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\data\features\lightgbm\lotto_max\feature_schema.json
+2025-12-05 15:30:22 - lottery_ai - INFO - logger.py:138 - Generating advanced CNN embeddings (dim=64)
+2025-12-05 15:30:24 - lottery_ai - INFO - logger.py:138 - ✓ Generated 476 advanced CNN embeddings
+2025-12-05 15:30:24 - lottery_ai - INFO - logger.py:138 - Saved FeatureSchema to C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\data\features\cnn\lotto_max\feature_schema.json
+2025-12-05 15:30:44 - lottery_ai - INFO - logger.py:138 - Generating CatBoost features optimized for categorical boosting...

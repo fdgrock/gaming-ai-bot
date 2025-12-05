@@ -15,12 +15,17 @@ import logging
 import sys
 from scipy.special import softmax
 from scipy.stats import entropy
+import joblib
 
 logging.basicConfig(level=logging.INFO, format='%(message)s', stream=sys.stdout)
 logger = logging.getLogger(__name__)
 
 PROJECT_ROOT = Path(__file__).parent.parent
 MODELS_DIR = PROJECT_ROOT / "models"
+DATA_DIR = PROJECT_ROOT / "data"
+
+# Add services to path for imports
+sys.path.insert(0, str(PROJECT_ROOT / "streamlit_app"))
 
 
 @dataclass
@@ -76,17 +81,29 @@ class PredictionResult:
 
 
 class ProbabilityGenerator:
-    """Generates raw probability distributions from models."""
+    """Generates real probability distributions from trained models."""
     
     def __init__(self, game: str):
         """Initialize with game configuration."""
-        self.game = game
+        self.game = game  # Keep original for display
         self.game_lower = game.lower().replace(" ", "_").replace("/", "_")
         
         # Game configuration
         self.game_config = {
-            "lotto_6_49": {"main_numbers": 6, "number_range": (1, 49), "bonus": 1},
-            "lotto_max": {"main_numbers": 7, "number_range": (1, 50), "bonus": 1}
+            "lotto_6_49": {
+                "main_numbers": 6,
+                "number_range": (1, 49),
+                "bonus": 1,
+                "display_name": "Lotto 6/49",
+                "registry_name": "lotto 6_49"
+            },
+            "lotto_max": {
+                "main_numbers": 7,
+                "number_range": (1, 50),
+                "bonus": 1,
+                "display_name": "Lotto Max",
+                "registry_name": "lotto max"
+            }
         }
         
         if self.game_lower not in self.game_config:
@@ -94,37 +111,367 @@ class ProbabilityGenerator:
         
         self.config = self.game_config[self.game_lower]
         self.num_numbers = self.config["number_range"][1]
+        
+        # Model registry and feature generator
+        try:
+            from streamlit_app.services.model_registry import ModelRegistry
+            from streamlit_app.services.advanced_feature_generator import AdvancedFeatureGenerator
+            self.registry = ModelRegistry(MODELS_DIR)
+            self.feature_generator = AdvancedFeatureGenerator(game)
+        except Exception as e:
+            logger.warning(f"Could not initialize model registry or feature generator: {e}")
+            self.registry = None
+            self.feature_generator = None
     
     def generate_uniform_distribution(self) -> np.ndarray:
         """Generate uniform historical baseline distribution."""
-        # Uniform distribution - equal probability for all numbers
         return np.ones(self.num_numbers) / self.num_numbers
     
-    def generate_mock_model_probabilities(self, model_name: str, seed: int = None) -> np.ndarray:
+    def _load_historical_data(self, num_draws: Optional[int] = None) -> pd.DataFrame:
         """
-        Generate mock probabilities from a model.
-        In production, this would load the actual model and run inference.
+        Load historical lottery data from data directory.
+        
+        Args:
+            num_draws: Number of most recent draws to use. If None, uses optimal default (500).
+        
+        Returns:
+            DataFrame with historical lottery data (draw_date converted to datetime)
         """
-        if seed is not None:
-            np.random.seed(seed)
+        if num_draws is None:
+            num_draws = 500  # Optimal balance between representativeness and recency
         
-        # Create a mock distribution with some bias towards lower numbers
-        probs = np.random.dirichlet(np.ones(self.num_numbers))
+        data_dir = DATA_DIR / self.game_lower
+        if not data_dir.exists():
+            raise FileNotFoundError(f"Data directory not found: {data_dir}")
         
-        # Add slight bias for demonstration
-        if "xgboost" in model_name.lower() or "catboost" in model_name.lower():
-            # Tree models might have slight bias
-            bias = np.linspace(1.0, 0.8, self.num_numbers)
-            probs = probs * bias
-        elif "lstm" in model_name.lower():
-            # LSTM might have different pattern
-            bias = np.linspace(0.9, 1.1, self.num_numbers)
-            probs = probs * bias
+        # Load all training data files
+        data_files = sorted(data_dir.glob("training_data_*.csv"))
+        if not data_files:
+            raise FileNotFoundError(f"No training data found in {data_dir}")
         
-        # Normalize to valid probability distribution
-        probs = probs / probs.sum()
-        return probs
+        # Concatenate all files
+        dfs = []
+        for f in data_files:
+            try:
+                df = pd.read_csv(f)
+                dfs.append(df)
+            except Exception as e:
+                logger.warning(f"Could not load {f}: {e}")
+        
+        if not dfs:
+            raise ValueError("Could not load any training data files")
+        
+        combined_data = pd.concat(dfs, ignore_index=True)
+        
+        # Convert draw_date to datetime if it's a string
+        if 'draw_date' in combined_data.columns:
+            combined_data['draw_date'] = pd.to_datetime(combined_data['draw_date'])
+        
+        # Take most recent draws for recency bias
+        return combined_data.tail(num_draws).reset_index(drop=True)
     
+    def _load_pregenerated_features(self, model_type: str) -> Optional[np.ndarray]:
+        """
+        Load pre-generated features from data/features/{model_type}/ directory.
+        Uses the most recent feature file and loads the last row (most recent data).
+        
+        Args:
+            model_type: Type of model (lstm, cnn, xgboost, catboost, lightgbm, transformer)
+        
+        Returns:
+            Feature array ready for model inference, or None if loading fails
+        """
+        try:
+            # Determine feature directory based on model type
+            model_type_lower = model_type.lower()
+            features_dir = DATA_DIR / "features" / model_type_lower / self.game_lower
+            
+            if not features_dir.exists():
+                logger.warning(f"Features directory not found: {features_dir}")
+                return None
+            
+            # Find the most recent feature CSV file
+            feature_files = sorted(features_dir.glob("*_features_*.csv"))
+            if not feature_files:
+                logger.warning(f"No feature files found in {features_dir}")
+                return None
+            
+            latest_feature_file = feature_files[-1]  # Most recent file
+            
+            # Load features
+            features_df = pd.read_csv(latest_feature_file)
+            
+            if len(features_df) == 0:
+                logger.warning(f"Feature file is empty: {latest_feature_file}")
+                return None
+            
+            # Drop non-numeric columns (draw_date, etc.)
+            numeric_cols = features_df.select_dtypes(include=[np.number]).columns
+            features_df = features_df[numeric_cols]
+            
+            # Take the last row (most recent data point) and reshape to 2D
+            last_features = features_df.iloc[-1:].values  # This is already (1, n_features)
+            
+            logger.info(f"Loaded features from {latest_feature_file.name} ({len(features_df)} rows, {last_features.shape[1]} features, shape={last_features.shape})")
+            
+            return last_features
+        
+        except Exception as e:
+            logger.warning(f"Could not load pre-generated features for {model_type}: {e}")
+            return None
+    
+    def _load_and_apply_schema(self, model_type: str, features: np.ndarray) -> Optional[np.ndarray]:
+        """
+        Load the feature schema from registry and validate features match.
+        
+        Args:
+            model_type: Type of model
+            features: Feature array to validate
+        
+        Returns:
+            Features if valid, or None if mismatch
+        """
+        try:
+            if not self.registry:
+                logger.warning("Registry not available - cannot validate schema")
+                return features
+            
+            registry_name = self.config.get("registry_name", "")
+            
+            # Get schema from registry (this has the REAL feature count the model was trained with)
+            schema = self.registry.get_model_schema(registry_name, model_type)
+            if not schema:
+                logger.warning(f"No schema found for {registry_name} - {model_type}")
+                return features
+            
+            # Validate feature count matches what model expects
+            expected_count = schema.get('feature_count', 0)
+            actual_count = features.shape[1] if features.ndim > 1 else len(features)
+            
+            if actual_count != expected_count:
+                logger.error(f"Feature count mismatch for {model_type}: expected {expected_count}, got {actual_count}")
+                return None
+            
+            # TODO: Apply schema-based normalization if needed
+            # For now, return features as-is if schema exists
+            logger.info(f"Schema found for {model_type}: {schema.feature_count} features")
+            
+            return features
+        
+        except Exception as e:
+            logger.warning(f"Could not apply schema for {model_type}: {e}")
+            return features
+
+    def _load_and_run_model(self, model_name: str, features: np.ndarray) -> Optional[np.ndarray]:
+        """
+        Load trained model and run inference on features.
+        
+        Args:
+            model_name: Name/type of model to load
+            features: Feature array for inference
+        
+        Returns:
+            Raw model output (probabilities or predictions), or None if fails
+        """
+        try:
+            if not self.registry:
+                raise ValueError("Model registry not available")
+            
+            # Normalize model name for lookup
+            model_type = model_name.lower()
+            registry_name = self.config.get("registry_name", "")
+            
+            # Get model path from registry using registry_name (e.g., "lotto max" not "lotto_max")
+            model_path = self.registry.get_model_path(registry_name, model_type)
+            if not model_path:
+                raise FileNotFoundError(f"Model not found in registry: {registry_name} - {model_type}")
+            
+            # Load model based on type
+            if model_type in ["xgboost", "catboost", "lightgbm"]:
+                # Tree models use joblib
+                model = joblib.load(model_path)
+                
+                # Get predictions (raw scores/probabilities)
+                if hasattr(model, 'predict_proba'):
+                    # Return probabilities for the positive class
+                    predictions = model.predict_proba(features)
+                    # For multi-output, use the mean across dimensions
+                    return np.mean(predictions, axis=0) if predictions.ndim > 1 else predictions
+                else:
+                    # Raw predictions
+                    predictions = model.predict(features)
+                    return predictions if isinstance(predictions, np.ndarray) else np.array(predictions)
+            
+            elif model_type in ["lstm", "cnn", "transformer"]:
+                # Neural networks use Keras/TensorFlow
+                try:
+                    from tensorflow import keras
+                    model = keras.models.load_model(model_path)
+                except ImportError:
+                    raise ImportError("TensorFlow/Keras not available for neural network models")
+                
+                # Run inference
+                predictions = model.predict(features, verbose=0)
+                
+                # Handle output shape
+                if predictions.ndim > 1:
+                    # Multiple outputs or batch - take first sample
+                    predictions = predictions[0]
+                
+                # Ensure output is probabilities (sum to 1)
+                if predictions.sum() > 0:
+                    predictions = predictions / predictions.sum()
+                
+                return predictions
+            
+            else:
+                raise ValueError(f"Unknown model type: {model_type}")
+        
+        except Exception as e:
+            raise RuntimeError(f"Could not load/run model {model_name}: {str(e)}")
+    
+    def generate_model_probabilities(self, model_name: str, seed: int = None) -> np.ndarray:
+        """
+        Generate real probabilities from trained model using actual inference.
+        
+        Process:
+        1. Load historical lottery data
+        2. Generate features using advanced feature generator (uses trained feature pipeline)
+        3. Load trained model from registry
+        4. Run inference to get raw probabilities
+        5. Normalize to valid probability distribution
+        
+        Args:
+            model_name: Name/type of model
+            seed: Random seed (for reproducibility if applicable)
+        
+        Returns:
+            Probability distribution over lottery numbers (normalized)
+        
+        Raises:
+            RuntimeError: If model or features not found or inference fails
+        """
+        try:
+            # Extract model type from model name
+            model_type = model_name.lower()
+            
+            # 1. Load historical data
+            historical_data = self._load_historical_data(num_draws=500)
+            if historical_data is None or len(historical_data) == 0:
+                raise ValueError("Could not load historical lottery data")
+            
+            # 2. Generate features using the advanced feature generator
+            if not self.feature_generator:
+                raise ValueError("Feature generator not initialized")
+            
+            try:
+                # Call the correct method based on model type
+                # Tree models return DataFrames, neural nets return numpy arrays
+                if model_type == "lstm":
+                    features, _ = self.feature_generator.generate_lstm_sequences(historical_data)
+                    # features is (N, window_size, feature_dim) - take last window
+                    features = features[-1:].reshape(1, -1)  # Flatten to 2D
+                    
+                elif model_type == "cnn":
+                    features, _ = self.feature_generator.generate_cnn_embeddings(historical_data)
+                    # features is (N, embedding_dim) - take last row
+                    features = features[-1:].reshape(1, -1)
+                    
+                elif model_type == "transformer":
+                    features, _ = self.feature_generator.generate_transformer_embeddings(historical_data)
+                    # features is (N, embedding_dim) - take last row
+                    features = features[-1:].reshape(1, -1)
+                    
+                elif model_type == "xgboost":
+                    features_df, _ = self.feature_generator.generate_xgboost_features(historical_data)
+                    # DataFrame with multiple rows - take last row
+                    numeric_cols = features_df.select_dtypes(include=[np.number]).columns
+                    features = features_df[numeric_cols].iloc[-1:].values
+                    
+                elif model_type == "catboost":
+                    features_df, _ = self.feature_generator.generate_catboost_features(historical_data)
+                    # DataFrame with multiple rows - take last row
+                    numeric_cols = features_df.select_dtypes(include=[np.number]).columns
+                    features = features_df[numeric_cols].iloc[-1:].values
+                    
+                elif model_type == "lightgbm":
+                    features_df, _ = self.feature_generator.generate_lightgbm_features(historical_data)
+                    # DataFrame with multiple rows - take last row
+                    numeric_cols = features_df.select_dtypes(include=[np.number]).columns
+                    features = features_df[numeric_cols].iloc[-1:].values
+                    
+                else:
+                    raise ValueError(f"Unknown model type: {model_type}")
+                    
+            except Exception as e:
+                logger.error(f"Error generating features: {str(e)[:100]}")
+                raise ValueError(f"Could not generate features for model {model_name}: {str(e)}")
+            
+            if features is None or len(features) == 0:
+                raise ValueError(f"Feature generation returned empty result for {model_name}")
+            
+            # Ensure 2D shape (1, n_features)
+            if features.ndim == 1:
+                features = features.reshape(1, -1)
+            
+            logger.info(f"Generated features for {model_type}: shape={features.shape}, dtype={features.dtype}")
+            
+            # 3. Load model and run inference
+            raw_output = self._load_and_run_model(model_name, features)
+            if raw_output is None:
+                raise ValueError(f"Could not get predictions from model {model_name}")
+            
+            # 4. Normalize to probability distribution
+            probs = np.array(raw_output, dtype=float)
+            
+            # Ensure correct length (one probability per lottery number)
+            if len(probs) != self.num_numbers:
+                # If output has wrong length, use softmax to normalize whatever we got
+                logger.warning(f"Model output length {len(probs)} != {self.num_numbers}. Normalizing...")
+                probs = softmax(probs) if len(probs) > 0 else np.ones(self.num_numbers) / self.num_numbers
+            
+            # Final normalization to ensure valid probabilities
+            if np.any(np.isnan(probs)) or np.any(np.isinf(probs)):
+                logger.warning(f"Invalid probabilities from {model_name}. Using uniform distribution.")
+                return self.generate_uniform_distribution()
+            
+            probs = np.abs(probs)  # Ensure non-negative
+            probs = probs / (probs.sum() + 1e-10)  # Normalize to sum to 1
+            
+            return probs
+        
+        except Exception as e:
+            logger.error(f"Error generating probabilities for {model_name}: {str(e)}")
+            raise RuntimeError(f"Failed to generate model probabilities for {model_name}: {str(e)}")
+            
+            # 4. Load model and run inference
+            raw_output = self._load_and_run_model(model_name, features)
+            if raw_output is None:
+                raise ValueError(f"Could not get predictions from model {model_name}")
+            
+            # 5. Normalize to probability distribution
+            probs = np.array(raw_output, dtype=float)
+            
+            # Ensure correct length (one probability per lottery number)
+            if len(probs) != self.num_numbers:
+                # If output has wrong length, use softmax to normalize whatever we got
+                logger.warning(f"Model output length {len(probs)} != {self.num_numbers}. Normalizing...")
+                probs = softmax(probs) if len(probs) > 0 else np.ones(self.num_numbers) / self.num_numbers
+            
+            # Final normalization to ensure valid probabilities
+            if np.any(np.isnan(probs)) or np.any(np.isinf(probs)):
+                logger.warning(f"Invalid probabilities from {model_name}. Using uniform distribution.")
+                return self.generate_uniform_distribution()
+            
+            probs = np.abs(probs)  # Ensure non-negative
+            probs = probs / (probs.sum() + 1e-10)  # Normalize to sum to 1
+            
+            return probs
+        
+        except Exception as e:
+            logger.error(f"Error generating probabilities for {model_name}: {str(e)}")
+            raise RuntimeError(f"Failed to generate model probabilities for {model_name}: {str(e)}")
+
     def apply_bias_correction(
         self,
         model_probs: np.ndarray,
@@ -380,15 +727,25 @@ class PredictionEngine:
             current_seed = None if seed is None else seed + pred_idx
             trace.log('INFO', 'SET_START', f'Generating prediction set {pred_idx + 1}/{num_predictions}', {'seed': current_seed})
             
-            # 1. Generate raw probabilities
-            model_probs = self.prob_gen.generate_mock_model_probabilities(
-                model_name,
-                seed=current_seed
-            )
+            # 1. Generate raw probabilities from trained model
+            try:
+                model_probs = self.prob_gen.generate_model_probabilities(
+                    model_name,
+                    seed=current_seed
+                )
+                trace.log('INFO', 'MODEL_PROBS', f'Generated model probabilities from trained model', {
+                    'model': model_name,
+                    'source': 'real_model_inference'
+                })
+            except Exception as e:
+                error_msg = f"Failed to generate model probabilities: {str(e)}"
+                trace.log('ERROR', 'MODEL_PROBS', error_msg)
+                raise RuntimeError(error_msg)
+            
             top_indices = np.argsort(model_probs)[-5:]
-            trace.log('INFO', 'MODEL_PROBS', f'Generated model probabilities', {
+            trace.log('INFO', 'MODEL_PROBS', f'Top predicted numbers', {
                 'top_5_numbers': (top_indices + 1).tolist(),
-                'top_5_probs': model_probs[top_indices].tolist()
+                'top_5_probs': [float(f'{model_probs[i]:.6f}') for i in top_indices]
             })
             
             # 2. Apply bias correction
@@ -497,15 +854,24 @@ class PredictionEngine:
             current_seed = None if seed is None else seed + pred_idx
             trace.log('INFO', 'SET_START', f'Generating ensemble prediction set {pred_idx + 1}/{num_predictions}', {'seed': current_seed})
             
-            # 1. Generate probabilities from each model
+            # 1. Generate probabilities from each trained model
             model_probs_list = []
             model_logs = {}
             
             for model_name, health_score in model_weights.items():
-                model_probs = self.prob_gen.generate_mock_model_probabilities(
-                    model_name,
-                    seed=current_seed
-                )
+                try:
+                    model_probs = self.prob_gen.generate_model_probabilities(
+                        model_name,
+                        seed=current_seed
+                    )
+                    trace.log('INFO', 'MODEL_PROBS', f'Generated probabilities from {model_name}', {
+                        'model': model_name,
+                        'source': 'real_model_inference'
+                    })
+                except Exception as e:
+                    error_msg = f"Failed to generate probabilities for {model_name}: {str(e)}"
+                    trace.log('ERROR', 'MODEL_PROBS', error_msg)
+                    raise RuntimeError(error_msg)
                 
                 # Apply bias correction to each model
                 historical_probs = self.prob_gen.generate_uniform_distribution()

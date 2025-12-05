@@ -1185,8 +1185,8 @@ class AdvancedFeatureGenerator:
             # Drop draw_date for model training
             feature_cols = [col for col in features_df.columns if col != 'draw_date']
             
-            # Ensure exactly 85 features for XGBoost model compatibility
-            target_features = 85
+            # Ensure exactly 93 features for XGBoost model compatibility
+            target_features = 93
             if len(feature_cols) < target_features:
                 # Add padding columns filled with zeros
                 num_padding = target_features - len(feature_cols)
@@ -1196,7 +1196,7 @@ class AdvancedFeatureGenerator:
                     feature_cols.append(pad_col)
                 app_log(f"Padded XGBoost features from {len(feature_cols) - num_padding} to {target_features}", "info")
             elif len(feature_cols) > target_features:
-                # Truncate to top 85 features (keep existing ones, drop padding if any)
+                # Truncate to top 93 features (keep existing ones, drop padding if any)
                 feature_cols = feature_cols[:target_features]
                 features_df = features_df[feature_cols]
                 app_log(f"Truncated XGBoost features to {target_features}", "info")
@@ -1519,6 +1519,13 @@ class AdvancedFeatureGenerator:
             # Drop draw_date for model training
             feature_cols = [col for col in features_df.columns if col != 'draw_date']
             
+            # Pad to 93 features for model compatibility
+            while len(feature_cols) < 93:
+                pad_idx = len(feature_cols)
+                features_df[f'padding_{pad_idx}'] = 0.0
+                feature_cols.append(f'padding_{pad_idx}')
+            feature_cols = feature_cols[:93]
+            
             metadata = {
                 'model_type': 'catboost',
                 'generated_at': datetime.now().isoformat(),
@@ -1741,6 +1748,13 @@ class AdvancedFeatureGenerator:
             
             # Drop draw_date for model training
             feature_cols = [col for col in features_df.columns if col != 'draw_date']
+            
+            # Pad to 93 features for model compatibility
+            while len(feature_cols) < 93:
+                pad_idx = len(feature_cols)
+                features_df[f'padding_{pad_idx}'] = 0.0
+                feature_cols.append(f'padding_{pad_idx}')
+            feature_cols = feature_cols[:93]
             
             metadata = {
                 'model_type': 'lightgbm',
