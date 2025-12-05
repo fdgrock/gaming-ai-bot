@@ -17,6 +17,7 @@ from typing import Optional, Dict, List, Tuple, Any
 from datetime import datetime, timedelta
 import json
 import logging
+import sys
 from scipy import stats
 from scipy.signal import find_peaks
 from scipy.fft import fft
@@ -31,6 +32,14 @@ except ImportError:
     def app_log(msg: str, level: str = "info"):
         level_map = {"info": logging.INFO, "warning": logging.WARNING, "error": logging.ERROR}
         logging.log(level_map.get(level, logging.INFO), msg)
+
+# Import feature schema system
+try:
+    from .feature_schema import FeatureSchema, NormalizationMethod, Transformation, NormalizationParams
+except ImportError:
+    # Fallback if not available
+    FeatureSchema = None
+    NormalizationMethod = None
 
 
 class AdvancedFeatureGenerator:
@@ -54,6 +63,103 @@ class AdvancedFeatureGenerator:
         
         for d in [self.lstm_dir, self.transformer_dir, self.cnn_dir, self.xgboost_dir, self.catboost_dir, self.lightgbm_dir]:
             d.mkdir(parents=True, exist_ok=True)
+    
+    def _create_feature_schema(
+        self,
+        model_type: str,
+        feature_names: List[str],
+        normalization_method: str,
+        data_shape: Tuple[int, ...],
+        data_date_range: Dict[str, str],
+        window_size: Optional[int] = None,
+        embedding_dim: Optional[int] = None,
+        transformations: Optional[List[Dict[str, Any]]] = None,
+        **kwargs
+    ) -> Optional['FeatureSchema']:
+        """
+        Create a FeatureSchema object with all generation parameters.
+        This ensures reproducibility across training and prediction.
+        """
+        if FeatureSchema is None:
+            app_log("FeatureSchema not available, skipping schema creation", "warning")
+            return None
+        
+        try:
+            # Determine normalization method enum
+            norm_method_map = {
+                "StandardScaler": NormalizationMethod.STANDARD_SCALER,
+                "MinMaxScaler": NormalizationMethod.MIN_MAX_SCALER,
+                "RobustScaler": NormalizationMethod.ROBUST_SCALER,
+                "L2": NormalizationMethod.L2_NORM,
+                "None": NormalizationMethod.NONE,
+            }
+            norm_enum = norm_method_map.get(normalization_method, NormalizationMethod.NONE)
+            
+            # Build transformations list
+            trans_list = []
+            if transformations:
+                for t in transformations:
+                    trans_list.append(Transformation(**t))
+            
+            schema = FeatureSchema(
+                model_type=model_type,
+                game=self.game,
+                schema_version="1.0",
+                created_at=datetime.now().isoformat(),
+                feature_names=feature_names,
+                feature_count=len(feature_names),
+                feature_categories=kwargs.get("feature_categories", []),
+                normalization_method=norm_enum,
+                window_size=window_size,
+                embedding_dim=embedding_dim,
+                transformations=trans_list,
+                data_shape=data_shape,
+                data_date_range=data_date_range,
+                raw_data_version=kwargs.get("raw_data_version", "1.0"),
+                raw_data_date_generated=datetime.now().isoformat(),
+                notes=kwargs.get("notes", ""),
+                package_versions={
+                    "pandas": pd.__version__,
+                    "numpy": np.__version__,
+                    "scikit-learn": "1.0+",
+                },
+                python_version=f"{sys.version_info.major}.{sys.version_info.minor}",
+            )
+            
+            return schema
+        except Exception as e:
+            app_log(f"Error creating FeatureSchema: {e}", "error")
+            return None
+    
+    def _save_schema_with_features(
+        self,
+        schema: Optional['FeatureSchema'],
+        model_type: str
+    ) -> Optional[Path]:
+        """Save FeatureSchema to file for later retrieval"""
+        if schema is None:
+            return None
+        
+        try:
+            # Save schema as JSON in the same directory as features
+            model_folder = {
+                "lstm": self.lstm_dir,
+                "cnn": self.cnn_dir,
+                "transformer": self.transformer_dir,
+                "xgboost": self.xgboost_dir,
+                "catboost": self.catboost_dir,
+                "lightgbm": self.lightgbm_dir,
+            }.get(model_type)
+            
+            if model_folder:
+                schema_path = model_folder / "feature_schema.json"
+                schema.save_to_file(schema_path)
+                app_log(f"Saved FeatureSchema to {schema_path}", "info")
+                return schema_path
+        except Exception as e:
+            app_log(f"Error saving FeatureSchema: {e}", "error")
+        
+        return None
     
     def get_raw_files(self) -> List[Path]:
         """Get all raw CSV files for the game."""
@@ -421,6 +527,25 @@ class AdvancedFeatureGenerator:
             }
             
             app_log(f"✓ Generated {len(sequences_array)} advanced LSTM sequences with {len(feature_names)} features", "info")
+            
+            # CREATE FEATURE SCHEMA
+            data_date_range = {
+                "min": str(data["draw_date"].min()),
+                "max": str(data["draw_date"].max())
+            }
+            schema = self._create_feature_schema(
+                model_type="lstm",
+                feature_names=feature_names,
+                normalization_method="RobustScaler",
+                data_shape=sequences_array.shape,
+                data_date_range=data_date_range,
+                window_size=window_size,
+                lookback_periods=[5, 10, 20, 30, 60],
+                feature_categories=metadata["params"]["feature_categories"],
+                notes=f"LSTM sequences with {window_size}-step lookback windows"
+            )
+            self._save_schema_with_features(schema, "lstm")
+            
             return sequences_array, metadata
             
         except Exception as e:
@@ -552,6 +677,25 @@ class AdvancedFeatureGenerator:
             }
             
             app_log(f"✓ Generated {len(embeddings_array)} advanced CNN embeddings", "info")
+            
+            # CREATE FEATURE SCHEMA
+            data_date_range = {
+                "min": str(data["draw_date"].min()),
+                "max": str(data["draw_date"].max())
+            }
+            schema = self._create_feature_schema(
+                model_type="cnn",
+                feature_names=[f"cnn_dim_{i}" for i in range(embedding_dim)],
+                normalization_method="L2",
+                data_shape=embeddings_array.shape,
+                data_date_range=data_date_range,
+                embedding_dim=embedding_dim,
+                window_size=window_size,
+                feature_categories=["embedding"],
+                notes=f"CNN embeddings ({embedding_dim}D) from {window_size}-step windows"
+            )
+            self._save_schema_with_features(schema, "cnn")
+            
             return embeddings_array, metadata
             
         except Exception as e:
@@ -675,6 +819,25 @@ class AdvancedFeatureGenerator:
             }
             
             app_log(f"✓ Generated {len(embeddings_array)} advanced Transformer embeddings", "info")
+            
+            # CREATE FEATURE SCHEMA
+            data_date_range = {
+                "min": str(data["draw_date"].min()),
+                "max": str(data["draw_date"].max())
+            }
+            schema = self._create_feature_schema(
+                model_type="transformer",
+                feature_names=[f"transformer_dim_{i}" for i in range(embedding_dim)],
+                normalization_method="L2",
+                data_shape=embeddings_array.shape,
+                data_date_range=data_date_range,
+                embedding_dim=embedding_dim,
+                window_size=window_size,
+                feature_categories=["embedding"],
+                notes=f"Transformer embeddings ({embedding_dim}D) with multi-scale aggregation"
+            )
+            self._save_schema_with_features(schema, "transformer")
+            
             return embeddings_array, metadata
             
         except Exception as e:
@@ -795,6 +958,23 @@ class AdvancedFeatureGenerator:
             }
             
             app_log(f"✓ Generated {len(features_df)} Transformer feature vectors with shape {features_df.shape}", "info")
+            
+            # CREATE FEATURE SCHEMA
+            data_date_range = {
+                "min": str(data["draw_date"].min()),
+                "max": str(data["draw_date"].max())
+            }
+            schema = self._create_feature_schema(
+                model_type="transformer",
+                feature_names=list(features_df.columns),
+                normalization_method="MinMaxScaler",
+                data_shape=features_df.shape,
+                data_date_range=data_date_range,
+                feature_categories=metadata["feature_categories"],
+                notes="Transformer CSV features (20D), normalized to 0-1 range"
+            )
+            self._save_schema_with_features(schema, "transformer")
+            
             return features_df, metadata
             
         except Exception as e:
@@ -1052,6 +1232,23 @@ class AdvancedFeatureGenerator:
             }
             
             app_log(f"✓ Generated {len(feature_cols)} advanced XGBoost features for {len(features_df)} draws (target: {target_features})", "info")
+            
+            # CREATE FEATURE SCHEMA
+            data_date_range = {
+                "min": str(features_df["draw_date"].min()),
+                "max": str(features_df["draw_date"].max())
+            }
+            schema = self._create_feature_schema(
+                model_type="xgboost",
+                feature_names=feature_cols,
+                normalization_method="None",  # XGBoost uses raw values
+                data_shape=(len(features_df), len(feature_cols)),
+                data_date_range=data_date_range,
+                feature_categories=metadata["params"]["feature_categories"],
+                notes="XGBoost features generated with advanced feature engineering"
+            )
+            self._save_schema_with_features(schema, "xgboost")
+            
             return features_df, metadata
             
         except Exception as e:
@@ -1340,6 +1537,22 @@ class AdvancedFeatureGenerator:
                 }
             }
             
+            # CREATE FEATURE SCHEMA
+            data_date_range = {
+                "min": str(features_df["draw_date"].min()),
+                "max": str(features_df["draw_date"].max())
+            }
+            schema = self._create_feature_schema(
+                model_type="catboost",
+                feature_names=feature_cols,
+                normalization_method="None",  # CatBoost handles normalization
+                data_shape=(len(features_df), len(feature_cols)),
+                data_date_range=data_date_range,
+                feature_categories=metadata["params"]["feature_categories"],
+                notes="CatBoost features with categorical feature optimization"
+            )
+            self._save_schema_with_features(schema, "catboost")
+            
             return features_df, metadata
         except Exception as e:
             app_log(f"Error generating CatBoost features: {e}", "error")
@@ -1543,6 +1756,22 @@ class AdvancedFeatureGenerator:
                     'metric': 'gamma'
                 }
             }
+            
+            # CREATE FEATURE SCHEMA
+            data_date_range = {
+                "min": str(features_df["draw_date"].min()),
+                "max": str(features_df["draw_date"].max())
+            }
+            schema = self._create_feature_schema(
+                model_type="lightgbm",
+                feature_names=feature_cols,
+                normalization_method="None",  # LightGBM handles normalization
+                data_shape=(len(features_df), len(feature_cols)),
+                data_date_range=data_date_range,
+                feature_categories=metadata["params"]["feature_categories"],
+                notes="LightGBM features optimized for gradient boosting"
+            )
+            self._save_schema_with_features(schema, "lightgbm")
             
             return features_df, metadata
         except Exception as e:

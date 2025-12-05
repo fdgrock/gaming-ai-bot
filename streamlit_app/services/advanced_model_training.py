@@ -66,6 +66,16 @@ except ImportError:
         level_map = {"info": logging.INFO, "warning": logging.WARNING, "error": logging.ERROR}
         logging.log(level_map.get(level, logging.INFO), msg)
 
+# Import feature schema and model registry systems
+try:
+    from .feature_schema import FeatureSchema
+    from .model_registry import ModelRegistry
+    SCHEMA_SYSTEM_AVAILABLE = True
+except ImportError:
+    SCHEMA_SYSTEM_AVAILABLE = False
+    FeatureSchema = None
+    ModelRegistry = None
+
 
 logger = logging.getLogger(__name__)
 
@@ -405,6 +415,77 @@ class AdvancedModelTrainer:
             # Default to 6 for unknown games
             app_log(f"Unknown game '{game}', defaulting to 6 main numbers", "warning")
             return 6
+    
+    def _register_model_with_schema(
+        self,
+        model_path: Path,
+        model_type: str,
+        feature_schema: Optional['FeatureSchema'],
+        metadata: Optional[Dict[str, Any]] = None
+    ) -> Tuple[bool, str]:
+        """
+        Register trained model with its feature schema in the registry.
+        
+        Args:
+            model_path: Path to trained model
+            model_type: Type of model (xgboost, lstm, cnn, transformer, catboost, lightgbm)
+            feature_schema: FeatureSchema used during training
+            metadata: Additional metadata (accuracy, training_duration, feature_count, etc.)
+        
+        Returns:
+            (success, message)
+        """
+        if not SCHEMA_SYSTEM_AVAILABLE or feature_schema is None:
+            app_log("Schema system not available, skipping model registration", "warning")
+            return False, "Schema system not available"
+        
+        try:
+            # CRITICAL FIX: Update schema's feature_count to match actual trained data
+            # This prevents mismatches when raw_csv is concatenated during training
+            if metadata and "feature_count" in metadata:
+                actual_feature_count = metadata["feature_count"]
+                if feature_schema.feature_count != actual_feature_count:
+                    app_log(f"⚠️  Updating feature_count in schema: {feature_schema.feature_count} → {actual_feature_count}", "warning")
+                    feature_schema.feature_count = actual_feature_count
+            
+            registry = ModelRegistry()
+            success, msg = registry.register_model(
+                model_path=model_path,
+                model_type=model_type,
+                game=self.game,
+                feature_schema=feature_schema,
+                metadata=metadata or {}
+            )
+            return success, msg
+        except Exception as e:
+            app_log(f"Error registering model: {e}", "error")
+            return False, str(e)
+    
+    def _load_feature_schema(self, model_type: str) -> Optional['FeatureSchema']:
+        """Load feature schema from saved location"""
+        if not SCHEMA_SYSTEM_AVAILABLE:
+            return None
+        
+        try:
+            schema_map = {
+                "xgboost": Path(__file__).parent.parent / "data" / "features" / "xgboost" / self.game_folder / "feature_schema.json",
+                "lstm": Path(__file__).parent.parent / "data" / "features" / "lstm" / self.game_folder / "feature_schema.json",
+                "cnn": Path(__file__).parent.parent / "data" / "features" / "cnn" / self.game_folder / "feature_schema.json",
+                "transformer": Path(__file__).parent.parent / "data" / "features" / "transformer" / self.game_folder / "feature_schema.json",
+                "catboost": Path(__file__).parent.parent / "data" / "features" / "catboost" / self.game_folder / "feature_schema.json",
+                "lightgbm": Path(__file__).parent.parent / "data" / "features" / "lightgbm" / self.game_folder / "feature_schema.json",
+            }
+            
+            schema_path = schema_map.get(model_type)
+            if schema_path and schema_path.exists():
+                schema = FeatureSchema.load_from_file(schema_path)
+                app_log(f"Loaded feature schema for {model_type}: v{schema.schema_version}", "info")
+                return schema
+        except Exception as e:
+            app_log(f"Error loading feature schema: {e}", "warning")
+        
+        return None
+
         
     def load_training_data(self, data_sources: Dict[str, List[Path]], disable_lag: bool = True, max_number: int = None) -> Tuple[np.ndarray, np.ndarray, Dict[str, Any]]:
         """
@@ -432,12 +513,26 @@ class AdvancedModelTrainer:
                 max_number = 49  # Lotto 6/49: 1-49
             app_log(f"Auto-detected max_number={max_number} for game '{self.game}'", "info")
         
-        # VALIDATION: If using pre-generated features (XGBoost/CatBoost/LightGBM), raw_csv must be included for targets
-        has_generated_features = bool(data_sources.get("xgboost") or data_sources.get("catboost") or data_sources.get("lightgbm"))
+        # CRITICAL FIX: Prevent mixing raw_csv with ANY specialized features
+        # When raw_csv (8 features) + specialized features combine → dimension explosion
+        # But schemas expect ONLY the specialized features
+        has_tree_features = bool(data_sources.get("xgboost") or data_sources.get("catboost") or data_sources.get("lightgbm"))
+        has_neural_features = bool(data_sources.get("lstm") or data_sources.get("cnn") or data_sources.get("transformer"))
         has_raw_csv = bool(data_sources.get("raw_csv"))
         
-        if has_generated_features and not has_raw_csv:
-            app_log("⚠️  WARNING: Using generated features without raw CSV. Target extraction may fail.", "warning")
+        if (has_tree_features or has_neural_features) and has_raw_csv:
+            app_log("⚠️  WARNING: Engineered features + raw_csv would create dimension mismatch", "warning")
+            app_log("   Removing raw_csv to prevent schema mismatch", "info")
+            data_sources = {k: v for k, v in data_sources.items() if k != "raw_csv"}
+            has_raw_csv = False
+        
+        if (has_tree_features or has_neural_features) and not has_raw_csv:
+            feature_type = "tree" if has_tree_features else "neural"
+            app_log(f"✅ Using ONLY {feature_type} engineered features (correct for schema synchronization)", "info")
+        
+        # VALIDATION: If ONLY using raw_csv (should not happen), warn about targets
+        if not has_tree_features and not has_neural_features and has_raw_csv:
+            app_log("⚠️  WARNING: Using ONLY raw CSV. Target extraction may be limited.", "warning")
         
         all_features = []
         all_metadata = {"sources": defaultdict(int), "feature_count": 0, "loaded_files": []}
@@ -2496,7 +2591,7 @@ class AdvancedModelTrainer:
         Args:
             model: Trained model object
             model_type: Type of model (xgboost, lstm, transformer, ensemble)
-            metrics: Model metrics
+            metrics: Model metrics (should include 'feature_count')
         
         Returns:
             model_path: Path where model was saved
@@ -2512,14 +2607,14 @@ class AdvancedModelTrainer:
             for component_name, component_model in model.items():
                 if component_model is not None:
                     component_path = model_dir / f"{component_name}_model"
-                    self._save_single_model(component_model, component_path, component_name)
+                    self._save_single_model(component_model, component_path, component_name, metrics)
             
             model_path = model_dir
         else:
             model_dir = self.models_dir / model_type
             model_dir.mkdir(parents=True, exist_ok=True)
             model_path = model_dir / model_name
-            self._save_single_model(model, model_path, model_type)
+            self._save_single_model(model, model_path, model_type, metrics)
         
         # Save metadata
         metadata_path = Path(model_path) / "metadata.json" if model_type == "ensemble" else Path(str(model_path) + "_metadata.json")
@@ -2532,18 +2627,45 @@ class AdvancedModelTrainer:
         
         return str(model_path)
     
-    def _save_single_model(self, model: Any, model_path: Path, model_type: str) -> None:
-        """Save a single model file."""
+    def _save_single_model(self, model: Any, model_path: Path, model_type: str, metrics: Optional[Dict[str, Any]] = None) -> None:
+        """Save a single model file and register in schema system.
+        
+        Args:
+            model: Trained model object
+            model_path: Path to save model
+            model_type: Type of model
+            metrics: Model metrics dict (should include 'feature_count' if available)
+        """
         if model_type in ["lstm", "transformer", "cnn"] and TENSORFLOW_AVAILABLE:
             # Add .keras extension for Keras models
             keras_path = f"{model_path}.keras"
             model.save(keras_path)
             app_log(f"Saved {model_type} model to {keras_path}", "info")
+            saved_path = Path(keras_path)
         else:
             # XGBoost or other sklearn-compatible models
             joblib_path = f"{model_path}.joblib"
             joblib.dump(model, joblib_path)
             app_log(f"Saved {model_type} model to {joblib_path}", "info")
+            saved_path = Path(joblib_path)
+        
+        # Register model with schema system, passing metrics to update feature_count
+        feature_schema = self._load_feature_schema(model_type)
+        if feature_schema:
+            registration_metadata = {"notes": f"Trained on {self.game}"}
+            # Include feature_count from metrics if available
+            if metrics and "feature_count" in metrics:
+                registration_metadata["feature_count"] = metrics["feature_count"]
+            
+            success, msg = self._register_model_with_schema(
+                model_path=saved_path,
+                model_type=model_type,
+                feature_schema=feature_schema,
+                metadata=registration_metadata
+            )
+            app_log(msg, "info" if success else "warning")
+        else:
+            app_log(f"No feature schema found for {model_type}, model saved but not registered", "warning")
     
     def get_model_summary(self, model: Any, model_type: str) -> str:
         """Get model summary information."""

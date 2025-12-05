@@ -8,7 +8,7 @@ import numpy as np
 import pandas as pd
 from pathlib import Path
 from typing import Dict, List, Tuple, Optional
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 import json
 from datetime import datetime
 import logging
@@ -24,6 +24,44 @@ MODELS_DIR = PROJECT_ROOT / "models"
 
 
 @dataclass
+class TraceLog:
+    """Detailed trace log for prediction generation."""
+    logs: List[Dict] = field(default_factory=list)
+    
+    def log(self, level: str, category: str, message: str, data: Optional[Dict] = None):
+        """Add a log entry."""
+        entry = {
+            'timestamp': datetime.now().isoformat(),
+            'level': level,
+            'category': category,
+            'message': message,
+            'data': data or {}
+        }
+        self.logs.append(entry)
+    
+    def get_formatted_logs(self) -> str:
+        """Get formatted log output for display."""
+        output = []
+        output.append("=" * 100)
+        output.append("PREDICTION GENERATION LOG - ADVANCED ENGINE")
+        output.append("=" * 100)
+        
+        for log in self.logs:
+            level_icon = "ℹ️" if log['level'] == 'INFO' else "⚠️" if log['level'] == 'WARNING' else "❌"
+            output.append(f"{level_icon}  [{log['category']:<20}] {log['message']}")
+            
+            if log.get('data'):
+                for key, value in log['data'].items():
+                    if isinstance(value, (list, dict)):
+                        output.append(f"        ├─ {key}: {json.dumps(value)}")
+                    else:
+                        output.append(f"        ├─ {key}: {value}")
+        
+        output.append("=" * 100)
+        return "\n".join(output)
+
+
+@dataclass
 class PredictionResult:
     """Result of a single prediction row."""
     numbers: List[int]
@@ -34,6 +72,7 @@ class PredictionResult:
     confidence: float
     generated_at: str
     game: str
+    trace_log: Optional[TraceLog] = None
 
 
 class ProbabilityGenerator:
@@ -322,7 +361,7 @@ class PredictionEngine:
         seed: int = None
     ) -> List[PredictionResult]:
         """
-        Generate predictions using a single model.
+        Generate predictions using a single model with detailed logging.
         
         Process:
         1. Generate raw probabilities from model
@@ -331,16 +370,26 @@ class PredictionEngine:
         4. Sample using Gumbel-Top-K
         """
         results = []
+        trace = TraceLog()
+        
+        trace.log('INFO', 'STARTED', f'Single model prediction: {model_name}, health_score={health_score:.3f}')
+        trace.log('INFO', 'CONFIG', f'Game: {self.game}, Predictions: {num_predictions}')
         
         for pred_idx in range(num_predictions):
             # Use different seed for each prediction
             current_seed = None if seed is None else seed + pred_idx
+            trace.log('INFO', 'SET_START', f'Generating prediction set {pred_idx + 1}/{num_predictions}', {'seed': current_seed})
             
             # 1. Generate raw probabilities
             model_probs = self.prob_gen.generate_mock_model_probabilities(
                 model_name,
                 seed=current_seed
             )
+            top_indices = np.argsort(model_probs)[-5:]
+            trace.log('INFO', 'MODEL_PROBS', f'Generated model probabilities', {
+                'top_5_numbers': (top_indices + 1).tolist(),
+                'top_5_probs': model_probs[top_indices].tolist()
+            })
             
             # 2. Apply bias correction
             historical_probs = self.prob_gen.generate_uniform_distribution()
@@ -349,9 +398,15 @@ class PredictionEngine:
                 health_score,
                 historical_probs
             )
+            alpha = 0.3 + (0.6 * health_score)
+            trace.log('INFO', 'BIAS_CORRECTION', f'Applied bias correction', {
+                'alpha': float(f'{alpha:.3f}'),
+                'health_score': float(f'{health_score:.3f}')
+            })
             
             # 3. Enforce range
             safeguarded_probs = self.prob_gen.enforce_range(corrected_probs)
+            trace.log('INFO', 'RANGE_ENFORCE', f'Enforced number range [1, {self.prob_gen.num_numbers}]')
             
             # 4. Sample using Gumbel-Top-K
             sampled_numbers, selected_probs = self.sampling.gumbel_top_k(
@@ -360,11 +415,20 @@ class PredictionEngine:
                 seed=current_seed
             )
             
+            trace.log('INFO', 'SAMPLING', f'Gumbel-Top-K sampling', {
+                'numbers': sorted(sampled_numbers),
+                'probabilities': [float(f'{p:.6f}') for p in selected_probs],
+                'method': 'Gumbel-Top-K'
+            })
+            
             # Calculate confidence (average probability of selected numbers)
             confidence = float(np.mean(selected_probs))
+            trace.log('INFO', 'CONFIDENCE', f'Calculated confidence score', {
+                'confidence': float(f'{confidence:.6f}'),
+                'calculation': 'mean(selected_probabilities)'
+            })
             
             # Create reasoning
-            alpha = 0.3 + (0.6 * health_score)
             reasoning = (
                 f"This prediction was generated by {model_name} "
                 f"(health score: {health_score:.3f}). "
@@ -376,7 +440,7 @@ class PredictionEngine:
             # Create probability dict
             prob_dict = {
                 i + 1: float(safeguarded_probs[i]) 
-                for i in range(self.num_numbers)
+                for i in range(self.prob_gen.num_numbers)
             }
             
             result = PredictionResult(
@@ -387,11 +451,18 @@ class PredictionEngine:
                 reasoning=reasoning,
                 confidence=confidence,
                 generated_at=datetime.now().isoformat(),
-                game=self.game
+                game=self.game,
+                trace_log=trace
             )
+            
+            trace.log('INFO', 'SET_COMPLETE', f'Prediction set {pred_idx + 1} complete', {
+                'numbers': sorted(sampled_numbers),
+                'confidence': float(f'{confidence:.6f}')
+            })
             
             results.append(result)
         
+        trace.log('INFO', 'COMPLETED', f'Generated {num_predictions} predictions successfully')
         return results
     
     def predict_ensemble(
@@ -401,7 +472,7 @@ class PredictionEngine:
         seed: int = None
     ) -> List[PredictionResult]:
         """
-        Generate predictions using an ensemble of models.
+        Generate predictions using an ensemble of models with detailed logging.
         
         Process:
         1. Generate probabilities from each model
@@ -411,19 +482,24 @@ class PredictionEngine:
         5. Sample using Gumbel-Top-K
         """
         results = []
+        trace = TraceLog()
         
         if not model_weights:
             raise ValueError("No models provided for ensemble")
         
-        logger.info(f"\nGenerating ensemble predictions with {len(model_weights)} models")
-        logger.info(f"Model weights: {model_weights}")
+        trace.log('INFO', 'STARTED', f'Ensemble prediction with {len(model_weights)} models')
+        trace.log('INFO', 'CONFIG', f'Game: {self.game}, Predictions: {num_predictions}', {
+            'models': list(model_weights.keys()),
+            'health_scores': {k: float(f'{v:.3f}') for k, v in model_weights.items()}
+        })
         
         for pred_idx in range(num_predictions):
-            # Use different seed for each prediction
             current_seed = None if seed is None else seed + pred_idx
+            trace.log('INFO', 'SET_START', f'Generating ensemble prediction set {pred_idx + 1}/{num_predictions}', {'seed': current_seed})
             
             # 1. Generate probabilities from each model
             model_probs_list = []
+            model_logs = {}
             
             for model_name, health_score in model_weights.items():
                 model_probs = self.prob_gen.generate_mock_model_probabilities(
@@ -439,13 +515,23 @@ class PredictionEngine:
                     historical_probs
                 )
                 
+                top_indices = np.argsort(corrected_probs)[-3:]
+                model_logs[model_name] = {
+                    'health_score': float(f'{health_score:.3f}'),
+                    'top_3_numbers': (top_indices + 1).tolist(),
+                    'top_3_probs': [float(f'{corrected_probs[i]:.6f}') for i in top_indices]
+                }
+                
                 model_probs_list.append((corrected_probs, health_score))
+            
+            trace.log('INFO', 'MODEL_CONTRIBUTIONS', f'Individual model predictions', model_logs)
             
             # 2. Fuse probabilities
             ensemble_probs = self.ensemble.fuse_probabilities(
                 model_probs_list,
                 method="weighted_average"
             )
+            trace.log('INFO', 'FUSION', f'Fused model probabilities using weighted average')
             
             # 3. Check divergence
             historical_probs = self.prob_gen.generate_uniform_distribution()
@@ -455,9 +541,12 @@ class PredictionEngine:
                 threshold=0.5
             )
             
-            logger.info(f"Ensemble KL divergence: {kl_div:.4f}, "
-                       f"Needs correction: {needs_correction}, "
-                       f"Correction strength: {correction_strength:.3f}")
+            trace.log('INFO', 'DIVERGENCE_CHECK', f'KL divergence monitoring', {
+                'kl_divergence': float(f'{kl_div:.6f}'),
+                'threshold': 0.5,
+                'needs_correction': needs_correction,
+                'correction_strength': float(f'{correction_strength:.6f}') if needs_correction else 0.0
+            })
             
             # 4. Apply divergence correction if needed
             if needs_correction:
@@ -466,9 +555,11 @@ class PredictionEngine:
                     historical_probs,
                     correction_strength
                 )
+                trace.log('INFO', 'CORRECTION_APPLIED', f'Applied divergence correction to ensemble')
             
             # 5. Enforce range
             safeguarded_probs = self.prob_gen.enforce_range(ensemble_probs)
+            trace.log('INFO', 'RANGE_ENFORCE', f'Enforced number range [1, {self.prob_gen.num_numbers}]')
             
             # 6. Sample using Gumbel-Top-K
             sampled_numbers, selected_probs = self.sampling.gumbel_top_k(
@@ -477,8 +568,17 @@ class PredictionEngine:
                 seed=current_seed
             )
             
+            trace.log('INFO', 'SAMPLING', f'Gumbel-Top-K sampling', {
+                'numbers': sorted(sampled_numbers),
+                'probabilities': [float(f'{p:.6f}') for p in selected_probs]
+            })
+            
             # Calculate confidence
             confidence = float(np.mean(selected_probs))
+            trace.log('INFO', 'CONFIDENCE', f'Calculated ensemble confidence', {
+                'confidence': float(f'{confidence:.6f}'),
+                'method': 'mean(selected_probabilities)'
+            })
             
             # Get top contributing models
             sorted_models = sorted(
@@ -501,7 +601,7 @@ class PredictionEngine:
             # Create probability dict
             prob_dict = {
                 i + 1: float(safeguarded_probs[i]) 
-                for i in range(self.num_numbers)
+                for i in range(self.prob_gen.num_numbers)
             }
             
             result = PredictionResult(
@@ -512,11 +612,18 @@ class PredictionEngine:
                 reasoning=reasoning,
                 confidence=confidence,
                 generated_at=datetime.now().isoformat(),
-                game=self.game
+                game=self.game,
+                trace_log=trace
             )
+            
+            trace.log('INFO', 'SET_COMPLETE', f'Ensemble prediction set {pred_idx + 1} complete', {
+                'numbers': sorted(sampled_numbers),
+                'confidence': float(f'{confidence:.6f}')
+            })
             
             results.append(result)
         
+        trace.log('INFO', 'COMPLETED', f'Generated {num_predictions} ensemble predictions successfully')
         return results
 
 

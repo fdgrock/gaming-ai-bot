@@ -36,6 +36,21 @@ except ImportError:
     PredictionEngine = None
     SamplingStrategy = None
 
+# Synchronized prediction system imports
+try:
+    from streamlit_app.services.synchronized_predictor import SynchronizedPredictor
+    from streamlit_app.services.model_registry import ModelRegistry
+    SYNC_PREDICTOR_AVAILABLE = True
+except ImportError:
+    try:
+        from ..services.synchronized_predictor import SynchronizedPredictor
+        from ..services.model_registry import ModelRegistry
+        SYNC_PREDICTOR_AVAILABLE = True
+    except ImportError:
+        SYNC_PREDICTOR_AVAILABLE = False
+        SynchronizedPredictor = None
+        ModelRegistry = None
+
 try:
     from ..core import (
         get_available_games, 
@@ -794,6 +809,9 @@ def _render_prediction_generator() -> None:
     
     st.divider()
     
+    # Normalize model_type for consistency across the page
+    normalized_model_type = "Hybrid Ensemble" if model_type == "Ensemble" else model_type
+    
     # Prediction mode - only show for non-Hybrid types
     if model_type not in ["Hybrid Ensemble", "Ensemble"]:
         mode = st.radio(
@@ -810,6 +828,7 @@ def _render_prediction_generator() -> None:
         # Normalize model_type to "Hybrid Ensemble" for consistent handling
         if model_type == "Ensemble":
             model_type = "Hybrid Ensemble"
+            normalized_model_type = "Hybrid Ensemble"
     
     # Model Selection Section
     st.subheader("🤖 Model Selected")
@@ -1104,7 +1123,53 @@ def _render_prediction_generator() -> None:
     
     st.divider()
     
-    # Configuration options
+    # Feature Schema Information Section (NEW)
+    if SYNC_PREDICTOR_AVAILABLE and normalized_model_type != "Hybrid Ensemble":
+        with st.expander("📋 Feature Schema Details (Schema Synchronized Features)", expanded=False):
+            try:
+                registry = ModelRegistry()
+                schema = registry.get_model_schema(selected_game, normalized_model_type)
+                
+                if schema:
+                    # Display schema summary
+                    col1, col2, col3, col4 = st.columns(4)
+                    with col1:
+                        st.metric("Schema Version", schema.schema_version)
+                    with col2:
+                        st.metric("Features", schema.feature_count)
+                    with col3:
+                        st.metric("Normalization", schema.normalization_method.value)
+                    with col4:
+                        st.metric("Window Size", schema.window_size or "N/A")
+                    
+                    # Feature details
+                    col_details1, col_details2 = st.columns(2)
+                    with col_details1:
+                        st.write("**Data Shape:**", schema.data_shape)
+                        st.write("**Data Range:**", f"{schema.data_date_range.get('min', 'N/A')} to {schema.data_date_range.get('max', 'N/A')}")
+                    
+                    with col_details2:
+                        st.write("**Feature Categories:**", ", ".join(schema.feature_categories) if schema.feature_categories else "N/A")
+                        if schema.embedding_dim:
+                            st.write("**Embedding Dimension:**", schema.embedding_dim)
+                    
+                    # Show first 10 features
+                    if schema.feature_names:
+                        st.write("**Feature Names (first 10):**")
+                        st.code(", ".join(schema.feature_names[:10]))
+                    
+                    # Show deprecation warning if applicable
+                    if schema.deprecated:
+                        st.warning(f"⚠️ This schema is deprecated: {schema.deprecation_reason}")
+                        if schema.successor_version:
+                            st.info(f"Consider using version {schema.successor_version} instead")
+                else:
+                    st.info("ℹ️ No schema found for this model. Predictions will use fallback methods.")
+            except Exception as e:
+                st.warning(f"Could not load schema information: {e}")
+    
+    st.divider()
+
     with st.expander("⚙️ Advanced Configuration", expanded=False):
         st.markdown("### Core Settings")
         col1, col2, col3 = st.columns(3)
@@ -1171,10 +1236,28 @@ def _render_prediction_generator() -> None:
     
     st.divider()
     
+    # Add missing variables for prediction generation
+    random_seed = st.number_input(
+        "Random Seed (for reproducibility)",
+        min_value=0,
+        max_value=999999,
+        value=42,
+        help="Use same seed to get identical predictions",
+        key="pred_random_seed"
+    )
+    
+    save_seed_with_predictions = st.checkbox(
+        "Save Seed with Predictions",
+        value=False,
+        help="Store seed with predictions for exact reproducibility",
+        key="pred_save_seed"
+    )
+    
+    st.divider()
+    
     # Generate predictions button
     if st.button("🎲 Generate Predictions", use_container_width=True, key="gen_pred_btn"):
-        # Normalize model_type for ensemble
-        normalized_model_type = "Hybrid Ensemble" if model_type == "Ensemble" else model_type
+        # Use the normalized_model_type defined earlier on the page
         
         # Validate model selection
         if normalized_model_type == "Hybrid Ensemble":
@@ -1196,41 +1279,180 @@ def _render_prediction_generator() -> None:
                 st.error("Please select at least one model or use trained ensemble default")
             else:
                 with st.spinner("🔄 Generating hybrid ensemble predictions..."):
-                    predictions = _generate_predictions(
-                        selected_game,
-                        num_predictions,
-                        "Hybrid Ensemble",
-                        confidence_threshold if 'pred_confidence' in st.session_state else 0.5,
-                        model_type=None,  # Don't pass model_type for ensemble
-                        model_name=ensemble_models_to_use  # Pass selected/default models as dict
-                    )
-                    
-                    if predictions:
-                        set_session_value('latest_predictions', predictions)
-                        st.success("✅ Hybrid ensemble predictions generated successfully!")
+                    try:
+                        if PredictionEngine is None:
+                            raise ImportError("PredictionEngine not available")
                         
-                        # Display predictions
-                        _display_predictions(predictions, selected_game)
+                        engine = PredictionEngine(game=selected_game)
+                        model_weights = {}
+                        for model_type, model_name_str in ensemble_models_to_use.items():
+                            if model_name_str and model_name_str != "N/A":
+                                health_score = 0.75
+                                try:
+                                    metadata = get_model_metadata(selected_game, model_type, model_name_str)
+                                    health_score = metadata.get('accuracy', 0.75)
+                                except:
+                                    pass
+                                model_weights[model_name_str] = health_score
                         
-                        # Save predictions (single file with all sets)
-                        save_prediction(selected_game, predictions)
+                        if not model_weights:
+                            st.error("No valid models found for ensemble")
+                        else:
+                            result_list = engine.predict_ensemble(
+                                model_weights=model_weights,
+                                num_predictions=num_predictions,
+                                seed=random_seed
+                            )
+                            
+                            if result_list:
+                                # Calculate combined accuracy as average of model accuracies
+                                combined_accuracy = np.mean(list(model_weights.values())) if model_weights else 0
+                                
+                                predictions = {
+                                    'game': selected_game,
+                                    'sets': [r.numbers for r in result_list],
+                                    'confidence_scores': [r.confidence * 100 for r in result_list],  # Convert to percentage
+                                    'mode': 'Hybrid Ensemble',
+                                    'model_type': 'Ensemble',
+                                    'generation_time': datetime.now().isoformat(),
+                                    'reasoning': [r.reasoning for r in result_list],
+                                    'trace_log': result_list[0].trace_log if result_list else None,
+                                    'combined_accuracy': combined_accuracy
+                                }
+                                
+                                set_session_value('latest_predictions', predictions)
+                                st.success("✅ Hybrid ensemble predictions generated successfully!")
+                                _display_predictions(predictions, selected_game)
+                                
+                                # Display trace logs
+                                if predictions.get('trace_log'):
+                                    with st.expander("📋 Prediction Generation Log (Advanced Engine)", expanded=True):
+                                        st.code(predictions['trace_log'].get_formatted_logs(), language='')
+                                
+                                save_prediction(selected_game, predictions)
+                    except Exception as e:
+                        st.error(f"Error generating ensemble predictions: {str(e)}")
+                        app_logger.error(f"Ensemble error: {traceback.format_exc()}")
         else:
             if not selected_model_name:
                 st.error("No model selected. Please select a model type and try again.")
             else:
                 with st.spinner("🔄 Generating predictions using AI models..."):
-                    predictions = _generate_predictions(
-                        selected_game,
-                        num_predictions,
-                        mode,
-                        confidence_threshold if 'pred_confidence' in st.session_state else 0.5,
-                        normalized_model_type,
-                        selected_model_name
-                    )
+                    try:
+                        if PredictionEngine is None:
+                            raise ImportError("PredictionEngine not available")
+                        
+                        engine = PredictionEngine(game=selected_game)
+                        health_score = 0.75
+                        try:
+                            metadata = get_model_metadata(selected_game, normalized_model_type, selected_model_name)
+                            health_score = metadata.get('accuracy', 0.75)
+                        except:
+                            pass
+                        
+                        result_list = engine.predict_single_model(
+                            model_name=selected_model_name,
+                            health_score=health_score,
+                            num_predictions=num_predictions,
+                            seed=random_seed
+                        )
+                        
+                        if result_list:
+                            predictions = {
+                                'game': selected_game,
+                                'sets': [r.numbers for r in result_list],
+                                'confidence_scores': [r.confidence * 100 for r in result_list],  # Convert to percentage
+                                'mode': mode,
+                                'model_type': normalized_model_type,
+                                'model_name': selected_model_name,
+                                'generation_time': datetime.now().isoformat(),
+                                'reasoning': [r.reasoning for r in result_list],
+                                'trace_log': result_list[0].trace_log if result_list else None,
+                                'accuracy': health_score
+                            }
+                            
+                            set_session_value('latest_predictions', predictions)
+                            st.success("✅ Predictions generated successfully!")
+                            _display_predictions(predictions, selected_game)
+                            
+                            # Display trace logs
+                            if predictions.get('trace_log'):
+                                with st.expander("📋 Prediction Generation Log (Advanced Engine)", expanded=True):
+                                    st.code(predictions['trace_log'].get_formatted_logs(), language='')
+                            
+                            save_prediction(selected_game, predictions)
+                        else:
+                            st.error("Failed to generate predictions")
+                    except ImportError:
+                        st.error("❌ Prediction Engine not available. Using fallback method.")
+                        predictions = _generate_predictions(
+                            selected_game,
+                            num_predictions,
+                            mode,
+                            confidence_threshold if 'pred_confidence' in st.session_state else 0.5,
+                            normalized_model_type,
+                            selected_model_name
+                        )
+                        
+                        if predictions:
+                            set_session_value('latest_predictions', predictions)
+                            st.success("✅ Predictions generated successfully!")
+                            _display_predictions(predictions, selected_game)
+                            save_prediction(selected_game, predictions)
+                    except Exception as e:
+                        st.error(f"Error generating predictions: {str(e)}")
+                        app_logger.error(f"Prediction error: {traceback.format_exc()}")
+                        return
                     
                     if predictions:
                         set_session_value('latest_predictions', predictions)
-                        st.success("✅ Predictions generated successfully!")
+                        
+                        # Display schema synchronization status (NEW)
+                        if SYNC_PREDICTOR_AVAILABLE and normalized_model_type != "Hybrid Ensemble":
+                            with st.expander("✓ Schema Synchronization Status"):
+                                try:
+                                    registry = ModelRegistry()
+                                    stored_schema = registry.get_model_schema(selected_game, normalized_model_type)
+                                    
+                                    if stored_schema:
+                                        st.success(f"✅ Schema synchronized")
+                                        st.write(f"**Schema Version:** {stored_schema.schema_version}")
+                                        st.write(f"**Features Used:** {stored_schema.feature_count}")
+                                        st.write(f"**Normalization:** {stored_schema.normalization_method.value}")
+                                        if 'validation_warnings' in predictions and predictions['validation_warnings']:
+                                            st.warning("⚠️ Validation warnings:")
+                                            for warning in predictions['validation_warnings']:
+                                                st.write(f"  - {warning}")
+                                    else:
+                                        st.info("ℹ️ Schema not available in registry (using fallback methods)")
+                                except Exception as e:
+                                    st.warning(f"Could not load schema information: {e}")
+                        
+                        # NEW: Display Prediction Generation Log
+                        try:
+                            from streamlit_app.services.prediction_tracer import get_prediction_tracer
+                            tracer = get_prediction_tracer()
+                            summary = tracer.get_summary()
+                            
+                            with st.expander("📋 Prediction Generation Log", expanded=False):
+                                # Summary statistics
+                                col1, col2, col3, col4 = st.columns(4)
+                                with col1:
+                                    st.metric("Total Steps", summary['total_logs'])
+                                with col2:
+                                    st.metric("Fallbacks", summary['fallbacks'], delta=None, delta_color="off")
+                                with col3:
+                                    st.metric("Warnings", summary['warnings'], delta=None, delta_color="off")
+                                with col4:
+                                    st.metric("Errors", summary['errors'], delta=None, delta_color="off")
+                                
+                                st.markdown("---")
+                                
+                                # Detailed log
+                                log_output = tracer.get_formatted_logs()
+                                st.code(log_output, language="text")
+                        except Exception as e:
+                            st.warning(f"Could not load prediction log: {e}")
                         
                         # Display predictions
                         _display_predictions(predictions, selected_game)
@@ -3007,6 +3229,9 @@ def _generate_predictions(game: str, count: int, mode: str, confidence_threshold
         model_type: For single model mode - "Transformer", "LSTM", "XGBoost", "transformer", "lstm", or "xgboost"
         model_name: Model identifier or dict of models for ensemble
     
+    ⚠️  PREDICTION TRACING: This function now logs detailed step-by-step information 
+        to a tracer that can be retrieved and displayed in the UI via get_prediction_tracer()
+    
     Returns:
         Dict with structure:
         {
@@ -3059,6 +3284,35 @@ def _generate_predictions(game: str, count: int, mode: str, confidence_threshold
         ...     confidence_threshold=0.4
         ... )
     """
+    # Initialize prediction tracer with null object pattern
+    class NullTracer:
+        """Null object for tracer - does nothing if tracer unavailable"""
+        def start(self, *args, **kwargs): pass
+        def log(self, *args, **kwargs): pass
+        def log_fallback(self, *args, **kwargs): pass
+        def log_final_set(self, *args, **kwargs): pass
+        def log_batch_complete(self, *args, **kwargs): pass
+        def log_feature_generation(self, *args, **kwargs): pass
+        def log_feature_normalization(self, *args, **kwargs): pass
+        def log_model_prediction_start(self, *args, **kwargs): pass
+        def log_model_prediction_output(self, *args, **kwargs): pass
+        def log_number_extraction(self, *args, **kwargs): pass
+        def log_confidence_calculation(self, *args, **kwargs): pass
+        def log_validation_check(self, *args, **kwargs): pass
+        def log_ensemble_voting(self, *args, **kwargs): pass
+        def end(self): pass
+    
+    tracer = NullTracer()
+    try:
+        from streamlit_app.services.prediction_tracer import get_prediction_tracer, reset_tracer
+        reset_tracer()
+        tracer = get_prediction_tracer()
+        tracer.start(game, model_type or "Ensemble", count, mode)
+    except Exception as e:
+        # Tracer not available, use null object
+        app_logger.debug(f"Tracer unavailable: {e}")
+        tracer = NullTracer()
+    
     try:
         import tensorflow as tf
         from sklearn.preprocessing import StandardScaler
@@ -3188,34 +3442,7 @@ def _generate_predictions(game: str, count: int, mode: str, confidence_threshold
             
             return _generate_ensemble_predictions(
                 game, count, normalized_models_dict, models_dir, config, scaler, 
-                confidence_threshold, main_nums, game_folder, feature_dim
-            )
-        
-        elif model_type is None and isinstance(model_name, dict):
-            # Ensemble mode with model_type=None - treat as ensemble
-            normalized_models_dict = {}
-            for key, val in model_name.items():
-                # Normalize the key to proper capitalization for each model type
-                key_lower = key.lower()
-                if key_lower == "xgboost":
-                    normalized_models_dict["XGBoost"] = val
-                elif key_lower == "catboost":
-                    normalized_models_dict["CatBoost"] = val
-                elif key_lower == "lightgbm":
-                    normalized_models_dict["LightGBM"] = val
-                elif key_lower == "cnn":
-                    normalized_models_dict["CNN"] = val
-                elif key_lower == "lstm":
-                    normalized_models_dict["LSTM"] = val
-                elif key_lower == "transformer":
-                    normalized_models_dict["Transformer"] = val
-                else:
-                    normalized_models_dict[key] = val  # Pass through unknown types
-            
-            app_logger.info(f"🔄 Generating custom ensemble with models: {list(normalized_models_dict.keys())}")
-            return _generate_ensemble_predictions(
-                game, count, normalized_models_dict, models_dir, config, scaler, 
-                confidence_threshold, main_nums, game_folder, feature_dim
+                confidence_threshold, main_nums, game_folder, feature_dim, tracer
             )
         
         else:
@@ -3231,7 +3458,7 @@ def _generate_predictions(game: str, count: int, mode: str, confidence_threshold
             
             return _generate_single_model_predictions(
                 game, count, mode, normalized_model_type, model_name, models_dir, 
-                config, scaler, confidence_threshold, main_nums, game_folder, feature_dim
+                config, scaler, confidence_threshold, main_nums, game_folder, feature_dim, tracer
             )
     
     except Exception as e:
@@ -3244,7 +3471,7 @@ def _generate_predictions(game: str, count: int, mode: str, confidence_threshold
 def _generate_single_model_predictions(game: str, count: int, mode: str, model_type: str, 
                                        model_name: str, models_dir: Path, config: Dict, 
                                        scaler: StandardScaler, confidence_threshold: float,
-                                       main_nums: int, game_folder: str, feature_dim: int = 1338) -> Dict[str, Any]:
+                                       main_nums: int, game_folder: str, feature_dim: int = 1338, tracer = None) -> Dict[str, Any]:
     """
     Generate predictions using a single trained deep learning model.
     
@@ -3255,6 +3482,27 @@ def _generate_single_model_predictions(game: str, count: int, mode: str, model_t
     import joblib
     import numpy as np
     from collections import Counter
+    
+    # Ensure tracer is always defined (NullTracer pattern)
+    class NullTracer:
+        """Null object for tracer - does nothing if tracer unavailable"""
+        def start(self, *args, **kwargs): pass
+        def log(self, *args, **kwargs): pass
+        def log_fallback(self, *args, **kwargs): pass
+        def log_final_set(self, *args, **kwargs): pass
+        def log_batch_complete(self, *args, **kwargs): pass
+        def log_feature_generation(self, *args, **kwargs): pass
+        def log_feature_normalization(self, *args, **kwargs): pass
+        def log_model_prediction_start(self, *args, **kwargs): pass
+        def log_model_prediction_output(self, *args, **kwargs): pass
+        def log_number_extraction(self, *args, **kwargs): pass
+        def log_confidence_calculation(self, *args, **kwargs): pass
+        def log_validation_check(self, *args, **kwargs): pass
+        def log_ensemble_voting(self, *args, **kwargs): pass
+        def end(self): pass
+    
+    if tracer is None:
+        tracer = NullTracer()
     
     sets = []
     confidence_scores = []
@@ -3450,8 +3698,15 @@ def _generate_single_model_predictions(game: str, count: int, mode: str, model_t
         else:
             app_logger.warning(f"⚠️  No training features found for {model_type_lower} - will use random fallback. This may result in lower confidence scores.")
         
+        # Log model and scaler info
+        tracer.log("MODEL_INFO", f"Model type: {model_type}, Path: {model_path}")
+        tracer.log("SCALER_INFO", f"Using scaler with feature dimension: {feature_dim if active_scaler else 'None'}")
+        tracer.log("FEATURE_PREPARATION", f"Training features available: {training_features is not None and len(training_features) > 0}")
+        
         # Generate predictions using real training data with controlled variations
         for i in range(count):
+            tracer.log("SET_START", f"Starting generation of prediction set {i+1}/{count}")
+            
             if model_type_lower in ["transformer", "lstm", "cnn"]:
                 # For deep learning: use training data samples with noise
                 if training_features is not None and len(training_features) > 0:
@@ -3534,8 +3789,15 @@ def _generate_single_model_predictions(game: str, count: int, mode: str, model_t
                     # Boosting models need scaling
                     random_input_scaled = active_scaler.transform(random_input)
                 
+                # Log input preparation
+                tracer.log("INPUT_PREP", f"Set {i+1}: Prepared input shape {random_input_scaled.shape if hasattr(random_input_scaled, 'shape') else 'N/A'}")
+                tracer.log_model_prediction_start(i+1, model_type, random_input_scaled.shape if hasattr(random_input_scaled, 'shape') else 'N/A')
+                
                 # Get prediction
                 pred_probs = model.predict(random_input_scaled, verbose=0)
+                
+                # Log prediction output
+                tracer.log_model_prediction_output(i+1, model_type, pred_probs.shape, pred_probs[0][:10].tolist() if len(pred_probs[0]) > 0 else [])
                 
                 # Ensure pred_probs is 2D
                 if len(pred_probs.shape) == 1:
@@ -3674,15 +3936,19 @@ def _generate_single_model_predictions(game: str, count: int, mode: str, model_t
                 
                 # Get prediction probabilities
                 try:
+                    tracer.log("MODEL_PREDICT", f"Set {i+1}: Calling model.predict_proba with input shape {random_input_scaled.shape if hasattr(random_input_scaled, 'shape') else 'unknown'}")
                     pred_probs = model.predict_proba(random_input_scaled)[0]
+                    tracer.log("MODEL_OUTPUT", f"Set {i+1}: Got prediction probabilities shape {pred_probs.shape}, values: {[f'{p:.4f}' for p in pred_probs[:min(10, len(pred_probs))]]}")
                 except AttributeError:
                     app_logger.warning(f"Model type {model_type_lower} does not have predict_proba, using random fallback")
+                    tracer.log_fallback(i+1, "Model does not have predict_proba", "Random")
                     numbers = sorted(rng.choice(range(1, max_number + 1), main_nums, replace=False).tolist())
                     confidence = confidence_threshold
                 else:
                     # For models trained on digits (0-9), we need multiple samples to get all positions
                     # Each model prediction gives us the first digit, so generate multiple times
                     if len(pred_probs) == 10:  # Digit classification (0-9)
+                        tracer.log("NUMBER_GEN", f"Set {i+1}: Digit classification mode detected (10 classes)")
                         # Generate full lottery numbers using sequential predictions
                         candidates = []
                         for attempt in range(100):  # Try up to 100 different inputs to find variety
@@ -3756,18 +4022,23 @@ def _generate_single_model_predictions(game: str, count: int, mode: str, model_t
                                 top_indices = np.argsort(pred_probs)[-main_nums:]
                                 numbers = sorted((top_indices + 1).tolist())
                                 confidence = float(np.mean(np.sort(pred_probs)[-main_nums:]))
+                                tracer.log_number_extraction(i+1, list(top_indices + 1), numbers, "Top probability indices", 
+                                                            {"top_probs": [f"{p:.4f}" for p in np.sort(pred_probs)[-main_nums:]]})
                             else:
                                 numbers = sorted(rng.choice(range(1, max_number + 1), main_nums, replace=False).tolist())
                                 confidence = np.mean(pred_probs)
+                                tracer.log("NUMBER_GEN", f"Set {i+1}: Used random fallback (pred_probs too small: {len(pred_probs)} < {main_nums})")
                     else:
                         # For other classification types, extract top numbers by probability
                         if len(pred_probs) > main_nums:
                             top_indices = np.argsort(pred_probs)[-main_nums:]
                             numbers = sorted((top_indices + 1).tolist())
                             confidence = float(np.mean(np.sort(pred_probs)[-main_nums:]))
+                            tracer.log("NUMBER_GEN", f"Set {i+1}: Selected {numbers} from classification output")
                         else:
                             numbers = sorted(rng.choice(range(1, max_number + 1), main_nums, replace=False).tolist())
                             confidence = np.mean(pred_probs)
+                            tracer.log_fallback(i+1, f"Output too small ({len(pred_probs)} classes)", "Random selection")
             
             # ===== ADVANCED PROBABILITY MANIPULATION WITH MATHEMATICAL RIGOR =====
             # Apply advanced techniques to improve prediction diversity and quality
@@ -3832,11 +4103,21 @@ def _generate_single_model_predictions(game: str, count: int, mode: str, model_t
             
             # Validate numbers before adding
             if _validate_prediction_numbers(numbers, max_number, main_nums):
+                tracer.log_final_set(i+1, numbers, min(0.99, max(confidence_threshold, confidence)), {
+                    "validation": "passed",
+                    "max_number": max_number,
+                    "main_nums": main_nums
+                })
                 sets.append(numbers)
                 confidence_scores.append(min(0.99, max(confidence_threshold, confidence)))
             else:
                 # Fallback: generate random valid numbers
                 fallback_numbers = sorted(rng.choice(range(1, max_number + 1), main_nums, replace=False).tolist())
+                tracer.log_fallback(i+1, f"Validation failed for {numbers}", "Random numbers")
+                tracer.log_final_set(i+1, fallback_numbers, confidence_threshold, {
+                    "validation": "fallback",
+                    "reason": "original_invalid"
+                })
                 sets.append(fallback_numbers)
                 confidence_scores.append(confidence_threshold)
         
@@ -3847,6 +4128,11 @@ def _generate_single_model_predictions(game: str, count: int, mode: str, model_t
             model_type_cap = model_type_lower.title()
         
         accuracy = get_model_metadata(game, model_type_cap, model_name).get('accuracy', 0.5)
+        
+        # Log completion
+        avg_confidence = np.mean(confidence_scores) if confidence_scores else 0
+        tracer.log_batch_complete(len(sets), avg_confidence, 0)
+        tracer.end()
         
         # Build comprehensive result with metadata matching LSTM/Transformer format
         return {
@@ -3897,94 +4183,10 @@ def _generate_single_model_predictions(game: str, count: int, mode: str, model_t
     except Exception as e:
         app_logger.error(f"Single model prediction error: {str(e)}")
         return {'error': str(e), 'sets': []}
-    """
-    Generate predictions using a single trained deep learning model.
-    
-    This function loads a pre-trained model (CNN, LSTM, or XGBoost) and uses it
-    to generate lottery number predictions. Each prediction is based on:
-    1. Random feature vector generation (simulating possible game states)
-    2. Feature normalization using StandardScaler fitted on training data
-    3. Model inference to get probability distribution over lottery numbers
-    4. Selection of top N numbers by probability
-    5. Confidence calculation from prediction probabilities
-    
-    Model-Specific Processing:
-    
-    Transformer & LSTM (Neural Networks):
-    - Expected input shape: (batch=1, sequence_length=feature_dim, features=1)
-    - Output: Probability distribution over lottery numbers
-    - Process:
-      1. Generate random feature vector (1, feature_dim)
-      2. Scale using StandardScaler
-      3. Reshape to sequence format (1, feature_dim, 1)
-      4. Model forward pass with verbose=0 (no output)
-      5. Extract top 6 numbers by probability
-      6. Confidence = mean of top 6 probabilities
-    
-    XGBoost (Gradient Boosting):
-    - Expected input shape: (batch=1, n_features)
-    - Output: Class probabilities via predict_proba
-    - Process:
-      1. Generate random feature vector (1, feature_dim)
-      2. Scale using StandardScaler
-      3. Call model.predict_proba() directly
-      4. Extract top 6 numbers by probability
-      5. Confidence = mean of top 6 probabilities
-    
-    Validation & Fallback:
-    - All generated numbers validated against lottery rules
-    - If validation fails: Generate random fallback numbers
-    - Confidence threshold enforced: max(threshold, actual_confidence)
-    - Numbers capped at 0.99 to avoid overconfidence
-    
-    Args:
-        game: Lottery game identifier
-        count: Number of prediction sets to generate
-        mode: Prediction mode name (e.g., "Single Model")
-        model_type: "CNN", "LSTM", or "XGBoost"
-        model_name: Model identifier/version name
-        models_dir: Path to models directory
-        config: Game configuration dict (max_number, main_numbers, etc)
-        scaler: StandardScaler fitted on training data
-        confidence_threshold: Minimum confidence floor (0.0-1.0)
-        main_nums: Number of main lottery numbers to predict
-        game_folder: Sanitized game folder name for path construction
-        feature_dim: Feature vector dimensionality (default 1338)
-    
-    Returns:
-        Dict with structure:
-        {
-            'game': str,
-            'sets': List[List[int]],              # Prediction sets
-            'confidence_scores': List[float],     # Confidence per set
-            'mode': str,
-            'model_type': str,
-            'model_name': str,
-            'generation_time': str,               # ISO timestamp
-            'accuracy': float,                    # Model's training accuracy
-            'prediction_strategy': str            # E.g., "Transformer Neural Network"
-        }
-        OR on error:
-        {
-            'error': str,
-            'sets': []
-        }
-    
-    Raises:
-        FileNotFoundError: If specified model not found on disk
-        ValueError: If model_type not recognized
-    """
-    import tensorflow as tf
-    import joblib
-    
-    sets = []
-    confidence_scores = []
-    # Extract max_number from number_range tuple (config: 'number_range': (min, max))
-    number_range = config.get('number_range', (1, 49))
-    max_number = number_range[1] if isinstance(number_range, (tuple, list)) else config.get('max_number', 49)
-    
-    # Try to extract scaler from model if available (matches training scaler)
-    model_scaler = None
+
+
+def _normalize_model_predictions(pred_probs: np.ndarray, method: str = 'minmax') -> np.ndarray:
+    """Normalize model prediction probabilities to consistent 0-1 scale."""
     
     # Initialize random state ONCE per call, not per iteration
     rng = np.random.RandomState(int(datetime.now().timestamp() * 1000) % (2**31))
@@ -4328,7 +4530,7 @@ def _generate_ensemble_predictions(game: str, count: int, models_dict: Dict[str,
 
                                    models_dir: Path, config: Dict, scaler: StandardScaler,
                                    confidence_threshold: float, main_nums: int, 
-                                   game_folder: str, feature_dim: int = 1338) -> Dict[str, Any]:
+                                   game_folder: str, feature_dim: int = 1338, tracer = None) -> Dict[str, Any]:
     """
     Generate predictions using intelligent ensemble voting combining 3 models.
     
@@ -4450,6 +4652,27 @@ def _generate_ensemble_predictions(game: str, count: int, models_dict: Dict[str,
     """
     import tensorflow as tf
     import joblib
+    
+    # Ensure tracer is always defined (NullTracer pattern)
+    class NullTracer:
+        """Null object for tracer - does nothing if tracer unavailable"""
+        def start(self, *args, **kwargs): pass
+        def log(self, *args, **kwargs): pass
+        def log_fallback(self, *args, **kwargs): pass
+        def log_final_set(self, *args, **kwargs): pass
+        def log_batch_complete(self, *args, **kwargs): pass
+        def log_feature_generation(self, *args, **kwargs): pass
+        def log_feature_normalization(self, *args, **kwargs): pass
+        def log_model_prediction_start(self, *args, **kwargs): pass
+        def log_model_prediction_output(self, *args, **kwargs): pass
+        def log_number_extraction(self, *args, **kwargs): pass
+        def log_confidence_calculation(self, *args, **kwargs): pass
+        def log_validation_check(self, *args, **kwargs): pass
+        def log_ensemble_voting(self, *args, **kwargs): pass
+        def end(self): pass
+    
+    if tracer is None:
+        tracer = NullTracer()
     
     sets = []
     confidence_scores = []
@@ -5045,7 +5268,7 @@ def _display_predictions(predictions: Union[Dict[str, Any], List[Dict[str, Any]]
         # ===== DISPLAY PREDICTION SETS WITH ATTRACTIVE GRAPHICS =====
         st.subheader("🎯 Predicted Winning Numbers")
         
-        # Calculate overall confidence
+        # Calculate overall confidence (confidence_scores are already in percentage 0-100)
         overall_confidence = np.mean(confidence_scores) if confidence_scores else 0
         
         # Get model accuracy
@@ -5062,7 +5285,7 @@ def _display_predictions(predictions: Union[Dict[str, Any], List[Dict[str, Any]]
         with header_cols[2]:
             st.metric("Model Accuracy", f"{model_accuracy:.1%}", label_visibility="collapsed")
         with header_cols[3]:
-            st.metric("Overall Confidence", f"{overall_confidence:.1%}", label_visibility="collapsed")
+            st.metric("Overall Confidence", f"{overall_confidence:.1f}%", label_visibility="collapsed")
         
         st.divider()
         
@@ -5078,7 +5301,8 @@ def _display_predictions(predictions: Union[Dict[str, Any], List[Dict[str, Any]]
                 
                 with set_col2:
                     # Confidence bar visualization
-                    conf_pct = min(0.99, max(0, confidence))
+                    # confidence_scores are now stored as percentages (0-100)
+                    conf_pct = min(99, max(0, confidence)) / 100.0
                     
                     # Color based on confidence level
                     if conf_pct >= 0.75:
@@ -5091,11 +5315,11 @@ def _display_predictions(predictions: Union[Dict[str, Any], List[Dict[str, Any]]
                         conf_color = "#dc3545"  # Red
                         conf_emoji = "🔴"
                     
-                    st.markdown(f"{conf_emoji} Confidence: **{conf_pct:.1%}**")
+                    st.markdown(f"{conf_emoji} Confidence: **{confidence:.1f}%**")
                 
                 with set_col3:
                     # Confidence meter
-                    st.metric("", f"{conf_pct:.0%}", label_visibility="collapsed")
+                    st.metric("", f"{confidence:.0f}%", label_visibility="collapsed")
                 
                 # Display numbers as OLG-style balls (larger, more professional)
                 # OLG uses large circles with blue background for main numbers

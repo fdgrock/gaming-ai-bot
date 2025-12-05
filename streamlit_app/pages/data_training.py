@@ -1248,17 +1248,25 @@ def _render_model_training():
     """)
     
     # Determine which data sources to show based on model type
+    # IMPORTANT: Tree models (XGBoost, CatBoost, LightGBM) should NOT use raw_csv
+    # because it causes feature concatenation (raw_csv=8 + tree_features=85 = 93 features)
+    # This creates a mismatch with the schema which expects only 85 features
+    # 
+    # IMPORTANT: Neural models (LSTM, CNN, Transformer) should NOT use raw_csv either
+    # because flattened neural features are already large (1125+, 1408+, etc.)
+    # Adding raw_csv creates dimension explosion (1125+8=1133, etc.)
+    # This mismatches with schema which expects only flattened neural features
     model_data_sources = {
-        "XGBoost": ["raw_csv", "xgboost"],
-        "CatBoost": ["raw_csv", "catboost"],
-        "LightGBM": ["raw_csv", "lightgbm"],
-        "LSTM": ["raw_csv", "lstm"],
-        "CNN": ["raw_csv", "cnn"],
-        "Transformer": ["raw_csv", "transformer"],
-        "Ensemble": ["raw_csv", "catboost", "lightgbm", "xgboost", "lstm", "cnn"]
+        "XGBoost": ["xgboost"],  # Use ONLY engineered XGBoost features (85), not raw_csv
+        "CatBoost": ["catboost"],  # Use ONLY engineered CatBoost features (85), not raw_csv
+        "LightGBM": ["lightgbm"],  # Use ONLY engineered LightGBM features (85), not raw_csv
+        "LSTM": ["lstm"],  # Use ONLY LSTM flattened sequences (1125), not raw_csv
+        "CNN": ["cnn"],  # Use ONLY CNN embeddings (1408+), not raw_csv
+        "Transformer": ["transformer"],  # Use ONLY Transformer embeddings (512), not raw_csv
+        "Ensemble": ["xgboost", "catboost", "lightgbm", "lstm", "cnn"]  # All engineered features, no raw_csv
     }
     
-    available_sources = model_data_sources.get(selected_model, ["raw_csv"])
+    available_sources = model_data_sources.get(selected_model, ["xgboost"])
     
     # Initialize checkbox states if not present
     if "use_raw_csv_adv" not in st.session_state:
