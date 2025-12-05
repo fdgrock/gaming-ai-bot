@@ -527,3 +527,206 @@ Traceback (most recent call last):
     raise RuntimeError(error_msg)
 RuntimeError: Failed to generate model probabilities: Failed to generate model probabilities for xgboost_lotto_max_20251124_191556: Could not generate features for model xgboost_lotto_max_20251124_191556: Unknown model type: xgboost_lotto_max_20251124_191556
 
+2025-12-05 16:10:56 - lottery_ai - ERROR - logger.py:138 - Prediction error: Traceback (most recent call last):
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\tools\prediction_engine.py", line 287, in _load_and_run_model
+    nums_str = str(historical_data.iloc[idx + i].get('numbers', ''))
+FileNotFoundError: Model not found in registry: lotto max - catboost_lotto_max_20251204_130931
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\tools\prediction_engine.py", line 422, in generate_model_probabilities
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\tools\prediction_engine.py", line 331, in _load_and_run_model
+    for num in numbers:
+RuntimeError: Could not load/run model catboost_lotto_max_20251204_130931: Model not found in registry: lotto max - catboost_lotto_max_20251204_130931
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\tools\prediction_engine.py", line 734, in predict_single_model
+    
+    
+    ...<2 lines>...
+        method: Fusion method ('weighted_average', 'geometric_mean', etc.)
+        ^^^^^^^^^^^^^
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\tools\prediction_engine.py", line 447, in generate_model_probabilities
+    def generate_model_probabilities(self, model_name: str, seed: int = None) -> np.ndarray:
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+RuntimeError: Failed to generate model probabilities for catboost_lotto_max_20251204_130931: Could not load/run model catboost_lotto_max_20251204_130931: Model not found in registry: lotto max - catboost_lotto_max_20251204_130931
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\streamlit_app\pages\predictions.py", line 1353, in _render_prediction_generator
+    result_list = engine.predict_single_model(
+        model_name=selected_model_name,
+    ...<2 lines>...
+        seed=random_seed
+    )
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\tools\prediction_engine.py", line 745, in predict_single_model
+    if method == "weighted_average":
+            ^^^^^^^^^^^^^^^^^^^^^^^^
+RuntimeError: Failed to generate model probabilities: Failed to generate model probabilities for catboost_lotto_max_20251204_130931: Could not load/run model catboost_lotto_max_20251204_130931: Model not found in registry: lotto max - catboost_lotto_max_20251204_130931
+
+2025-12-05 16:11:27 - lottery_ai - ERROR - logger.py:138 - Prediction error: Traceback (most recent call last):
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\tools\prediction_engine.py", line 287, in _load_and_run_model
+    nums_str = str(historical_data.iloc[idx + i].get('numbers', ''))
+FileNotFoundError: Model not found in registry: lotto max - cnn_lotto_max_20251204_154908
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\tools\prediction_engine.py", line 422, in generate_model_probabilities
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\tools\prediction_engine.py", line 331, in _load_and_run_model
+    for num in numbers:
+RuntimeError: Could not load/run model cnn_lotto_max_20251204_154908: Model not found in registry: lotto max - cnn_lotto_max_20251204_154908
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\tools\prediction_engine.py", line 734, in predict_single_model
+    
+    
+    ...<2 lines>...
+        method: Fusion method ('weighted_average', 'geometric_mean', etc.)
+        ^^^^^^^^^^^^^
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\tools\prediction_engine.py", line 447, in generate_model_probabilities
+    def generate_model_probabilities(self, model_name: str, seed: int = None) -> np.ndarray:
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+RuntimeError: Failed to generate model probabilities for cnn_lotto_max_20251204_154908: Could not load/run model cnn_lotto_max_20251204_154908: Model not found in registry: lotto max - cnn_lotto_max_20251204_154908
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\streamlit_app\pages\predictions.py", line 1353, in _render_prediction_generator
+    result_list = engine.predict_single_model(
+        model_name=selected_model_name,
+    ...<2 lines>...
+        seed=random_seed
+    )
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\tools\prediction_engine.py", line 745, in predict_single_model
+    if method == "weighted_average":
+            ^^^^^^^^^^^^^^^^^^^^^^^^
+RuntimeError: Failed to generate model probabilities: Failed to generate model probabilities for cnn_lotto_max_20251204_154908: Could not load/run model cnn_lotto_max_20251204_154908: Model not found in registry: lotto max - cnn_lotto_max_20251204_154908
+
+2025-12-05 16:12:17 - lottery_ai - ERROR - logger.py:138 - Prediction error: Traceback (most recent call last):
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\tools\prediction_engine.py", line 287, in _load_and_run_model
+    nums_str = str(historical_data.iloc[idx + i].get('numbers', ''))
+FileNotFoundError: Model not found in registry: lotto max - lightgbm_lotto_max_20251204_131420
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\tools\prediction_engine.py", line 422, in generate_model_probabilities
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\tools\prediction_engine.py", line 331, in _load_and_run_model
+    for num in numbers:
+RuntimeError: Could not load/run model lightgbm_lotto_max_20251204_131420: Model not found in registry: lotto max - lightgbm_lotto_max_20251204_131420
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\tools\prediction_engine.py", line 734, in predict_single_model
+    
+    
+    ...<2 lines>...
+        method: Fusion method ('weighted_average', 'geometric_mean', etc.)
+        ^^^^^^^^^^^^^
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\tools\prediction_engine.py", line 447, in generate_model_probabilities
+    def generate_model_probabilities(self, model_name: str, seed: int = None) -> np.ndarray:
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+RuntimeError: Failed to generate model probabilities for lightgbm_lotto_max_20251204_131420: Could not load/run model lightgbm_lotto_max_20251204_131420: Model not found in registry: lotto max - lightgbm_lotto_max_20251204_131420
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\streamlit_app\pages\predictions.py", line 1353, in _render_prediction_generator
+    result_list = engine.predict_single_model(
+        model_name=selected_model_name,
+    ...<2 lines>...
+        seed=random_seed
+    )
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\tools\prediction_engine.py", line 745, in predict_single_model
+    if method == "weighted_average":
+            ^^^^^^^^^^^^^^^^^^^^^^^^
+RuntimeError: Failed to generate model probabilities: Failed to generate model probabilities for lightgbm_lotto_max_20251204_131420: Could not load/run model lightgbm_lotto_max_20251204_131420: Model not found in registry: lotto max - lightgbm_lotto_max_20251204_131420
+
+2025-12-05 16:12:39 - lottery_ai - ERROR - logger.py:138 - Prediction error: Traceback (most recent call last):
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\tools\prediction_engine.py", line 287, in _load_and_run_model
+    nums_str = str(historical_data.iloc[idx + i].get('numbers', ''))
+FileNotFoundError: Model not found in registry: lotto max - lstm_lotto_max_20251204_131522
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\tools\prediction_engine.py", line 422, in generate_model_probabilities
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\tools\prediction_engine.py", line 331, in _load_and_run_model
+    for num in numbers:
+RuntimeError: Could not load/run model lstm_lotto_max_20251204_131522: Model not found in registry: lotto max - lstm_lotto_max_20251204_131522
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\tools\prediction_engine.py", line 734, in predict_single_model
+    
+    
+    ...<2 lines>...
+        method: Fusion method ('weighted_average', 'geometric_mean', etc.)
+        ^^^^^^^^^^^^^
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\tools\prediction_engine.py", line 447, in generate_model_probabilities
+    def generate_model_probabilities(self, model_name: str, seed: int = None) -> np.ndarray:
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+RuntimeError: Failed to generate model probabilities for lstm_lotto_max_20251204_131522: Could not load/run model lstm_lotto_max_20251204_131522: Model not found in registry: lotto max - lstm_lotto_max_20251204_131522
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\streamlit_app\pages\predictions.py", line 1353, in _render_prediction_generator
+    result_list = engine.predict_single_model(
+        model_name=selected_model_name,
+    ...<2 lines>...
+        seed=random_seed
+    )
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\tools\prediction_engine.py", line 745, in predict_single_model
+    if method == "weighted_average":
+            ^^^^^^^^^^^^^^^^^^^^^^^^
+RuntimeError: Failed to generate model probabilities: Failed to generate model probabilities for lstm_lotto_max_20251204_131522: Could not load/run model lstm_lotto_max_20251204_131522: Model not found in registry: lotto max - lstm_lotto_max_20251204_131522
+
+2025-12-05 16:14:06 - lottery_ai - ERROR - logger.py:138 - Prediction error: Traceback (most recent call last):
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\tools\prediction_engine.py", line 369, in _load_and_run_model
+    raise FileNotFoundError(f"Model not found in registry: {registry_name} - {model_type}")
+FileNotFoundError: Model not found in registry: lotto max - catboost_lotto_max_20251204_130931
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\tools\prediction_engine.py", line 552, in generate_model_probabilities
+    raw_output = self._load_and_run_model(model_name, features)
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\tools\prediction_engine.py", line 445, in _load_and_run_model
+    raise RuntimeError(f"Could not load/run model {model_name}: {str(e)}")
+RuntimeError: Could not load/run model catboost_lotto_max_20251204_130931: Model not found in registry: lotto max - catboost_lotto_max_20251204_130931
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\tools\prediction_engine.py", line 864, in predict_single_model
+    model_probs = self.prob_gen.generate_model_probabilities(
+        model_name,
+        seed=current_seed
+    )
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\tools\prediction_engine.py", line 577, in generate_model_probabilities
+    raise RuntimeError(f"Failed to generate model probabilities for {model_name}: {str(e)}")
+RuntimeError: Failed to generate model probabilities for catboost_lotto_max_20251204_130931: Could not load/run model catboost_lotto_max_20251204_130931: Model not found in registry: lotto max - catboost_lotto_max_20251204_130931
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\streamlit_app\pages\predictions.py", line 1353, in _render_prediction_generator
+    result_list = engine.predict_single_model(
+        model_name=selected_model_name,
+    ...<2 lines>...
+        seed=random_seed
+    )
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\tools\prediction_engine.py", line 875, in predict_single_model
+    raise RuntimeError(error_msg)
+RuntimeError: Failed to generate model probabilities: Failed to generate model probabilities for catboost_lotto_max_20251204_130931: Could not load/run model catboost_lotto_max_20251204_130931: Model not found in registry: lotto max - catboost_lotto_max_20251204_130931
+

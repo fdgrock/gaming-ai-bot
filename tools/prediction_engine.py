@@ -359,8 +359,11 @@ class ProbabilityGenerator:
             if not self.registry:
                 raise ValueError("Model registry not available")
             
-            # Normalize model name for lookup
-            model_type = model_name.lower()
+            # Extract model type from full model name
+            # Examples: "catboost_lotto_max_20251204_130931" -> "catboost"
+            #           "cnn_lotto_max_20251204_154908" -> "cnn"
+            model_type = model_name.lower().split('_')[0] if '_' in model_name else model_name.lower()
+            
             registry_name = self.config.get("registry_name", "")
             
             # Get model path from registry using registry_name (e.g., "lotto max" not "lotto_max")
