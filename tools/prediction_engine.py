@@ -262,16 +262,98 @@ class ProbabilityGenerator:
             logger.warning(f"Could not apply schema for {model_type}: {e}")
             return features
 
+    def _load_class_to_numbers_mapping(self) -> Dict[int, List[int]]:
+        """
+        Build mapping from class label to actual lottery numbers based on training data.
+        
+        Returns:
+            Dict mapping class_id -> list of numbers that appeared in that class's training examples
+        """
+        try:
+            mapping = {}
+            historical_data = self._load_historical_data(num_draws=500)
+            if historical_data is None or len(historical_data) == 0:
+                logger.warning("Could not load historical data for class mapping")
+                return {}
+            
+            # Build class mapping from training data
+            # Each consecutive 7 draws form a class pattern
+            class_id = 0
+            for idx in range(0, len(historical_data) - 6, 7):
+                draw_numbers = set()
+                for i in range(7):
+                    if idx + i < len(historical_data):
+                        try:
+                            nums_str = str(historical_data.iloc[idx + i].get('numbers', ''))
+                            if nums_str and nums_str != 'nan':
+                                nums = [int(n.strip()) for n in nums_str.split(',')]
+                                draw_numbers.update(nums)
+                        except (ValueError, AttributeError):
+                            pass
+                
+                if draw_numbers:
+                    mapping[class_id] = sorted(list(draw_numbers))
+                    class_id += 1
+                    if class_id >= 40:  # Safety limit
+                        break
+            
+            logger.info(f"Created class-to-numbers mapping: {len(mapping)} classes")
+            return mapping if mapping else {}
+        except Exception as e:
+            logger.error(f"Error building class mapping: {str(e)}")
+            return {}
+
+    def _convert_class_probs_to_number_probs(self, class_probs: np.ndarray) -> np.ndarray:
+        """
+        Convert class probabilities to individual number probabilities.
+        
+        Tree models output probabilities for classes (which represent drawn sets).
+        Map back to individual number probabilities.
+        
+        Args:
+            class_probs: Probabilities for each class, shape (n_classes,)
+        
+        Returns:
+            Number probabilities, shape (self.num_numbers,)
+        """
+        try:
+            class_mapping = self._load_class_to_numbers_mapping()
+            number_probs = np.zeros(self.num_numbers)
+            
+            if not class_mapping:
+                # Fallback: uniform distribution
+                return np.ones(self.num_numbers) / self.num_numbers
+            
+            # Distribute class probability to numbers in that class
+            for class_id, numbers in class_mapping.items():
+                if class_id < len(class_probs) and numbers:
+                    prob_per_number = class_probs[class_id] / len(numbers)
+                    for num in numbers:
+                        if 1 <= num <= self.num_numbers:
+                            number_probs[num - 1] += prob_per_number
+            
+            # Normalize
+            if number_probs.sum() > 0:
+                number_probs = number_probs / number_probs.sum()
+            else:
+                number_probs = np.ones(self.num_numbers) / self.num_numbers
+            
+            return number_probs
+        except Exception as e:
+            logger.error(f"Error converting class probs: {str(e)}")
+            return np.ones(self.num_numbers) / self.num_numbers
+
     def _load_and_run_model(self, model_name: str, features: np.ndarray) -> Optional[np.ndarray]:
         """
         Load trained model and run inference on features.
+        Returns number probabilities (not class probabilities).
         
         Args:
             model_name: Name/type of model to load
             features: Feature array for inference
         
         Returns:
-            Raw model output (probabilities or predictions), or None if fails
+            Number probabilities for each lottery number, shape (num_numbers,)
         """
         try:
             if not self.registry:
@@ -288,22 +370,43 @@ class ProbabilityGenerator:
             
             # Load model based on type
             if model_type in ["xgboost", "catboost", "lightgbm"]:
-                # Tree models use joblib
+                # Tree models use joblib and output class probabilities
                 model = joblib.load(model_path)
                 
-                # Get predictions (raw scores/probabilities)
                 if hasattr(model, 'predict_proba'):
-                    # Return probabilities for the positive class
-                    predictions = model.predict_proba(features)
-                    # For multi-output, use the mean across dimensions
-                    return np.mean(predictions, axis=0) if predictions.ndim > 1 else predictions
+                    class_probs = model.predict_proba(features)[0]  # Take first (only) sample
+                    logger.info(f"Tree model {model_type} output {len(class_probs)} class probabilities")
+                    
+                    # Convert to number probabilities
+                    number_probs = self._convert_class_probs_to_number_probs(class_probs)
+                    return number_probs
                 else:
-                    # Raw predictions
-                    predictions = model.predict(features)
-                    return predictions if isinstance(predictions, np.ndarray) else np.array(predictions)
+                    # No predict_proba, use uniform fallback
+                    return np.ones(self.num_numbers) / self.num_numbers
             
-            elif model_type in ["lstm", "cnn", "transformer"]:
-                # Neural networks use Keras/TensorFlow
+            elif model_type in ["lstm", "cnn"]:
+                # LSTM and CNN are also class classifiers (output 33 class probabilities)
+                try:
+                    from tensorflow import keras
+                    model = keras.models.load_model(model_path)
+                except ImportError:
+                    raise ImportError("TensorFlow/Keras not available for neural network models")
+                
+                # Run inference to get class probabilities
+                class_probs = model.predict(features, verbose=0)
+                
+                # Handle output shape
+                if class_probs.ndim > 1:
+                    class_probs = class_probs[0]  # Take first sample
+                
+                logger.info(f"Neural network {model_type} output {len(class_probs)} class probabilities")
+                
+                # Convert class probs to number probs (same as tree models)
+                number_probs = self._convert_class_probs_to_number_probs(class_probs)
+                return number_probs
+            
+            elif model_type == "transformer":
+                # Transformer may output different format
                 try:
                     from tensorflow import keras
                     model = keras.models.load_model(model_path)
@@ -315,14 +418,25 @@ class ProbabilityGenerator:
                 
                 # Handle output shape
                 if predictions.ndim > 1:
-                    # Multiple outputs or batch - take first sample
-                    predictions = predictions[0]
+                    predictions = predictions[0]  # Take first sample
                 
-                # Ensure output is probabilities (sum to 1)
-                if predictions.sum() > 0:
-                    predictions = predictions / predictions.sum()
-                
-                return predictions
+                # Check if output is class probabilities or number probabilities
+                if len(predictions) == 33:
+                    # Class probabilities - convert to number probabilities
+                    logger.info(f"Transformer output {len(predictions)} class probabilities")
+                    number_probs = self._convert_class_probs_to_number_probs(predictions)
+                    return number_probs
+                elif len(predictions) == self.num_numbers:
+                    # Already number probabilities
+                    if predictions.sum() > 0:
+                        predictions = predictions / predictions.sum()
+                    else:
+                        predictions = np.ones(self.num_numbers) / self.num_numbers
+                    return predictions
+                else:
+                    # Unknown format - return uniform
+                    logger.warning(f"Transformer output unknown format (len={len(predictions)}), using uniform")
+                    return np.ones(self.num_numbers) / self.num_numbers
             
             else:
                 raise ValueError(f"Unknown model type: {model_type}")
@@ -352,8 +466,10 @@ class ProbabilityGenerator:
             RuntimeError: If model or features not found or inference fails
         """
         try:
-            # Extract model type from model name
-            model_type = model_name.lower()
+            # Extract model type from model name (first part before first underscore or hyphen)
+            # Examples: "xgboost_lotto_max_20251124_191556" -> "xgboost"
+            #           "cnn_lotto_max_20251204_154908" -> "cnn"
+            model_type = model_name.lower().split('_')[0] if '_' in model_name else model_name.lower()
             
             # 1. Load historical data
             historical_data = self._load_historical_data(num_draws=500)
@@ -369,13 +485,26 @@ class ProbabilityGenerator:
                 # Tree models return DataFrames, neural nets return numpy arrays
                 if model_type == "lstm":
                     features, _ = self.feature_generator.generate_lstm_sequences(historical_data)
-                    # features is (N, window_size, feature_dim) - take last window
-                    features = features[-1:].reshape(1, -1)  # Flatten to 2D
+                    # features is (N, window_size, feature_dim) - take last window as-is
+                    features = features[-1:]  # Keep 3D shape for LSTM: (1, window_size, features)
                     
                 elif model_type == "cnn":
-                    features, _ = self.feature_generator.generate_cnn_embeddings(historical_data)
-                    # features is (N, embedding_dim) - take last row
-                    features = features[-1:].reshape(1, -1)
+                    # CNN expects (batch, 72, 1) shape - need sequence input, not embeddings
+                    # Use LSTM-like sequences since CNN expects temporal data
+                    features, _ = self.feature_generator.generate_lstm_sequences(historical_data)
+                    # features is (N, window_size, features) - take last sequence
+                    seq = features[-1]  # Shape: (window_size, num_features)
+                    window_size = seq.shape[0]
+                    
+                    if window_size >= 72:
+                        # Take first 72 timesteps, average across features to get 1 channel
+                        features = np.mean(seq[:72, :], axis=1).reshape(1, 72, 1)
+                    else:
+                        # Pad if needed: expand to 72 timesteps
+                        padded = np.zeros((72, seq.shape[1]))
+                        padded[:seq.shape[0]] = seq
+                        # Average across features to get 1 channel
+                        features = np.mean(padded, axis=1).reshape(1, 72, 1)
                     
                 elif model_type == "transformer":
                     features, _ = self.feature_generator.generate_transformer_embeddings(historical_data)
@@ -410,7 +539,10 @@ class ProbabilityGenerator:
             if features is None or len(features) == 0:
                 raise ValueError(f"Feature generation returned empty result for {model_name}")
             
-            # Ensure 2D shape (1, n_features)
+            # Ensure proper shape
+            # For tree models: 2D (1, n_features)
+            # For LSTM/CNN: 3D (1, window_size, features) or (1, 72, 1)
+            # For Transformer: 2D (1, embedding_dim)
             if features.ndim == 1:
                 features = features.reshape(1, -1)
             

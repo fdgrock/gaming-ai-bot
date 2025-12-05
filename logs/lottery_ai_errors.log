@@ -453,3 +453,77 @@ RuntimeError: Failed to generate model probabilities: Failed to generate model p
 
 2025-12-05 15:20:24 - lottery_ai - ERROR - logger.py:138 - Error generating CatBoost features: Can only use .dt accessor with datetimelike values
 2025-12-05 15:22:04 - lottery_ai - ERROR - logger.py:138 - Error generating CatBoost features: Can only use .dt accessor with datetimelike values
+2025-12-05 15:32:49 - lottery_ai - ERROR - logger.py:138 - Prediction error: Traceback (most recent call last):
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\tools\prediction_engine.py", line 404, in generate_model_probabilities
+    raise ValueError(f"Unknown model type: {model_type}")
+ValueError: Unknown model type: catboost_lotto_max_20251204_130931
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\tools\prediction_engine.py", line 408, in generate_model_probabilities
+    raise ValueError(f"Could not generate features for model {model_name}: {str(e)}")
+ValueError: Could not generate features for model catboost_lotto_max_20251204_130931: Unknown model type: catboost_lotto_max_20251204_130931
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\tools\prediction_engine.py", line 732, in predict_single_model
+    model_probs = self.prob_gen.generate_model_probabilities(
+        model_name,
+        seed=current_seed
+    )
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\tools\prediction_engine.py", line 445, in generate_model_probabilities
+    raise RuntimeError(f"Failed to generate model probabilities for {model_name}: {str(e)}")
+RuntimeError: Failed to generate model probabilities for catboost_lotto_max_20251204_130931: Could not generate features for model catboost_lotto_max_20251204_130931: Unknown model type: catboost_lotto_max_20251204_130931
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\streamlit_app\pages\predictions.py", line 1353, in _render_prediction_generator
+    result_list = engine.predict_single_model(
+        model_name=selected_model_name,
+    ...<2 lines>...
+        seed=random_seed
+    )
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\tools\prediction_engine.py", line 743, in predict_single_model
+    raise RuntimeError(error_msg)
+RuntimeError: Failed to generate model probabilities: Failed to generate model probabilities for catboost_lotto_max_20251204_130931: Could not generate features for model catboost_lotto_max_20251204_130931: Unknown model type: catboost_lotto_max_20251204_130931
+
+2025-12-05 15:34:04 - lottery_ai - ERROR - logger.py:138 - Prediction error: Traceback (most recent call last):
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\tools\prediction_engine.py", line 404, in generate_model_probabilities
+    raise ValueError(f"Unknown model type: {model_type}")
+ValueError: Unknown model type: xgboost_lotto_max_20251124_191556
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\tools\prediction_engine.py", line 408, in generate_model_probabilities
+    raise ValueError(f"Could not generate features for model {model_name}: {str(e)}")
+ValueError: Could not generate features for model xgboost_lotto_max_20251124_191556: Unknown model type: xgboost_lotto_max_20251124_191556
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\tools\prediction_engine.py", line 732, in predict_single_model
+    model_probs = self.prob_gen.generate_model_probabilities(
+        model_name,
+        seed=current_seed
+    )
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\tools\prediction_engine.py", line 445, in generate_model_probabilities
+    raise RuntimeError(f"Failed to generate model probabilities for {model_name}: {str(e)}")
+RuntimeError: Failed to generate model probabilities for xgboost_lotto_max_20251124_191556: Could not generate features for model xgboost_lotto_max_20251124_191556: Unknown model type: xgboost_lotto_max_20251124_191556
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\streamlit_app\pages\predictions.py", line 1353, in _render_prediction_generator
+    result_list = engine.predict_single_model(
+        model_name=selected_model_name,
+    ...<2 lines>...
+        seed=random_seed
+    )
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\tools\prediction_engine.py", line 743, in predict_single_model
+    raise RuntimeError(error_msg)
+RuntimeError: Failed to generate model probabilities: Failed to generate model probabilities for xgboost_lotto_max_20251124_191556: Could not generate features for model xgboost_lotto_max_20251124_191556: Unknown model type: xgboost_lotto_max_20251124_191556
+
