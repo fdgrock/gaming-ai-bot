@@ -658,6 +658,7 @@ class ProbabilityGenerator:
 class SamplingStrategy:
     """Advanced sampling techniques for probability distributions."""
     
+    @staticmethod
     def gumbel_top_k(probs: np.ndarray, k: int, seed: int = None) -> Tuple[List[int], np.ndarray]:
         """
         Gumbel-Top-K Trick: Sample k unique items from a probability distribution.
