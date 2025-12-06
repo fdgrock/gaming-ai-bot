@@ -558,9 +558,26 @@ class ProbabilityGenerator:
                     logger.info(f"CNN features shape: {features.shape}")
                     
                 elif model_type == "transformer":
-                    features, _ = self.feature_generator.generate_transformer_embeddings(historical_data)
-                    # features is (N, embedding_dim) - take last row
-                    features = features[-1:].reshape(1, -1)
+                    # Transformer expects (batch, 28, 1) - sequence format with 28 timesteps
+                    # Generate LSTM sequences and reshape to match transformer input
+                    sequences, _ = self.feature_generator.generate_lstm_sequences(historical_data)
+                    # sequences shape: (num_sequences, window_size, num_features)
+                    # Take last sequence and average features to get 1 channel
+                    last_seq = sequences[-1]  # Shape: (window_size, num_features)
+                    
+                    # Average across features to get 1 channel per timestep
+                    averaged = np.mean(last_seq, axis=1)  # Shape: (window_size,)
+                    
+                    # Ensure we have exactly 28 timesteps
+                    if len(averaged) >= 28:
+                        # Take first 28 timesteps
+                        features = averaged[:28].reshape(1, 28, 1)
+                    else:
+                        # Pad to 28 timesteps
+                        padded = np.zeros(28)
+                        padded[:len(averaged)] = averaged
+                        features = padded.reshape(1, 28, 1)
+                    
                     logger.info(f"Transformer features shape: {features.shape}")
                     
                 elif model_type == "xgboost":
