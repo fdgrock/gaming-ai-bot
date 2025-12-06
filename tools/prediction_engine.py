@@ -510,10 +510,33 @@ class ProbabilityGenerator:
                 # Call the correct method based on model type
                 # Tree models return DataFrames, neural nets return numpy arrays
                 if model_type == "lstm":
-                    features, _ = self.feature_generator.generate_lstm_sequences(historical_data)
-                    # features is (N, window_size, feature_dim) - take last window as-is
-                    features = features[-1:]  # Keep 3D shape for LSTM: (1, window_size, features)
-                    logger.info(f"LSTM features shape: {features.shape}")
+                    # LSTM model was trained on FLAT features (shape: 1133,), not sequences
+                    # Generate all individual draw features and flatten the last one
+                    sequences, meta = self.feature_generator.generate_lstm_sequences(historical_data)
+                    # sequences shape: (num_sequences, window_size, num_features)
+                    # We need a single flat vector of shape (1, 1133)
+                    
+                    # The model expects the flattened last sequence
+                    last_sequence = sequences[-1]  # Shape: (window_size, num_features)
+                    flat_features = last_sequence.flatten()  # Flatten: (window_size * num_features,)
+                    
+                    # Pad or trim to match expected size (1133)
+                    expected_size = 1133
+                    if len(flat_features) < expected_size:
+                        # Pad with zeros
+                        padded = np.zeros(expected_size)
+                        padded[:len(flat_features)] = flat_features
+                        features = padded.reshape(1, -1)
+                        logger.info(f"LSTM features padded from {len(flat_features)} to {expected_size}")
+                    elif len(flat_features) > expected_size:
+                        # Trim
+                        features = flat_features[:expected_size].reshape(1, -1)
+                        logger.info(f"LSTM features trimmed from {len(flat_features)} to {expected_size}")
+                    else:
+                        features = flat_features.reshape(1, -1)
+                        logger.info(f"LSTM features match expected size: {expected_size}")
+                    
+                    logger.info(f"LSTM features final shape: {features.shape}")
                     
                 elif model_type == "cnn":
                     # CNN expects (batch, 72, 1) shape - need sequence input, not embeddings
@@ -648,21 +671,29 @@ class ProbabilityGenerator:
         P_corrected(number) = α * P_model(number) + (1-α) * P_historical(number)
         
         Where α (confidence factor) is derived from health_score:
-        - Low health score (0.3) → α = 0.3 (more reliance on historical distribution)
-        - High health score (0.9) → α = 0.9 (more reliance on model)
+        - Low health score (0.0) → α = 0.5 (50% from model, 50% from history)
+        - Medium health score (0.5) → α = 0.75 (75% from model, 25% from history)
+        - High health score (1.0) → α = 0.95 (95% from model, 5% from history)
+        
+        CHANGED: Increased minimum alpha from 0.3 to 0.5 to preserve model diversity
+        even when health scores are low. This prevents different models from producing
+        identical predictions when they have different model probabilities.
         """
         if historical_probs is None:
             historical_probs = self.generate_uniform_distribution()
         
-        # Health score directly becomes confidence factor
-        # Range [0.0, 1.0] maps to confidence [0.3, 0.9]
-        alpha = 0.3 + (0.6 * model_health_score)  # Maps [0, 1] to [0.3, 0.9]
+        # UPDATED: More aggressive mapping to preserve model differences
+        # Old formula: alpha = 0.3 + (0.6 * model_health_score)  # [0.3, 0.9]
+        # New formula: alpha = 0.5 + (0.45 * model_health_score)  # [0.5, 0.95]
+        # This ensures models always contribute at least 50% of the final probability
+        alpha = 0.5 + (0.45 * model_health_score)  # Maps [0, 1] to [0.5, 0.95]
         
         # Weighted combination
         corrected_probs = alpha * model_probs + (1 - alpha) * historical_probs
         
         # Ensure valid probability distribution
         corrected_probs = corrected_probs / corrected_probs.sum()
+        logger.info(f"Bias correction: health_score={model_health_score:.3f}, alpha={alpha:.3f}, model_contrib={alpha*100:.1f}%, history_contrib={(1-alpha)*100:.1f}%")
         return corrected_probs
     
     def enforce_range(self, probs: np.ndarray, num_range: Tuple[int, int] = None) -> np.ndarray:

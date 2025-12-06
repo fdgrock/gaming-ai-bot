@@ -1363,6 +1363,15 @@ def _render_prediction_generator() -> None:
                         except:
                             pass
                         
+                        # DEBUG: Log what model is being used
+                        st.info(f"🔍 **DEBUG - Model Prediction**")
+                        st.write(f"  **Selected Model Name**: `{selected_model_name}`")
+                        st.write(f"  **Model Type**: `{normalized_model_type}`")
+                        st.write(f"  **Game**: `{selected_game}`")
+                        st.write(f"  **Health Score**: {health_score:.3f}")
+                        st.write(f"  **Number of Predictions**: {num_predictions}")
+                        st.write(f"  **Seed**: {random_seed}")
+                        
                         result_list = engine.predict_single_model(
                             model_name=selected_model_name,
                             health_score=health_score,
