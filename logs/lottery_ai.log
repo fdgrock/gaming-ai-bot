@@ -12965,3 +12965,380 @@ RuntimeError: Failed to generate probabilities for transformer_lotto_max_2025120
 2025-12-05 19:52:02 - lottery_ai - INFO - logger.py:138 - Generating LightGBM features optimized for gradient boosting...
 2025-12-05 19:52:04 - lottery_ai - INFO - logger.py:138 - Saved FeatureSchema to C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\data\features\lightgbm\lotto_max\feature_schema.json
 2025-12-05 19:52:04 - lottery_ai - INFO - logger.py:138 - Generating advanced LSTM sequences with window_size=25
+2025-12-05 19:52:07 - lottery_ai - INFO - logger.py:138 - ✓ Generated 475 advanced LSTM sequences with 45 features
+2025-12-05 19:52:07 - lottery_ai - INFO - logger.py:138 - Saved FeatureSchema to C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\data\features\lstm\lotto_max\feature_schema.json
+2025-12-05 19:52:08 - lottery_ai - INFO - logger.py:138 - Generating advanced LSTM sequences with window_size=25
+2025-12-05 19:52:11 - lottery_ai - INFO - logger.py:138 - ✓ Generated 475 advanced LSTM sequences with 45 features
+2025-12-05 19:52:11 - lottery_ai - INFO - logger.py:138 - Saved FeatureSchema to C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\data\features\lstm\lotto_max\feature_schema.json
+2025-12-05 19:52:13 - lottery_ai - INFO - logger.py:138 - Generating comprehensive XGBoost features...
+2025-12-05 19:52:17 - lottery_ai - INFO - logger.py:138 - Padded XGBoost features from 77 to 93
+2025-12-05 19:52:17 - lottery_ai - INFO - logger.py:138 - ✓ Generated 93 advanced XGBoost features for 500 draws (target: 93)
+2025-12-05 19:52:17 - lottery_ai - INFO - logger.py:138 - Saved FeatureSchema to C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\data\features\xgboost\lotto_max\feature_schema.json
+2025-12-05 19:52:18 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
+2025-12-05 19:53:25 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
+2025-12-05 22:11:12 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
+2025-12-05 22:11:18 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
+2025-12-05 22:11:33 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
+2025-12-05 22:11:34 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
+2025-12-05 22:11:37 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
+2025-12-05 22:11:38 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
+2025-12-05 22:11:54 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
+2025-12-05 22:11:57 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
+2025-12-05 22:11:59 - lottery_ai - INFO - logger.py:138 - Generating advanced LSTM sequences with window_size=25
+2025-12-05 22:12:01 - lottery_ai - INFO - logger.py:138 - ✓ Generated 475 advanced LSTM sequences with 45 features
+2025-12-05 22:12:01 - lottery_ai - INFO - logger.py:138 - Saved FeatureSchema to C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\data\features\lstm\lotto_max\feature_schema.json
+2025-12-05 22:12:02 - lottery_ai - INFO - logger.py:138 - Generating CatBoost features optimized for categorical boosting...
+2025-12-05 22:12:04 - lottery_ai - INFO - logger.py:138 - Saved FeatureSchema to C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\data\features\catboost\lotto_max\feature_schema.json
+2025-12-05 22:12:04 - lottery_ai - INFO - logger.py:138 - Generating CatBoost features optimized for categorical boosting...
+2025-12-05 22:12:06 - lottery_ai - INFO - logger.py:138 - Saved FeatureSchema to C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\data\features\catboost\lotto_max\feature_schema.json
+2025-12-05 22:12:06 - lottery_ai - INFO - logger.py:138 - Generating advanced LSTM sequences with window_size=25
+2025-12-05 22:12:08 - lottery_ai - INFO - logger.py:138 - ✓ Generated 475 advanced LSTM sequences with 45 features
+2025-12-05 22:12:08 - lottery_ai - INFO - logger.py:138 - Saved FeatureSchema to C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\data\features\lstm\lotto_max\feature_schema.json
+2025-12-05 22:12:09 - lottery_ai - INFO - logger.py:138 - Generating advanced LSTM sequences with window_size=25
+2025-12-05 22:12:11 - lottery_ai - INFO - logger.py:138 - ✓ Generated 475 advanced LSTM sequences with 45 features
+2025-12-05 22:12:11 - lottery_ai - INFO - logger.py:138 - Saved FeatureSchema to C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\data\features\lstm\lotto_max\feature_schema.json
+2025-12-05 22:12:12 - lottery_ai - INFO - logger.py:138 - Generating comprehensive XGBoost features...
+2025-12-05 22:12:15 - lottery_ai - INFO - logger.py:138 - Padded XGBoost features from 77 to 93
+2025-12-05 22:12:15 - lottery_ai - INFO - logger.py:138 - ✓ Generated 93 advanced XGBoost features for 500 draws (target: 93)
+2025-12-05 22:12:15 - lottery_ai - INFO - logger.py:138 - Saved FeatureSchema to C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\data\features\xgboost\lotto_max\feature_schema.json
+2025-12-05 22:12:15 - lottery_ai - INFO - logger.py:138 - Generating advanced LSTM sequences with window_size=25
+2025-12-05 22:12:17 - lottery_ai - INFO - logger.py:138 - ✓ Generated 475 advanced LSTM sequences with 45 features
+2025-12-05 22:12:17 - lottery_ai - INFO - logger.py:138 - Saved FeatureSchema to C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\data\features\lstm\lotto_max\feature_schema.json
+2025-12-05 22:12:18 - lottery_ai - INFO - logger.py:138 - Generating LightGBM features optimized for gradient boosting...
+2025-12-05 22:12:20 - lottery_ai - INFO - logger.py:138 - Saved FeatureSchema to C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\data\features\lightgbm\lotto_max\feature_schema.json
+2025-12-05 22:12:20 - lottery_ai - INFO - logger.py:138 - Generating advanced LSTM sequences with window_size=25
+2025-12-05 22:12:22 - lottery_ai - INFO - logger.py:138 - ✓ Generated 475 advanced LSTM sequences with 45 features
+2025-12-05 22:12:22 - lottery_ai - INFO - logger.py:138 - Saved FeatureSchema to C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\data\features\lstm\lotto_max\feature_schema.json
+2025-12-05 22:12:22 - lottery_ai - INFO - logger.py:138 - Generating CatBoost features optimized for categorical boosting...
+2025-12-05 22:12:24 - lottery_ai - INFO - logger.py:138 - Saved FeatureSchema to C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\data\features\catboost\lotto_max\feature_schema.json
+2025-12-05 22:12:24 - lottery_ai - INFO - logger.py:138 - Generating CatBoost features optimized for categorical boosting...
+2025-12-05 22:12:26 - lottery_ai - INFO - logger.py:138 - Saved FeatureSchema to C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\data\features\catboost\lotto_max\feature_schema.json
+2025-12-05 22:12:26 - lottery_ai - INFO - logger.py:138 - Generating advanced LSTM sequences with window_size=25
+2025-12-05 22:12:28 - lottery_ai - INFO - logger.py:138 - ✓ Generated 475 advanced LSTM sequences with 45 features
+2025-12-05 22:12:28 - lottery_ai - INFO - logger.py:138 - Saved FeatureSchema to C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\data\features\lstm\lotto_max\feature_schema.json
+2025-12-05 22:12:29 - lottery_ai - INFO - logger.py:138 - Generating advanced LSTM sequences with window_size=25
+2025-12-05 22:12:31 - lottery_ai - INFO - logger.py:138 - ✓ Generated 475 advanced LSTM sequences with 45 features
+2025-12-05 22:12:31 - lottery_ai - INFO - logger.py:138 - Saved FeatureSchema to C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\data\features\lstm\lotto_max\feature_schema.json
+2025-12-05 22:12:32 - lottery_ai - INFO - logger.py:138 - Generating comprehensive XGBoost features...
+2025-12-05 22:12:34 - lottery_ai - INFO - logger.py:138 - Padded XGBoost features from 77 to 93
+2025-12-05 22:12:34 - lottery_ai - INFO - logger.py:138 - ✓ Generated 93 advanced XGBoost features for 500 draws (target: 93)
+2025-12-05 22:12:34 - lottery_ai - INFO - logger.py:138 - Saved FeatureSchema to C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\data\features\xgboost\lotto_max\feature_schema.json
+2025-12-05 22:12:34 - lottery_ai - INFO - logger.py:138 - Generating advanced LSTM sequences with window_size=25
+2025-12-05 22:12:36 - lottery_ai - INFO - logger.py:138 - ✓ Generated 475 advanced LSTM sequences with 45 features
+2025-12-05 22:12:36 - lottery_ai - INFO - logger.py:138 - Saved FeatureSchema to C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\data\features\lstm\lotto_max\feature_schema.json
+2025-12-05 22:12:36 - lottery_ai - INFO - logger.py:138 - Generating LightGBM features optimized for gradient boosting...
+2025-12-05 22:12:38 - lottery_ai - INFO - logger.py:138 - Saved FeatureSchema to C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\data\features\lightgbm\lotto_max\feature_schema.json
+2025-12-05 22:12:39 - lottery_ai - INFO - logger.py:138 - Generating advanced LSTM sequences with window_size=25
+2025-12-05 22:12:40 - lottery_ai - INFO - logger.py:138 - ✓ Generated 475 advanced LSTM sequences with 45 features
+2025-12-05 22:12:40 - lottery_ai - INFO - logger.py:138 - Saved FeatureSchema to C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\data\features\lstm\lotto_max\feature_schema.json
+2025-12-05 22:12:41 - lottery_ai - INFO - logger.py:138 - Generating CatBoost features optimized for categorical boosting...
+2025-12-05 22:12:43 - lottery_ai - INFO - logger.py:138 - Saved FeatureSchema to C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\data\features\catboost\lotto_max\feature_schema.json
+2025-12-05 22:12:43 - lottery_ai - INFO - logger.py:138 - Generating CatBoost features optimized for categorical boosting...
+2025-12-05 22:12:45 - lottery_ai - INFO - logger.py:138 - Saved FeatureSchema to C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\data\features\catboost\lotto_max\feature_schema.json
+2025-12-05 22:12:45 - lottery_ai - INFO - logger.py:138 - Generating advanced LSTM sequences with window_size=25
+2025-12-05 22:12:47 - lottery_ai - INFO - logger.py:138 - ✓ Generated 475 advanced LSTM sequences with 45 features
+2025-12-05 22:12:47 - lottery_ai - INFO - logger.py:138 - Saved FeatureSchema to C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\data\features\lstm\lotto_max\feature_schema.json
+2025-12-05 22:12:48 - lottery_ai - INFO - logger.py:138 - Generating advanced LSTM sequences with window_size=25
+2025-12-05 22:12:50 - lottery_ai - INFO - logger.py:138 - ✓ Generated 475 advanced LSTM sequences with 45 features
+2025-12-05 22:12:50 - lottery_ai - INFO - logger.py:138 - Saved FeatureSchema to C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\data\features\lstm\lotto_max\feature_schema.json
+2025-12-05 22:12:51 - lottery_ai - INFO - logger.py:138 - Generating comprehensive XGBoost features...
+2025-12-05 22:12:53 - lottery_ai - INFO - logger.py:138 - Padded XGBoost features from 77 to 93
+2025-12-05 22:12:53 - lottery_ai - INFO - logger.py:138 - ✓ Generated 93 advanced XGBoost features for 500 draws (target: 93)
+2025-12-05 22:12:53 - lottery_ai - INFO - logger.py:138 - Saved FeatureSchema to C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\data\features\xgboost\lotto_max\feature_schema.json
+2025-12-05 22:12:53 - lottery_ai - INFO - logger.py:138 - Generating advanced LSTM sequences with window_size=25
+2025-12-05 22:12:55 - lottery_ai - INFO - logger.py:138 - ✓ Generated 475 advanced LSTM sequences with 45 features
+2025-12-05 22:12:55 - lottery_ai - INFO - logger.py:138 - Saved FeatureSchema to C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\data\features\lstm\lotto_max\feature_schema.json
+2025-12-05 22:12:55 - lottery_ai - INFO - logger.py:138 - Generating LightGBM features optimized for gradient boosting...
+2025-12-05 22:12:57 - lottery_ai - INFO - logger.py:138 - Saved FeatureSchema to C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\data\features\lightgbm\lotto_max\feature_schema.json
+2025-12-05 22:12:57 - lottery_ai - INFO - logger.py:138 - Generating advanced LSTM sequences with window_size=25
+2025-12-05 22:12:59 - lottery_ai - INFO - logger.py:138 - ✓ Generated 475 advanced LSTM sequences with 45 features
+2025-12-05 22:12:59 - lottery_ai - INFO - logger.py:138 - Saved FeatureSchema to C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\data\features\lstm\lotto_max\feature_schema.json
+2025-12-05 22:12:59 - lottery_ai - INFO - logger.py:138 - Generating CatBoost features optimized for categorical boosting...
+2025-12-05 22:13:02 - lottery_ai - INFO - logger.py:138 - Saved FeatureSchema to C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\data\features\catboost\lotto_max\feature_schema.json
+2025-12-05 22:13:02 - lottery_ai - INFO - logger.py:138 - Generating CatBoost features optimized for categorical boosting...
+2025-12-05 22:13:04 - lottery_ai - INFO - logger.py:138 - Saved FeatureSchema to C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\data\features\catboost\lotto_max\feature_schema.json
+2025-12-05 22:13:04 - lottery_ai - INFO - logger.py:138 - Generating advanced LSTM sequences with window_size=25
+2025-12-05 22:13:06 - lottery_ai - INFO - logger.py:138 - ✓ Generated 475 advanced LSTM sequences with 45 features
+2025-12-05 22:13:06 - lottery_ai - INFO - logger.py:138 - Saved FeatureSchema to C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\data\features\lstm\lotto_max\feature_schema.json
+2025-12-05 22:13:07 - lottery_ai - INFO - logger.py:138 - Generating advanced LSTM sequences with window_size=25
+2025-12-05 22:13:09 - lottery_ai - INFO - logger.py:138 - ✓ Generated 475 advanced LSTM sequences with 45 features
+2025-12-05 22:13:09 - lottery_ai - INFO - logger.py:138 - Saved FeatureSchema to C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\data\features\lstm\lotto_max\feature_schema.json
+2025-12-05 22:13:09 - lottery_ai - INFO - logger.py:138 - Generating comprehensive XGBoost features...
+2025-12-05 22:13:12 - lottery_ai - INFO - logger.py:138 - Padded XGBoost features from 77 to 93
+2025-12-05 22:13:12 - lottery_ai - INFO - logger.py:138 - ✓ Generated 93 advanced XGBoost features for 500 draws (target: 93)
+2025-12-05 22:13:12 - lottery_ai - INFO - logger.py:138 - Saved FeatureSchema to C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\data\features\xgboost\lotto_max\feature_schema.json
+2025-12-05 22:13:12 - lottery_ai - INFO - logger.py:138 - Generating advanced LSTM sequences with window_size=25
+2025-12-05 22:13:15 - lottery_ai - INFO - logger.py:138 - ✓ Generated 475 advanced LSTM sequences with 45 features
+2025-12-05 22:13:15 - lottery_ai - INFO - logger.py:138 - Saved FeatureSchema to C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\data\features\lstm\lotto_max\feature_schema.json
+2025-12-05 22:13:16 - lottery_ai - INFO - logger.py:138 - Generating LightGBM features optimized for gradient boosting...
+2025-12-05 22:13:19 - lottery_ai - INFO - logger.py:138 - Saved FeatureSchema to C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\data\features\lightgbm\lotto_max\feature_schema.json
+2025-12-05 22:13:19 - lottery_ai - INFO - logger.py:138 - Generating advanced LSTM sequences with window_size=25
+2025-12-05 22:13:22 - lottery_ai - INFO - logger.py:138 - ✓ Generated 475 advanced LSTM sequences with 45 features
+2025-12-05 22:13:22 - lottery_ai - INFO - logger.py:138 - Saved FeatureSchema to C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\data\features\lstm\lotto_max\feature_schema.json
+2025-12-05 22:13:22 - lottery_ai - INFO - logger.py:138 - Generating CatBoost features optimized for categorical boosting...
+2025-12-05 22:13:25 - lottery_ai - INFO - logger.py:138 - Saved FeatureSchema to C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\data\features\catboost\lotto_max\feature_schema.json
+2025-12-05 22:13:25 - lottery_ai - INFO - logger.py:138 - Generating CatBoost features optimized for categorical boosting...
+2025-12-05 22:13:28 - lottery_ai - INFO - logger.py:138 - Saved FeatureSchema to C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\data\features\catboost\lotto_max\feature_schema.json
+2025-12-05 22:13:28 - lottery_ai - INFO - logger.py:138 - Generating advanced LSTM sequences with window_size=25
+2025-12-05 22:13:31 - lottery_ai - INFO - logger.py:138 - ✓ Generated 475 advanced LSTM sequences with 45 features
+2025-12-05 22:13:31 - lottery_ai - INFO - logger.py:138 - Saved FeatureSchema to C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\data\features\lstm\lotto_max\feature_schema.json
+2025-12-05 22:13:32 - lottery_ai - INFO - logger.py:138 - Generating advanced LSTM sequences with window_size=25
+2025-12-05 22:13:34 - lottery_ai - INFO - logger.py:138 - ✓ Generated 475 advanced LSTM sequences with 45 features
+2025-12-05 22:13:34 - lottery_ai - INFO - logger.py:138 - Saved FeatureSchema to C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\data\features\lstm\lotto_max\feature_schema.json
+2025-12-05 22:13:35 - lottery_ai - INFO - logger.py:138 - Generating comprehensive XGBoost features...
+2025-12-05 22:13:39 - lottery_ai - INFO - logger.py:138 - Padded XGBoost features from 77 to 93
+2025-12-05 22:13:39 - lottery_ai - INFO - logger.py:138 - ✓ Generated 93 advanced XGBoost features for 500 draws (target: 93)
+2025-12-05 22:13:39 - lottery_ai - INFO - logger.py:138 - Saved FeatureSchema to C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\data\features\xgboost\lotto_max\feature_schema.json
+2025-12-05 22:13:39 - lottery_ai - INFO - logger.py:138 - Generating advanced LSTM sequences with window_size=25
+2025-12-05 22:13:42 - lottery_ai - INFO - logger.py:138 - ✓ Generated 475 advanced LSTM sequences with 45 features
+2025-12-05 22:13:42 - lottery_ai - INFO - logger.py:138 - Saved FeatureSchema to C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\data\features\lstm\lotto_max\feature_schema.json
+2025-12-05 22:13:43 - lottery_ai - INFO - logger.py:138 - Generating LightGBM features optimized for gradient boosting...
+2025-12-05 22:13:46 - lottery_ai - INFO - logger.py:138 - Saved FeatureSchema to C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\data\features\lightgbm\lotto_max\feature_schema.json
+2025-12-05 22:13:47 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
+2025-12-05 22:14:25 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
+2025-12-05 22:14:36 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
+2025-12-05 22:14:39 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
+2025-12-05 22:14:42 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
+2025-12-05 22:14:49 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
+2025-12-05 22:14:53 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
+2025-12-05 22:15:01 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
+2025-12-05 22:15:08 - lottery_ai - INFO - logger.py:138 - Generating advanced LSTM sequences with window_size=25
+2025-12-05 22:15:11 - lottery_ai - INFO - logger.py:138 - ✓ Generated 475 advanced LSTM sequences with 45 features
+2025-12-05 22:15:11 - lottery_ai - INFO - logger.py:138 - Saved FeatureSchema to C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\data\features\lstm\lotto_max\feature_schema.json
+2025-12-05 22:15:11 - lottery_ai - INFO - logger.py:138 - Generating CatBoost features optimized for categorical boosting...
+2025-12-05 22:15:14 - lottery_ai - INFO - logger.py:138 - Saved FeatureSchema to C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\data\features\catboost\lotto_max\feature_schema.json
+2025-12-05 22:15:15 - lottery_ai - INFO - logger.py:138 - Generating CatBoost features optimized for categorical boosting...
+2025-12-05 22:15:19 - lottery_ai - INFO - logger.py:138 - Saved FeatureSchema to C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\data\features\catboost\lotto_max\feature_schema.json
+2025-12-05 22:15:19 - lottery_ai - INFO - logger.py:138 - Generating advanced LSTM sequences with window_size=25
+2025-12-05 22:15:22 - lottery_ai - INFO - logger.py:138 - ✓ Generated 475 advanced LSTM sequences with 45 features
+2025-12-05 22:15:22 - lottery_ai - INFO - logger.py:138 - Saved FeatureSchema to C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\data\features\lstm\lotto_max\feature_schema.json
+2025-12-05 22:15:23 - lottery_ai - INFO - logger.py:138 - Generating advanced LSTM sequences with window_size=25
+2025-12-05 22:15:25 - lottery_ai - INFO - logger.py:138 - ✓ Generated 475 advanced LSTM sequences with 45 features
+2025-12-05 22:15:25 - lottery_ai - INFO - logger.py:138 - Saved FeatureSchema to C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\data\features\lstm\lotto_max\feature_schema.json
+2025-12-05 22:15:26 - lottery_ai - INFO - logger.py:138 - Generating comprehensive XGBoost features...
+2025-12-05 22:15:28 - lottery_ai - INFO - logger.py:138 - Padded XGBoost features from 77 to 93
+2025-12-05 22:15:28 - lottery_ai - INFO - logger.py:138 - ✓ Generated 93 advanced XGBoost features for 500 draws (target: 93)
+2025-12-05 22:15:28 - lottery_ai - INFO - logger.py:138 - Saved FeatureSchema to C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\data\features\xgboost\lotto_max\feature_schema.json
+2025-12-05 22:15:29 - lottery_ai - INFO - logger.py:138 - Generating advanced LSTM sequences with window_size=25
+2025-12-05 22:15:31 - lottery_ai - INFO - logger.py:138 - ✓ Generated 475 advanced LSTM sequences with 45 features
+2025-12-05 22:15:31 - lottery_ai - INFO - logger.py:138 - Saved FeatureSchema to C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\data\features\lstm\lotto_max\feature_schema.json
+2025-12-05 22:15:31 - lottery_ai - INFO - logger.py:138 - Generating LightGBM features optimized for gradient boosting...
+2025-12-05 22:15:34 - lottery_ai - INFO - logger.py:138 - Saved FeatureSchema to C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\data\features\lightgbm\lotto_max\feature_schema.json
+2025-12-05 22:15:34 - lottery_ai - INFO - logger.py:138 - Generating advanced LSTM sequences with window_size=25
+2025-12-05 22:15:36 - lottery_ai - INFO - logger.py:138 - ✓ Generated 475 advanced LSTM sequences with 45 features
+2025-12-05 22:15:36 - lottery_ai - INFO - logger.py:138 - Saved FeatureSchema to C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\data\features\lstm\lotto_max\feature_schema.json
+2025-12-05 22:15:36 - lottery_ai - INFO - logger.py:138 - Generating CatBoost features optimized for categorical boosting...
+2025-12-05 22:15:39 - lottery_ai - INFO - logger.py:138 - Saved FeatureSchema to C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\data\features\catboost\lotto_max\feature_schema.json
+2025-12-05 22:15:39 - lottery_ai - INFO - logger.py:138 - Generating CatBoost features optimized for categorical boosting...
+2025-12-05 22:15:41 - lottery_ai - INFO - logger.py:138 - Saved FeatureSchema to C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\data\features\catboost\lotto_max\feature_schema.json
+2025-12-05 22:15:41 - lottery_ai - INFO - logger.py:138 - Generating advanced LSTM sequences with window_size=25
+2025-12-05 22:15:43 - lottery_ai - INFO - logger.py:138 - ✓ Generated 475 advanced LSTM sequences with 45 features
+2025-12-05 22:15:43 - lottery_ai - INFO - logger.py:138 - Saved FeatureSchema to C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\data\features\lstm\lotto_max\feature_schema.json
+2025-12-05 22:15:44 - lottery_ai - INFO - logger.py:138 - Generating advanced LSTM sequences with window_size=25
+2025-12-05 22:15:45 - lottery_ai - INFO - logger.py:138 - ✓ Generated 475 advanced LSTM sequences with 45 features
+2025-12-05 22:15:45 - lottery_ai - INFO - logger.py:138 - Saved FeatureSchema to C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\data\features\lstm\lotto_max\feature_schema.json
+2025-12-05 22:15:46 - lottery_ai - INFO - logger.py:138 - Generating comprehensive XGBoost features...
+2025-12-05 22:15:48 - lottery_ai - INFO - logger.py:138 - Padded XGBoost features from 77 to 93
+2025-12-05 22:15:48 - lottery_ai - INFO - logger.py:138 - ✓ Generated 93 advanced XGBoost features for 500 draws (target: 93)
+2025-12-05 22:15:48 - lottery_ai - INFO - logger.py:138 - Saved FeatureSchema to C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\data\features\xgboost\lotto_max\feature_schema.json
+2025-12-05 22:15:49 - lottery_ai - INFO - logger.py:138 - Generating advanced LSTM sequences with window_size=25
+2025-12-05 22:15:50 - lottery_ai - INFO - logger.py:138 - ✓ Generated 475 advanced LSTM sequences with 45 features
+2025-12-05 22:15:50 - lottery_ai - INFO - logger.py:138 - Saved FeatureSchema to C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\data\features\lstm\lotto_max\feature_schema.json
+2025-12-05 22:15:51 - lottery_ai - INFO - logger.py:138 - Generating LightGBM features optimized for gradient boosting...
+2025-12-05 22:15:53 - lottery_ai - INFO - logger.py:138 - Saved FeatureSchema to C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\data\features\lightgbm\lotto_max\feature_schema.json
+2025-12-05 22:15:53 - lottery_ai - INFO - logger.py:138 - Generating advanced LSTM sequences with window_size=25
+2025-12-05 22:15:55 - lottery_ai - INFO - logger.py:138 - ✓ Generated 475 advanced LSTM sequences with 45 features
+2025-12-05 22:15:55 - lottery_ai - INFO - logger.py:138 - Saved FeatureSchema to C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\data\features\lstm\lotto_max\feature_schema.json
+2025-12-05 22:15:55 - lottery_ai - INFO - logger.py:138 - Generating CatBoost features optimized for categorical boosting...
+2025-12-05 22:15:57 - lottery_ai - INFO - logger.py:138 - Saved FeatureSchema to C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\data\features\catboost\lotto_max\feature_schema.json
+2025-12-05 22:15:57 - lottery_ai - INFO - logger.py:138 - Generating CatBoost features optimized for categorical boosting...
+2025-12-05 22:15:59 - lottery_ai - INFO - logger.py:138 - Saved FeatureSchema to C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\data\features\catboost\lotto_max\feature_schema.json
+2025-12-05 22:15:59 - lottery_ai - INFO - logger.py:138 - Generating advanced LSTM sequences with window_size=25
+2025-12-05 22:16:01 - lottery_ai - INFO - logger.py:138 - ✓ Generated 475 advanced LSTM sequences with 45 features
+2025-12-05 22:16:01 - lottery_ai - INFO - logger.py:138 - Saved FeatureSchema to C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\data\features\lstm\lotto_max\feature_schema.json
+2025-12-05 22:16:02 - lottery_ai - INFO - logger.py:138 - Generating advanced LSTM sequences with window_size=25
+2025-12-05 22:16:04 - lottery_ai - INFO - logger.py:138 - ✓ Generated 475 advanced LSTM sequences with 45 features
+2025-12-05 22:16:04 - lottery_ai - INFO - logger.py:138 - Saved FeatureSchema to C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\data\features\lstm\lotto_max\feature_schema.json
+2025-12-05 22:16:05 - lottery_ai - INFO - logger.py:138 - Generating comprehensive XGBoost features...
+2025-12-05 22:16:08 - lottery_ai - INFO - logger.py:138 - Padded XGBoost features from 77 to 93
+2025-12-05 22:16:08 - lottery_ai - INFO - logger.py:138 - ✓ Generated 93 advanced XGBoost features for 500 draws (target: 93)
+2025-12-05 22:16:08 - lottery_ai - INFO - logger.py:138 - Saved FeatureSchema to C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\data\features\xgboost\lotto_max\feature_schema.json
+2025-12-05 22:16:08 - lottery_ai - INFO - logger.py:138 - Generating advanced LSTM sequences with window_size=25
+2025-12-05 22:16:11 - lottery_ai - INFO - logger.py:138 - ✓ Generated 475 advanced LSTM sequences with 45 features
+2025-12-05 22:16:11 - lottery_ai - INFO - logger.py:138 - Saved FeatureSchema to C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\data\features\lstm\lotto_max\feature_schema.json
+2025-12-05 22:16:12 - lottery_ai - INFO - logger.py:138 - Generating LightGBM features optimized for gradient boosting...
+2025-12-05 22:16:16 - lottery_ai - INFO - logger.py:138 - Saved FeatureSchema to C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\data\features\lightgbm\lotto_max\feature_schema.json
+2025-12-05 22:16:16 - lottery_ai - INFO - logger.py:138 - Generating advanced LSTM sequences with window_size=25
+2025-12-05 22:16:19 - lottery_ai - INFO - logger.py:138 - ✓ Generated 475 advanced LSTM sequences with 45 features
+2025-12-05 22:16:19 - lottery_ai - INFO - logger.py:138 - Saved FeatureSchema to C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\data\features\lstm\lotto_max\feature_schema.json
+2025-12-05 22:16:20 - lottery_ai - INFO - logger.py:138 - Generating CatBoost features optimized for categorical boosting...
+2025-12-05 22:16:22 - lottery_ai - INFO - logger.py:138 - Saved FeatureSchema to C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\data\features\catboost\lotto_max\feature_schema.json
+2025-12-05 22:16:22 - lottery_ai - INFO - logger.py:138 - Generating CatBoost features optimized for categorical boosting...
+2025-12-05 22:16:24 - lottery_ai - INFO - logger.py:138 - Saved FeatureSchema to C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\data\features\catboost\lotto_max\feature_schema.json
+2025-12-05 22:16:25 - lottery_ai - INFO - logger.py:138 - Generating advanced LSTM sequences with window_size=25
+2025-12-05 22:16:27 - lottery_ai - INFO - logger.py:138 - ✓ Generated 475 advanced LSTM sequences with 45 features
+2025-12-05 22:16:27 - lottery_ai - INFO - logger.py:138 - Saved FeatureSchema to C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\data\features\lstm\lotto_max\feature_schema.json
+2025-12-05 22:16:27 - lottery_ai - INFO - logger.py:138 - Generating advanced LSTM sequences with window_size=25
+2025-12-05 22:16:30 - lottery_ai - INFO - logger.py:138 - ✓ Generated 475 advanced LSTM sequences with 45 features
+2025-12-05 22:16:30 - lottery_ai - INFO - logger.py:138 - Saved FeatureSchema to C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\data\features\lstm\lotto_max\feature_schema.json
+2025-12-05 22:16:30 - lottery_ai - INFO - logger.py:138 - Generating comprehensive XGBoost features...
+2025-12-05 22:16:33 - lottery_ai - INFO - logger.py:138 - Padded XGBoost features from 77 to 93
+2025-12-05 22:16:33 - lottery_ai - INFO - logger.py:138 - ✓ Generated 93 advanced XGBoost features for 500 draws (target: 93)
+2025-12-05 22:16:33 - lottery_ai - INFO - logger.py:138 - Saved FeatureSchema to C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\data\features\xgboost\lotto_max\feature_schema.json
+2025-12-05 22:16:33 - lottery_ai - INFO - logger.py:138 - Generating advanced LSTM sequences with window_size=25
+2025-12-05 22:16:35 - lottery_ai - INFO - logger.py:138 - ✓ Generated 475 advanced LSTM sequences with 45 features
+2025-12-05 22:16:35 - lottery_ai - INFO - logger.py:138 - Saved FeatureSchema to C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\data\features\lstm\lotto_max\feature_schema.json
+2025-12-05 22:16:36 - lottery_ai - INFO - logger.py:138 - Generating LightGBM features optimized for gradient boosting...
+2025-12-05 22:16:38 - lottery_ai - INFO - logger.py:138 - Saved FeatureSchema to C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\data\features\lightgbm\lotto_max\feature_schema.json
+2025-12-05 22:16:39 - lottery_ai - INFO - logger.py:138 - Generating advanced LSTM sequences with window_size=25
+2025-12-05 22:16:41 - lottery_ai - INFO - logger.py:138 - ✓ Generated 475 advanced LSTM sequences with 45 features
+2025-12-05 22:16:41 - lottery_ai - INFO - logger.py:138 - Saved FeatureSchema to C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\data\features\lstm\lotto_max\feature_schema.json
+2025-12-05 22:16:41 - lottery_ai - INFO - logger.py:138 - Generating CatBoost features optimized for categorical boosting...
+2025-12-05 22:16:43 - lottery_ai - INFO - logger.py:138 - Saved FeatureSchema to C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\data\features\catboost\lotto_max\feature_schema.json
+2025-12-05 22:16:44 - lottery_ai - INFO - logger.py:138 - Generating CatBoost features optimized for categorical boosting...
+2025-12-05 22:16:46 - lottery_ai - INFO - logger.py:138 - Saved FeatureSchema to C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\data\features\catboost\lotto_max\feature_schema.json
+2025-12-05 22:16:46 - lottery_ai - INFO - logger.py:138 - Generating advanced LSTM sequences with window_size=25
+2025-12-05 22:16:48 - lottery_ai - INFO - logger.py:138 - ✓ Generated 475 advanced LSTM sequences with 45 features
+2025-12-05 22:16:48 - lottery_ai - INFO - logger.py:138 - Saved FeatureSchema to C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\data\features\lstm\lotto_max\feature_schema.json
+2025-12-05 22:16:49 - lottery_ai - INFO - logger.py:138 - Generating advanced LSTM sequences with window_size=25
+2025-12-05 22:16:51 - lottery_ai - INFO - logger.py:138 - ✓ Generated 475 advanced LSTM sequences with 45 features
+2025-12-05 22:16:51 - lottery_ai - INFO - logger.py:138 - Saved FeatureSchema to C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\data\features\lstm\lotto_max\feature_schema.json
+2025-12-05 22:16:52 - lottery_ai - INFO - logger.py:138 - Generating comprehensive XGBoost features...
+2025-12-05 22:16:54 - lottery_ai - INFO - logger.py:138 - Padded XGBoost features from 77 to 93
+2025-12-05 22:16:54 - lottery_ai - INFO - logger.py:138 - ✓ Generated 93 advanced XGBoost features for 500 draws (target: 93)
+2025-12-05 22:16:54 - lottery_ai - INFO - logger.py:138 - Saved FeatureSchema to C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\data\features\xgboost\lotto_max\feature_schema.json
+2025-12-05 22:16:55 - lottery_ai - INFO - logger.py:138 - Generating advanced LSTM sequences with window_size=25
+2025-12-05 22:16:57 - lottery_ai - INFO - logger.py:138 - ✓ Generated 475 advanced LSTM sequences with 45 features
+2025-12-05 22:16:57 - lottery_ai - INFO - logger.py:138 - Saved FeatureSchema to C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\data\features\lstm\lotto_max\feature_schema.json
+2025-12-05 22:16:57 - lottery_ai - INFO - logger.py:138 - Generating LightGBM features optimized for gradient boosting...
+2025-12-05 22:17:00 - lottery_ai - INFO - logger.py:138 - Saved FeatureSchema to C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\data\features\lightgbm\lotto_max\feature_schema.json
+2025-12-05 22:17:01 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
+2025-12-05 22:19:25 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
+2025-12-06 00:05:48 - lottery_ai - INFO - logger.py:138 - Dashboard rendered successfully
+2025-12-06 00:10:22 - lottery_ai - INFO - logger.py:138 - Dashboard rendered successfully
+2025-12-06 00:10:37 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
+2025-12-06 00:10:54 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
+2025-12-06 00:10:59 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
+2025-12-06 00:11:02 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
+2025-12-06 00:11:06 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
+2025-12-06 00:11:08 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
+2025-12-06 00:11:12 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
+2025-12-06 00:11:14 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
+2025-12-06 00:11:18 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
+2025-12-06 00:11:20 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
+2025-12-06 00:11:24 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
+2025-12-06 00:11:26 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
+2025-12-06 00:11:35 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
+2025-12-06 00:11:49 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
+2025-12-06 00:12:31 - lottery_ai - INFO - logger.py:138 - Dashboard rendered successfully
+2025-12-06 07:16:57 - lottery_ai - INFO - logger.py:138 - Dashboard rendered successfully
+2025-12-06 07:17:42 - lottery_ai - INFO - logger.py:138 - Training page rendered
+2025-12-06 07:17:50 - lottery_ai - INFO - logger.py:138 - Scraping data from https://www.lottomaxnumbers.com/numbers/2025 for year 2025
+2025-12-06 07:17:51 - lottery_ai - INFO - logger.py:138 - Found 1 tables on page
+2025-12-06 07:17:51 - lottery_ai - INFO - logger.py:138 - Successfully scraped 97 records for 2025
+2025-12-06 07:17:52 - lottery_ai - INFO - logger.py:138 - Training page rendered
+2025-12-06 07:17:58 - lottery_ai - INFO - logger.py:138 - Training page rendered
+2025-12-06 07:18:00 - lottery_ai - INFO - logger.py:138 - Smart Update: 1 new records added (Total: 170)
+2025-12-06 07:18:00 - lottery_ai - INFO - logger.py:138 - Data saved successfully: training_data_2025.csv
+2025-12-06 07:18:00 - lottery_ai - INFO - logger.py:138 - Training page rendered
+2025-12-06 07:18:09 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
+2025-12-06 07:18:40 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
+2025-12-06 07:18:51 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
+2025-12-06 07:18:56 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
+2025-12-06 07:19:04 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
+2025-12-06 07:19:16 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
+2025-12-06 07:19:24 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
+2025-12-06 07:19:27 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
+2025-12-06 07:19:31 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
+2025-12-06 07:19:33 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
+2025-12-06 07:19:35 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
+2025-12-06 07:19:38 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
+2025-12-06 07:19:41 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
+2025-12-06 07:19:43 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
+2025-12-06 07:20:14 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
+2025-12-06 07:20:54 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
+2025-12-06 07:22:14 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
+2025-12-06 07:22:35 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
+2025-12-06 07:22:41 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
+2025-12-06 07:22:46 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
+2025-12-06 07:22:48 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
+2025-12-06 07:22:50 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
+2025-12-06 07:22:53 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
+2025-12-06 07:22:57 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
+2025-12-06 07:23:00 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
+2025-12-06 07:23:02 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
+2025-12-06 07:23:05 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
+2025-12-06 07:23:07 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
+2025-12-06 07:23:09 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
+2025-12-06 07:23:10 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
+2025-12-06 07:23:13 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
+2025-12-06 07:23:18 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
+2025-12-06 07:35:10 - lottery_ai - INFO - logger.py:138 - Dashboard rendered successfully
+2025-12-06 07:35:26 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
+2025-12-06 07:35:41 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
+2025-12-06 07:35:45 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
+2025-12-06 07:35:46 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
+2025-12-06 07:35:49 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
+2025-12-06 07:35:51 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
+2025-12-06 07:35:54 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
+2025-12-06 07:35:58 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
+2025-12-06 07:36:01 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
+2025-12-06 07:36:02 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
+2025-12-06 07:36:05 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
+2025-12-06 07:36:07 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
+2025-12-06 07:36:09 - lottery_ai - INFO - logger.py:138 - Generating CatBoost features optimized for categorical boosting...
+2025-12-06 07:36:12 - lottery_ai - INFO - logger.py:138 - Saved FeatureSchema to C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\data\features\catboost\lotto_max\feature_schema.json
+2025-12-06 07:36:12 - lottery_ai - INFO - logger.py:138 - Generating advanced LSTM sequences with window_size=25
+2025-12-06 07:36:15 - lottery_ai - INFO - logger.py:138 - ✓ Generated 475 advanced LSTM sequences with 45 features
+2025-12-06 07:36:15 - lottery_ai - INFO - logger.py:138 - Saved FeatureSchema to C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\data\features\lstm\lotto_max\feature_schema.json
+2025-12-06 07:36:17 - lottery_ai - INFO - logger.py:138 - Generating LightGBM features optimized for gradient boosting...
+2025-12-06 07:36:20 - lottery_ai - INFO - logger.py:138 - Saved FeatureSchema to C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\data\features\lightgbm\lotto_max\feature_schema.json
+2025-12-06 07:36:21 - lottery_ai - INFO - logger.py:138 - Generating advanced LSTM sequences with window_size=25
+2025-12-06 07:36:23 - lottery_ai - INFO - logger.py:138 - ✓ Generated 475 advanced LSTM sequences with 45 features
+2025-12-06 07:36:23 - lottery_ai - INFO - logger.py:138 - Saved FeatureSchema to C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\data\features\lstm\lotto_max\feature_schema.json
+2025-12-06 07:36:24 - lottery_ai - INFO - logger.py:138 - Generating advanced LSTM sequences with window_size=25
+2025-12-06 07:36:27 - lottery_ai - INFO - logger.py:138 - ✓ Generated 475 advanced LSTM sequences with 45 features
+2025-12-06 07:36:27 - lottery_ai - INFO - logger.py:138 - Saved FeatureSchema to C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\data\features\lstm\lotto_max\feature_schema.json
+2025-12-06 07:36:28 - lottery_ai - INFO - logger.py:138 - Generating comprehensive XGBoost features...
+2025-12-06 07:36:32 - lottery_ai - INFO - logger.py:138 - Padded XGBoost features from 77 to 93
+2025-12-06 07:36:32 - lottery_ai - INFO - logger.py:138 - ✓ Generated 93 advanced XGBoost features for 500 draws (target: 93)
+2025-12-06 07:36:32 - lottery_ai - INFO - logger.py:138 - Saved FeatureSchema to C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\data\features\xgboost\lotto_max\feature_schema.json
+2025-12-06 07:36:32 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
+2025-12-06 07:36:41 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
+2025-12-06 07:45:33 - lottery_ai - INFO - logger.py:138 - Dashboard rendered successfully
+2025-12-06 07:45:42 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
+2025-12-06 07:45:49 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
+2025-12-06 07:45:52 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
+2025-12-06 07:45:55 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
+2025-12-06 07:45:58 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
+2025-12-06 07:46:01 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
+2025-12-06 07:46:03 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
+2025-12-06 07:46:06 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
+2025-12-06 07:46:09 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
+2025-12-06 07:46:11 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
+2025-12-06 07:46:16 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
+2025-12-06 07:46:19 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
+2025-12-06 07:46:20 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
+2025-12-06 07:46:24 - lottery_ai - INFO - logger.py:138 - Generating CatBoost features optimized for categorical boosting...
+2025-12-06 07:46:27 - lottery_ai - INFO - logger.py:138 - Saved FeatureSchema to C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\data\features\catboost\lotto_6_49\feature_schema.json
+2025-12-06 07:46:27 - lottery_ai - INFO - logger.py:138 - Generating advanced LSTM sequences with window_size=25
+2025-12-06 07:46:30 - lottery_ai - INFO - logger.py:138 - ✓ Generated 475 advanced LSTM sequences with 45 features
+2025-12-06 07:46:30 - lottery_ai - INFO - logger.py:138 - Saved FeatureSchema to C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\data\features\lstm\lotto_6_49\feature_schema.json
+2025-12-06 07:46:31 - lottery_ai - INFO - logger.py:138 - Generating LightGBM features optimized for gradient boosting...
+2025-12-06 07:46:34 - lottery_ai - INFO - logger.py:138 - Saved FeatureSchema to C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\data\features\lightgbm\lotto_6_49\feature_schema.json
+2025-12-06 07:46:34 - lottery_ai - INFO - logger.py:138 - Generating advanced LSTM sequences with window_size=25
+2025-12-06 07:46:37 - lottery_ai - INFO - logger.py:138 - ✓ Generated 475 advanced LSTM sequences with 45 features
+2025-12-06 07:46:37 - lottery_ai - INFO - logger.py:138 - Saved FeatureSchema to C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\data\features\lstm\lotto_6_49\feature_schema.json
+2025-12-06 07:46:38 - lottery_ai - INFO - logger.py:138 - Generating advanced LSTM sequences with window_size=25
+2025-12-06 07:46:40 - lottery_ai - INFO - logger.py:138 - ✓ Generated 475 advanced LSTM sequences with 45 features
+2025-12-06 07:46:40 - lottery_ai - INFO - logger.py:138 - Saved FeatureSchema to C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\data\features\lstm\lotto_6_49\feature_schema.json
+2025-12-06 07:46:42 - lottery_ai - INFO - logger.py:138 - Generating comprehensive XGBoost features...
+2025-12-06 07:46:45 - lottery_ai - INFO - logger.py:138 - Padded XGBoost features from 77 to 93
+2025-12-06 07:46:45 - lottery_ai - INFO - logger.py:138 - ✓ Generated 93 advanced XGBoost features for 500 draws (target: 93)
+2025-12-06 07:46:45 - lottery_ai - INFO - logger.py:138 - Saved FeatureSchema to C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\data\features\xgboost\lotto_6_49\feature_schema.json
+2025-12-06 07:46:45 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
+2025-12-06 07:47:08 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
+2025-12-06 08:11:12 - lottery_ai - INFO - logger.py:138 - Dashboard rendered successfully
+2025-12-06 08:11:21 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
+2025-12-06 08:14:22 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
+2025-12-06 08:14:37 - lottery_ai - INFO - logger.py:138 - Predictions page rendered successfully
