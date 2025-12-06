@@ -658,7 +658,6 @@ class ProbabilityGenerator:
 class SamplingStrategy:
     """Advanced sampling techniques for probability distributions."""
     
-    @staticmethod
     def gumbel_top_k(probs: np.ndarray, k: int, seed: int = None) -> Tuple[List[int], np.ndarray]:
         """
         Gumbel-Top-K Trick: Sample k unique items from a probability distribution.
@@ -677,6 +676,9 @@ class SamplingStrategy:
         """
         if seed is not None:
             np.random.seed(seed)
+            logger.debug(f"Gumbel-Top-K: set seed to {seed}")
+        else:
+            logger.debug(f"Gumbel-Top-K: NO seed set (using random state)")
         
         # Ensure probabilities are valid
         probs = np.array(probs).astype(float)
@@ -699,6 +701,7 @@ class SamplingStrategy:
         # Get probabilities of selected numbers
         selected_probs = probs[top_k_indices]
         
+        logger.debug(f"Gumbel-Top-K: selected {sampled_numbers} with probs {selected_probs}")
         return sampled_numbers, selected_probs
     
     @staticmethod
@@ -868,20 +871,17 @@ class PredictionEngine:
                     model_name,
                     seed=current_seed
                 )
+                top_5_idx = np.argsort(model_probs)[-5:][::-1]
                 trace.log('INFO', 'MODEL_PROBS', f'Generated model probabilities from trained model', {
                     'model': model_name,
-                    'source': 'real_model_inference'
+                    'source': 'real_model_inference',
+                    'top_5_numbers': (top_5_idx + 1).tolist(),
+                    'top_5_probs': [float(f'{model_probs[i]:.6f}') for i in top_5_idx]
                 })
             except Exception as e:
                 error_msg = f"Failed to generate model probabilities: {str(e)}"
                 trace.log('ERROR', 'MODEL_PROBS', error_msg)
                 raise RuntimeError(error_msg)
-            
-            top_indices = np.argsort(model_probs)[-5:]
-            trace.log('INFO', 'MODEL_PROBS', f'Top predicted numbers', {
-                'top_5_numbers': (top_indices + 1).tolist(),
-                'top_5_probs': [float(f'{model_probs[i]:.6f}') for i in top_indices]
-            })
             
             # 2. Apply bias correction
             historical_probs = self.prob_gen.generate_uniform_distribution()
