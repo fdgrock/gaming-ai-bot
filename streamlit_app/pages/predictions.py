@@ -386,6 +386,11 @@ def _render_ml_predictions() -> None:
     
     st.markdown("#### Select Models to Use")
     
+    # DEBUG: Show what models are loaded
+    st.write(f"**DEBUG: Loaded {len(promoted_models)} models**")
+    for idx, m in enumerate(promoted_models):
+        st.write(f"  {idx+1}. {m.get('model_name', 'Unknown')} (health: {m.get('health_score', 0.75):.3f})")
+    
     # promoted_models is now a list of dicts
     model_names = [m.get("model_name", "Unknown") for m in promoted_models]
     available_models = model_names
@@ -423,8 +428,10 @@ def _render_ml_predictions() -> None:
                 selected_models,
                 key="ml_single_model"
             )
+            st.write(f"**DEBUG: Selected Model = `{selected_model}`**")
         else:
             selected_model = None  # Ensemble uses all selected models
+            st.write(f"**DEBUG: Using Ensemble with {len(selected_models)} models**")
     
     # ==================== SECTION 3: Generation Controls ====================
     st.markdown("#### 3️⃣ Generation Settings")
@@ -509,12 +516,18 @@ def _render_ml_predictions() -> None:
                         st.error("Selected model not found")
                         return
                     
+                    # Log which model is being used
+                    st.write(f"📊 **Model Selected**: `{selected_model}`")
+                    st.write(f"🔍 **Selected Model Object**: {model_data}")
+                    
                     # Get health score for bias correction
                     health_score = model_data.get("health_score", 0.75)
                     
                     for i in range(num_predictions):
                         # Use seed with offset for each prediction
                         current_seed = random_seed + i if random_seed else None
+                        
+                        st.write(f"**Generating Prediction {i+1}/{num_predictions}** - Model: `{selected_model}`, Seed: {current_seed}")
                         
                         result_list = engine.predict_single_model(
                             model_name=selected_model,

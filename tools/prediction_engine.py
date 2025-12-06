@@ -366,10 +366,18 @@ class ProbabilityGenerator:
             
             registry_name = self.config.get("registry_name", "")
             
+            # Log what we're loading
+            logger.info(f"=== LOADING MODEL ===")
+            logger.info(f"Full model name: {model_name}")
+            logger.info(f"Extracted model type: {model_type}")
+            logger.info(f"Registry name: {registry_name}")
+            
             # Get model path from registry using registry_name (e.g., "lotto max" not "lotto_max")
             model_path = self.registry.get_model_path(registry_name, model_type)
             if not model_path:
                 raise FileNotFoundError(f"Model not found in registry: {registry_name} - {model_type}")
+            
+            logger.info(f"Model path: {model_path}")
             
             # Load model based on type
             if model_type in ["xgboost", "catboost", "lightgbm"]:
@@ -379,9 +387,13 @@ class ProbabilityGenerator:
                 if hasattr(model, 'predict_proba'):
                     class_probs = model.predict_proba(features)[0]  # Take first (only) sample
                     logger.info(f"Tree model {model_type} output {len(class_probs)} class probabilities")
+                    logger.info(f"Class probs sample: {class_probs[:5]}...")
                     
                     # Convert to number probabilities
                     number_probs = self._convert_class_probs_to_number_probs(class_probs)
+                    logger.info(f"Converted to {len(number_probs)} number probabilities")
+                    top_indices = np.argsort(number_probs)[-5:][::-1]
+                    logger.info(f"Top 5 numbers: {top_indices + 1}, probs: {number_probs[top_indices]}")
                     return number_probs
                 else:
                     # No predict_proba, use uniform fallback
@@ -403,9 +415,13 @@ class ProbabilityGenerator:
                     class_probs = class_probs[0]  # Take first sample
                 
                 logger.info(f"Neural network {model_type} output {len(class_probs)} class probabilities")
+                logger.info(f"Class probs sample: {class_probs[:5]}...")
                 
                 # Convert class probs to number probs (same as tree models)
                 number_probs = self._convert_class_probs_to_number_probs(class_probs)
+                logger.info(f"Converted to {len(number_probs)} number probabilities")
+                top_indices = np.argsort(number_probs)[-5:][::-1]
+                logger.info(f"Top 5 numbers: {top_indices + 1}, probs: {number_probs[top_indices]}")
                 return number_probs
             
             elif model_type == "transformer":
@@ -469,10 +485,16 @@ class ProbabilityGenerator:
             RuntimeError: If model or features not found or inference fails
         """
         try:
+            logger.info(f"\n{'='*60}")
+            logger.info(f"GENERATING PROBABILITIES FOR MODEL: {model_name}")
+            logger.info(f"Seed: {seed}")
+            logger.info(f"{'='*60}")
+            
             # Extract model type from model name (first part before first underscore or hyphen)
             # Examples: "xgboost_lotto_max_20251124_191556" -> "xgboost"
             #           "cnn_lotto_max_20251204_154908" -> "cnn"
             model_type = model_name.lower().split('_')[0] if '_' in model_name else model_name.lower()
+            logger.info(f"Extracted model type: {model_type}")
             
             # 1. Load historical data
             historical_data = self._load_historical_data(num_draws=500)
@@ -484,12 +506,14 @@ class ProbabilityGenerator:
                 raise ValueError("Feature generator not initialized")
             
             try:
+                logger.info(f"Generating features for {model_type}...")
                 # Call the correct method based on model type
                 # Tree models return DataFrames, neural nets return numpy arrays
                 if model_type == "lstm":
                     features, _ = self.feature_generator.generate_lstm_sequences(historical_data)
                     # features is (N, window_size, feature_dim) - take last window as-is
                     features = features[-1:]  # Keep 3D shape for LSTM: (1, window_size, features)
+                    logger.info(f"LSTM features shape: {features.shape}")
                     
                 elif model_type == "cnn":
                     # CNN expects (batch, 72, 1) shape - need sequence input, not embeddings
@@ -508,29 +532,34 @@ class ProbabilityGenerator:
                         padded[:seq.shape[0]] = seq
                         # Average across features to get 1 channel
                         features = np.mean(padded, axis=1).reshape(1, 72, 1)
+                    logger.info(f"CNN features shape: {features.shape}")
                     
                 elif model_type == "transformer":
                     features, _ = self.feature_generator.generate_transformer_embeddings(historical_data)
                     # features is (N, embedding_dim) - take last row
                     features = features[-1:].reshape(1, -1)
+                    logger.info(f"Transformer features shape: {features.shape}")
                     
                 elif model_type == "xgboost":
                     features_df, _ = self.feature_generator.generate_xgboost_features(historical_data)
                     # DataFrame with multiple rows - take last row
                     numeric_cols = features_df.select_dtypes(include=[np.number]).columns
                     features = features_df[numeric_cols].iloc[-1:].values
+                    logger.info(f"XGBoost features shape: {features.shape}")
                     
                 elif model_type == "catboost":
                     features_df, _ = self.feature_generator.generate_catboost_features(historical_data)
                     # DataFrame with multiple rows - take last row
                     numeric_cols = features_df.select_dtypes(include=[np.number]).columns
                     features = features_df[numeric_cols].iloc[-1:].values
+                    logger.info(f"CatBoost features shape: {features.shape}")
                     
                 elif model_type == "lightgbm":
                     features_df, _ = self.feature_generator.generate_lightgbm_features(historical_data)
                     # DataFrame with multiple rows - take last row
                     numeric_cols = features_df.select_dtypes(include=[np.number]).columns
                     features = features_df[numeric_cols].iloc[-1:].values
+                    logger.info(f"LightGBM features shape: {features.shape}")
                     
                 else:
                     raise ValueError(f"Unknown model type: {model_type}")
