@@ -346,7 +346,7 @@ def _render_ml_predictions() -> None:
             st.warning(f"⚠️ No model cards available for {game_name}")
     
     # Helper function to get promoted models from Phase 2D
-    def get_promoted_models(game_name: str) -> List[Dict[str, Any]]:
+    def get_promoted_models(game_name: str, card_filename: str = None) -> List[Dict[str, Any]]:
         """Load promoted models from Phase 2D leaderboard JSON file."""
         import os
         import json
@@ -361,24 +361,31 @@ def _render_ml_predictions() -> None:
             st.error(f"❌ Model cards directory not found at: {model_cards_dir}")
             return []
         
-        # Find the latest model cards file for this game
-        matching_files = list(model_cards_dir.glob(f"model_cards_{game_lower}_*.json"))
-        
-        if not matching_files:
-            return []
-        
-        # Get the most recent file
-        latest_file = max(matching_files, key=lambda p: p.stat().st_mtime)
+        # If a specific card filename is provided, use it
+        if card_filename:
+            target_file = model_cards_dir / card_filename
+            if not target_file.exists():
+                st.error(f"❌ Selected model card not found: {card_filename}")
+                return []
+        else:
+            # Find the latest model cards file for this game
+            matching_files = list(model_cards_dir.glob(f"model_cards_{game_lower}_*.json"))
+            
+            if not matching_files:
+                return []
+            
+            # Get the most recent file
+            target_file = max(matching_files, key=lambda p: p.stat().st_mtime)
         
         try:
-            with open(latest_file, 'r') as f:
+            with open(target_file, 'r') as f:
                 models_data = json.load(f)
             return models_data
         except Exception as e:
             st.error(f"Error loading model cards: {e}")
             return []
     
-    promoted_models = get_promoted_models(game_name)
+    promoted_models = get_promoted_models(game_name, selected_card if available_cards else None)
     
     if not promoted_models:
         st.warning(f"⚠️ No promoted models found for {game_name}. Please visit Phase 2D Leaderboard first.")
@@ -590,7 +597,9 @@ def _render_ml_predictions() -> None:
                 if results:
                     try:
                         game_key = sanitize_game_name(game_name)
-                        pred_dir = Path(__file__).parent.parent.parent / "predictions" / game_key / prediction_mode
+                        # Always use "Ensemble Voting" folder for ensemble predictions (standardized naming)
+                        save_folder = "Ensemble Voting" if prediction_mode == "Ensemble Voting" else prediction_mode
+                        pred_dir = Path(__file__).parent.parent.parent / "predictions" / game_key / save_folder
                         pred_dir.mkdir(parents=True, exist_ok=True)
                         
                         timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
@@ -1321,17 +1330,54 @@ def _render_prediction_generator() -> None:
                                 # Calculate combined accuracy as average of model accuracies
                                 combined_accuracy = np.mean(list(model_weights.values())) if model_weights else 0
                                 
+                                # Build detailed prediction format matching Ensemble Voting
+                                detailed_predictions = []
+                                for idx, result in enumerate(result_list):
+                                    prediction_dict = {
+                                        'numbers': result.numbers,
+                                        'confidence': result.confidence,
+                                        'model_name': f'Ensemble ({len(model_weights)} models)',
+                                        'prediction_type': 'ensemble',
+                                        'reasoning': result.reasoning,
+                                        'generated_at': datetime.now().isoformat(),
+                                        'game': selected_game,
+                                        'models_used': model_weights,
+                                        'variability_factor': 0.0,  # Not used in hybrid ensemble
+                                        'seed': random_seed + idx if random_seed else None
+                                    }
+                                    detailed_predictions.append(prediction_dict)
+                                
+                                # Prepare predictions for display (legacy format for backward compatibility)
                                 predictions = {
                                     'game': selected_game,
                                     'sets': [r.numbers for r in result_list],
-                                    'confidence_scores': [r.confidence * 100 for r in result_list],  # Convert to percentage
+                                    'confidence_scores': [r.confidence * 100 for r in result_list],
                                     'mode': 'Hybrid Ensemble',
                                     'model_type': 'Ensemble',
                                     'generation_time': datetime.now().isoformat(),
                                     'reasoning': [r.reasoning for r in result_list],
                                     'trace_log': result_list[0].trace_log if result_list else None,
-                                    'combined_accuracy': combined_accuracy
+                                    'combined_accuracy': combined_accuracy,
+                                    'metadata': {
+                                        'draw_date': None,
+                                        'prediction_type': 'Ensemble',
+                                        'parameters': {
+                                            'num_predictions': num_predictions,
+                                            'random_seed': random_seed,
+                                            'variability_factor': 0.0,
+                                            'bias_correction_enabled': False,
+                                            'save_seed_with_predictions': True
+                                        },
+                                        'predictions': detailed_predictions
+                                    }
                                 }
+                                
+                                # Add draw date
+                                try:
+                                    next_draw = compute_next_draw_date(selected_game)
+                                    predictions['metadata']['draw_date'] = next_draw.strftime('%Y-%m-%d')
+                                except:
+                                    pass
                                 
                                 set_session_value('latest_predictions', predictions)
                                 st.success("✅ Hybrid ensemble predictions generated successfully!")
@@ -1572,9 +1618,9 @@ def _render_performance_analysis() -> None:
     
     with col_model_type:
         available_types = get_available_model_types(selected_game)
-        # Add Hybrid Ensemble to the list if not already present
-        if "Hybrid Ensemble" not in available_types:
-            available_types = list(available_types) + ["Hybrid Ensemble"]
+        # Add Ensemble to the list if not already present
+        if "Ensemble" not in available_types:
+            available_types = list(available_types) + ["Ensemble"]
         
         selected_model_type = st.selectbox(
             "Model Type",
@@ -1584,36 +1630,30 @@ def _render_performance_analysis() -> None:
     
     selected_model = None
     prediction_data = None
-    hybrid_predictions = []
     
     with col_model_select:
         if selected_model_type:
-            # For Hybrid Ensemble, search directly without model selection
-            if selected_model_type == "Hybrid Ensemble":
-                st.info("Searching for Hybrid Ensemble predictions...")
-                
-                # Search for hybrid predictions for this draw date
+            # For Ensemble, show prediction file dropdown
+            if selected_model_type == "Ensemble":
+                # Search for ensemble predictions for this draw date
                 if latest_draw:
-                    hybrid_preds = _find_all_hybrid_predictions_for_date(selected_game, latest_draw.get('draw_date', ''))
+                    ensemble_preds = _find_ensemble_voting_predictions_for_date(selected_game, latest_draw.get('draw_date', ''))
                     
-                    if hybrid_preds:
-                        st.success(f"✓ Found {len(hybrid_preds)} Hybrid Ensemble prediction(s) for {latest_draw.get('draw_date', 'N/A')}")
-                        hybrid_predictions = hybrid_preds
+                    if ensemble_preds:
+                        st.success(f"✓ Found {len(ensemble_preds)} Ensemble prediction(s) for {latest_draw.get('draw_date', 'N/A')}")
                         
-                        # If multiple predictions, let user select which one to analyze
-                        if len(hybrid_preds) > 1:
-                            prediction_labels = [f"Prediction {i+1}" for i in range(len(hybrid_preds))]
-                            selected_idx = st.selectbox(
-                                "Select Hybrid Prediction",
-                                range(len(hybrid_preds)),
-                                format_func=lambda x: prediction_labels[x],
-                                key="perf_hybrid_select"
-                            )
-                            prediction_data = hybrid_preds[selected_idx]
-                        else:
-                            prediction_data = hybrid_preds[0]
+                        # Create list of prediction files to display in dropdown
+                        prediction_labels = [f"Prediction {i+1}" for i in range(len(ensemble_preds))]
+                        selected_idx = st.selectbox(
+                            "Select Prediction File",
+                            range(len(ensemble_preds)),
+                            format_func=lambda x: prediction_labels[x],
+                            key="perf_ensemble_select"
+                        )
+                        prediction_data = ensemble_preds[selected_idx]
                     else:
-                        st.warning(f"No Hybrid Ensemble predictions found for draw date {latest_draw.get('draw_date', 'N/A')}")
+                        st.warning(f"No Ensemble predictions found for draw date {latest_draw.get('draw_date', 'N/A')}")
+            
             else:
                 # For other model types, show model version selection
                 models_list = get_models_by_type(selected_game, selected_model_type)
@@ -1652,7 +1692,9 @@ def _render_performance_analysis() -> None:
         
         try:
             winning_numbers = set(latest_draw.get('numbers', []))
-            prediction_sets = prediction_data.get('sets', [])
+            
+            # Handle both 'sets' format (single model) and 'predictions' format (ensemble)
+            prediction_sets = prediction_data.get('sets', []) or prediction_data.get('predictions', [])
             
             if not prediction_sets:
                 st.info("No prediction sets available in the prediction file.")
@@ -1661,6 +1703,13 @@ def _render_performance_analysis() -> None:
                     # Parse prediction set
                     if isinstance(pred_set, str):
                         pred_numbers = list(map(int, [n.strip() for n in pred_set.split(',') if n.strip()]))
+                    elif isinstance(pred_set, dict):
+                        # For ensemble voting format with 'numbers' key
+                        pred_numbers = pred_set.get('numbers', [])
+                        if isinstance(pred_numbers, list):
+                            pred_numbers = [int(n) for n in pred_numbers if isinstance(n, (int, str)) and str(n).isdigit()]
+                        else:
+                            pred_numbers = []
                     elif isinstance(pred_set, (list, tuple)):
                         pred_numbers = list(map(int, [str(n).strip() for n in pred_set if str(n).strip()]))
                     else:
@@ -1686,9 +1735,15 @@ def _render_performance_analysis() -> None:
                             st.metric("Match %", f"{accuracy:.1f}%")
                         
                         with col_confidence:
-                            # Get per-set confidence from confidence_scores array (not single value)
-                            confidence_scores = prediction_data.get('confidence_scores', [])
-                            conf = confidence_scores[set_idx - 1] if set_idx - 1 < len(confidence_scores) else prediction_data.get('confidence', 'N/A')
+                            # Get per-set confidence from different sources based on format
+                            if isinstance(pred_set, dict):
+                                # Ensemble voting format
+                                conf = pred_set.get('confidence', 'N/A')
+                            else:
+                                # Single model format
+                                confidence_scores = prediction_data.get('confidence_scores', [])
+                                conf = confidence_scores[set_idx - 1] if set_idx - 1 < len(confidence_scores) else prediction_data.get('confidence', 'N/A')
+                            
                             if isinstance(conf, (int, float)):
                                 st.metric("Confidence", f"{conf:.1%}")
                             else:
@@ -1816,16 +1871,83 @@ def _render_performance_analysis() -> None:
                             predictions_list = prediction_data.get("predictions", [])
                             
                             if predictions_list:
+                                # Get winning numbers for comparison
+                                winning_numbers = set(latest_draw.get('numbers', [])) if latest_draw else set()
+                                
                                 for idx, pred_set in enumerate(predictions_list, 1):
-                                    with st.expander(f"Set {idx}: {pred_set.get('numbers', [])} - Confidence: {pred_set.get('confidence', 0):.2%}"):
+                                    # Calculate matches for this set
+                                    pred_numbers = pred_set.get('numbers', [])
+                                    if isinstance(pred_numbers, list):
+                                        pred_numbers = [int(n) for n in pred_numbers if isinstance(n, (int, str)) and str(n).isdigit()]
+                                    else:
+                                        pred_numbers = []
+                                    
+                                    matched_numbers = [n for n in pred_numbers if n in winning_numbers]
+                                    matches = len(matched_numbers)
+                                    accuracy = (matches / len(winning_numbers)) * 100 if winning_numbers else 0
+                                    
+                                    # Create expander with match info in title
+                                    expander_title = f"Set {idx}: Confidence: {pred_set.get('confidence', 0):.2%} | Matches: {matches}/{len(winning_numbers)} ({accuracy:.1f}%)"
+                                    
+                                    with st.expander(expander_title):
+                                        # Header with metrics
+                                        col_metrics1, col_metrics2, col_metrics3 = st.columns([1, 1, 1.5])
+                                        
+                                        with col_metrics1:
+                                            st.metric("Matches", f"{matches}/{len(winning_numbers)}")
+                                        
+                                        with col_metrics2:
+                                            st.metric("Match %", f"{accuracy:.1f}%")
+                                        
+                                        with col_metrics3:
+                                            st.metric("Confidence", f"{pred_set.get('confidence', 0):.2%}")
+                                        
+                                        # Display numbers as game balls
+                                        st.markdown("**Predicted Numbers:**")
+                                        num_cols = st.columns(len(pred_numbers)) if pred_numbers else []
+                                        for col_idx, (col, num) in enumerate(zip(num_cols, pred_numbers)):
+                                            with col:
+                                                # Determine color based on match
+                                                is_correct = num in winning_numbers
+                                                if is_correct:
+                                                    gradient_color = "linear-gradient(135deg, #86efac 0%, #22c55e 50%, #16a34a 100%)"
+                                                    shadow_color = "rgba(34, 197, 94, 0.3)"
+                                                else:
+                                                    gradient_color = "linear-gradient(135deg, #fecaca 0%, #f87171 50%, #dc2626 100%)"
+                                                    shadow_color = "rgba(220, 38, 38, 0.3)"
+                                                
+                                                st.markdown(
+                                                    f'''
+                                                    <div style="
+                                                        text-align: center;
+                                                        padding: 0;
+                                                        margin: 0 auto;
+                                                        width: 70px;
+                                                        height: 70px;
+                                                        background: {gradient_color};
+                                                        border-radius: 50%;
+                                                        color: white;
+                                                        font-weight: 900;
+                                                        font-size: 32px;
+                                                        box-shadow: 0 6px 12px {shadow_color}, inset 0 1px 0 rgba(255,255,255,0.4);
+                                                        display: flex;
+                                                        align-items: center;
+                                                        justify-content: center;
+                                                        border: 2px solid rgba(255,255,255,0.3);
+                                                    ">{num}</div>
+                                                    ''',
+                                                    unsafe_allow_html=True
+                                                )
+                                        
+                                        st.markdown("")  # Spacing
+                                        
+                                        # Additional details in columns
                                         col_a, col_b, col_c = st.columns(3)
                                         
                                         with col_a:
-                                            st.markdown(f"**Numbers:** {pred_set.get('numbers', [])}")
-                                            st.markdown(f"**Confidence:** {pred_set.get('confidence', 0):.2%}")
+                                            st.markdown(f"**Model:** {pred_set.get('model_name', 'N/A')}")
                                         
                                         with col_b:
-                                            st.markdown(f"**Model:** {pred_set.get('model_name', 'N/A')}")
                                             st.markdown(f"**Type:** {pred_set.get('prediction_type', 'N/A')}")
                                         
                                         with col_c:
@@ -1891,16 +2013,83 @@ def _render_performance_analysis() -> None:
                         predictions_list = ensemble_data.get("predictions", [])
                         
                         if predictions_list:
+                            # Get winning numbers for comparison
+                            winning_numbers = set(latest_draw.get('numbers', [])) if latest_draw else set()
+                            
                             for idx, pred_set in enumerate(predictions_list, 1):
-                                with st.expander(f"Set {idx}: {pred_set.get('numbers', [])} - Confidence: {pred_set.get('confidence', 0):.2%}"):
+                                # Calculate matches for this set
+                                pred_numbers = pred_set.get('numbers', [])
+                                if isinstance(pred_numbers, list):
+                                    pred_numbers = [int(n) for n in pred_numbers if isinstance(n, (int, str)) and str(n).isdigit()]
+                                else:
+                                    pred_numbers = []
+                                
+                                matched_numbers = [n for n in pred_numbers if n in winning_numbers]
+                                matches = len(matched_numbers)
+                                accuracy = (matches / len(winning_numbers)) * 100 if winning_numbers else 0
+                                
+                                # Create expander with match info in title
+                                expander_title = f"Set {idx}: Confidence: {pred_set.get('confidence', 0):.2%} | Matches: {matches}/{len(winning_numbers)} ({accuracy:.1f}%)"
+                                
+                                with st.expander(expander_title):
+                                    # Header with metrics
+                                    col_metrics1, col_metrics2, col_metrics3 = st.columns([1, 1, 1.5])
+                                    
+                                    with col_metrics1:
+                                        st.metric("Matches", f"{matches}/{len(winning_numbers)}")
+                                    
+                                    with col_metrics2:
+                                        st.metric("Match %", f"{accuracy:.1f}%")
+                                    
+                                    with col_metrics3:
+                                        st.metric("Confidence", f"{pred_set.get('confidence', 0):.2%}")
+                                    
+                                    # Display numbers as game balls
+                                    st.markdown("**Predicted Numbers:**")
+                                    num_cols = st.columns(len(pred_numbers)) if pred_numbers else []
+                                    for col_idx, (col, num) in enumerate(zip(num_cols, pred_numbers)):
+                                        with col:
+                                            # Determine color based on match
+                                            is_correct = num in winning_numbers
+                                            if is_correct:
+                                                gradient_color = "linear-gradient(135deg, #86efac 0%, #22c55e 50%, #16a34a 100%)"
+                                                shadow_color = "rgba(34, 197, 94, 0.3)"
+                                            else:
+                                                gradient_color = "linear-gradient(135deg, #fecaca 0%, #f87171 50%, #dc2626 100%)"
+                                                shadow_color = "rgba(220, 38, 38, 0.3)"
+                                            
+                                            st.markdown(
+                                                f'''
+                                                <div style="
+                                                    text-align: center;
+                                                    padding: 0;
+                                                    margin: 0 auto;
+                                                    width: 70px;
+                                                    height: 70px;
+                                                    background: {gradient_color};
+                                                    border-radius: 50%;
+                                                    color: white;
+                                                    font-weight: 900;
+                                                    font-size: 32px;
+                                                    box-shadow: 0 6px 12px {shadow_color}, inset 0 1px 0 rgba(255,255,255,0.4);
+                                                    display: flex;
+                                                    align-items: center;
+                                                    justify-content: center;
+                                                    border: 2px solid rgba(255,255,255,0.3);
+                                                ">{num}</div>
+                                                ''',
+                                                unsafe_allow_html=True
+                                            )
+                                    
+                                    st.markdown("")  # Spacing
+                                    
+                                    # Additional details in columns
                                     col_a, col_b, col_c = st.columns(3)
                                     
                                     with col_a:
-                                        st.markdown(f"**Numbers:** {pred_set.get('numbers', [])}")
-                                        st.markdown(f"**Confidence:** {pred_set.get('confidence', 0):.2%}")
+                                        st.markdown(f"**Prediction Type:** {pred_set.get('prediction_type', 'Ensemble Voting')}")
                                     
                                     with col_b:
-                                        st.markdown(f"**Prediction Type:** {pred_set.get('prediction_type', 'Ensemble Voting')}")
                                         st.markdown(f"**Generated:** {str(pred_set.get('generated_at', 'N/A'))[:10]}")
                                     
                                     with col_c:
@@ -2010,6 +2199,62 @@ def _find_all_hybrid_predictions_for_date(game: str, draw_date: str) -> List[Dic
         return hybrid_predictions
     except Exception as e:
         app_logger.error(f"Error searching for hybrid predictions: {e}")
+        return []
+
+
+def _find_ensemble_voting_predictions_for_date(game: str, draw_date: str) -> List[Dict]:
+    """Find all ensemble predictions for a specific draw date."""
+    try:
+        from pathlib import Path
+        
+        ensemble_predictions = []
+        
+        # Extract date from draw_date (format: YYYY-MM-DD)
+        draw_date_str = str(draw_date).split()[0] if draw_date else ""
+        draw_date_normalized = draw_date_str.replace('-', '')  # Convert to YYYYMMDD
+        
+        # Path to ensemble folder
+        ensemble_dir = Path("predictions") / sanitize_game_name(game) / "ensemble"
+        
+        if not ensemble_dir.exists():
+            return []
+        
+        # Search for all ensemble files matching the date
+        for pred_file in ensemble_dir.glob("*.json"):
+            try:
+                # First, try to load and check draw_date in the file content
+                prediction_content = safe_load_json(pred_file)
+                if prediction_content:
+                    # Check if draw_date in file matches
+                    file_draw_date = prediction_content.get('draw_date', '')
+                    if file_draw_date and file_draw_date == draw_date_str:
+                        ensemble_predictions.append(prediction_content)
+                        continue
+                    
+                    # Fallback: try filename parsing for files without draw_date metadata
+                    filename = pred_file.name
+                    # Handle two formats:
+                    # 1. prediction_YYYYMMDD_HHMMSS.json
+                    # 2. YYYYMMDD_HHMMSS_hybrid_*.json or YYYYMMDD_HHMMSS_modeltype_modelname.json
+                    parts = filename.split('_')
+                    
+                    if len(parts) >= 2:
+                        # Check if first part is "prediction" (format 1)
+                        if parts[0] == 'prediction':
+                            file_date_str = parts[1]  # YYYYMMDD is second part
+                        else:
+                            # Format 2: date is first part
+                            file_date_str = parts[0]  # YYYYMMDD is first part
+                        
+                        if file_date_str == draw_date_normalized:
+                            ensemble_predictions.append(prediction_content)
+            except Exception as e:
+                app_logger.debug(f"Error reading prediction file {pred_file}: {e}")
+                continue
+        
+        return ensemble_predictions
+    except Exception as e:
+        app_logger.error(f"Error searching for ensemble voting predictions: {e}")
         return []
 
 

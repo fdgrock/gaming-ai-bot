@@ -905,3 +905,32 @@ Traceback (most recent call last):
     raise RuntimeError(error_msg)
 RuntimeError: Failed to generate probabilities for transformer_lotto_max_20251204_155014: Failed to generate model probabilities for transformer_lotto_max_20251204_155014: Could not load/run model transformer_lotto_max_20251204_155014: Input 0 of layer "functional" is incompatible with the layer: expected shape=(None, 28, 1), found shape=(1, 128)
 
+2025-12-06 18:43:39 - lottery_ai - ERROR - logger.py:138 - Error in prediction_ai page: Object of type int64 is not JSON serializable
+2025-12-06 18:43:39 - lottery_ai - ERROR - logger.py:138 - Traceback: Traceback (most recent call last):
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\streamlit_app\pages\prediction_ai.py", line 1197, in render_prediction_ai_page
+    _render_prediction_generator(analyzer)
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\streamlit_app\pages\prediction_ai.py", line 1641, in _render_prediction_generator
+    json_data = json.dumps({"sets": predictions, "analysis": analysis, "optimal": optimal}, indent=2)
+  File "C:\Python313\Lib\json\__init__.py", line 238, in dumps
+    **kw).encode(obj)
+          ~~~~~~^^^^^
+  File "C:\Python313\Lib\json\encoder.py", line 200, in encode
+    chunks = self.iterencode(o, _one_shot=True)
+  File "C:\Python313\Lib\json\encoder.py", line 261, in iterencode
+    return _iterencode(o, 0)
+  File "C:\Python313\Lib\json\encoder.py", line 180, in default
+    raise TypeError(f'Object of type {o.__class__.__name__} '
+                    f'is not JSON serializable')
+TypeError: Object of type int64 is not JSON serializable
+
+2025-12-09 23:39:01 - lottery_ai - ERROR - logger.py:138 - Error in prediction_ai page: cannot access local variable 'go' where it is not associated with a value
+2025-12-09 23:39:01 - lottery_ai - ERROR - logger.py:138 - Traceback: Traceback (most recent call last):
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\streamlit_app\pages\prediction_ai.py", line 1303, in render_prediction_ai_page
+    _render_model_configuration(analyzer)
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\streamlit_app\pages\prediction_ai.py", line 1568, in _render_model_configuration
+    fig = go.Figure()
+          ^^
+UnboundLocalError: cannot access local variable 'go' where it is not associated with a value
+

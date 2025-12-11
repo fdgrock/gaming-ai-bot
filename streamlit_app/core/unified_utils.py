@@ -595,12 +595,12 @@ def _get_prediction_filename(game: str, prediction: Dict[str, Any]) -> str:
         
         # For hybrid ensemble, build from the models dict
         if mode.lower() == "hybrid ensemble" or model_type.lower() == "hybrid ensemble":
-            # Hybrid format: YYYYMMDD_hybrid_lstm_transformer_xgboost.json
-            timestamp = datetime.now().strftime("%Y%m%d")
+            # Hybrid format: YYYYMMDD_HHMMSS_hybrid_lstm_transformer_xgboost.json
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
             return f"{timestamp}_hybrid_lstm_transformer_xgboost.json"
         else:
-            # Single model format: YYYYMMDD_modeltype_modelname.json
-            timestamp = datetime.now().strftime("%Y%m%d")
+            # Single model format: YYYYMMDD_HHMMSS_modeltype_modelname.json
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
             return f"{timestamp}_{model_type}_{model_name}.json"
     
     except Exception as e:
@@ -664,7 +664,23 @@ def save_prediction(game: str, prediction: Dict[str, Any]) -> bool:
         filename = _get_prediction_filename(game, prediction)
         filepath = pred_dir / filename
         
-        return safe_save_json(filepath, prediction)
+        # Check if prediction has detailed metadata structure
+        if 'metadata' in prediction and isinstance(prediction['metadata'], dict):
+            # Use the detailed metadata format
+            metadata = prediction['metadata']
+            save_data = {
+                "game": prediction.get('game', game),
+                "draw_date": metadata.get('draw_date'),
+                "prediction_type": metadata.get('prediction_type', model_type),
+                "generated_at": prediction.get('generation_time', datetime.now().isoformat()),
+                "parameters": metadata.get('parameters', {}),
+                "predictions": metadata.get('predictions', [])
+            }
+        else:
+            # Use original format
+            save_data = prediction
+        
+        return safe_save_json(filepath, save_data)
     
     except Exception as e:
         app_log.error(f"Error saving prediction: {e}")
