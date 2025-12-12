@@ -2120,19 +2120,33 @@ def _render_prediction_generator(analyzer: SuperIntelligentAIAnalyzer) -> None:
     """Generate AI-optimized predictions for winning lottery with >90% confidence."""
     st.subheader("🎲 AI-Powered Prediction Generation - Super Intelligent Algorithm")
     
-    if not st.session_state.sia_optimal_sets:
+    # Check for either ML Models or Standard Models optimal sets
+    optimal = None
+    analysis = None
+    model_source = None
+    
+    if st.session_state.sia_ml_optimal_sets:
+        optimal = st.session_state.sia_ml_optimal_sets
+        analysis = st.session_state.sia_ml_analysis_result
+        model_source = "Machine Learning Models"
+    elif st.session_state.sia_optimal_sets:
+        optimal = st.session_state.sia_optimal_sets
+        analysis = st.session_state.sia_analysis_result
+        model_source = "Standard Models"
+    
+    if not optimal or not analysis:
         st.warning("⚠️ Please complete the Model Configuration tab first:")
         st.markdown("""
         **Required Steps:**
-        1. Select your AI models
+        1. Select your AI models (either Machine Learning Models or Standard Models)
         2. Click "Analyze Selected Models"
         3. Click "Calculate Optimal Sets (SIA)" to determine how many sets you need
         4. Return to this tab to generate your winning predictions
         """)
         return
     
-    optimal = st.session_state.sia_optimal_sets
-    analysis = st.session_state.sia_analysis_result
+    # Show which model source is being used
+    st.info(f"ℹ️ **Using Configuration from:** {model_source}")
     
     st.markdown(f"""
     ### 🎯 AI Mission: Generate {optimal['optimal_sets']} Optimized Prediction Sets
