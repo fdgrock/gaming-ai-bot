@@ -934,3 +934,5 @@ TypeError: Object of type int64 is not JSON serializable
           ^^
 UnboundLocalError: cannot access local variable 'go' where it is not associated with a value
 
+2025-12-11 20:05:15 - lottery_ai - ERROR - logger.py:138 - Error processing MaxMillion input: invalid literal for int() with base 10: '01  03  05  26  31  38  4501  05  10  26  30  41  4202  03  20  29  34  48  4902  04  18  26  28  29  5002  04  20  30  36  42  4604  07  14  23  28  42  4804  08  18  32  39  44  4704  13  23  29  4
+2025-12-11 20:06:47 - lottery_ai - ERROR - logger.py:138 - Error processing MaxMillion input: invalid literal for int() with base 10: '01  03  05  26  31  38  45'

@@ -1452,7 +1452,7 @@ def render_prediction_ai_page(services_registry=None, ai_engines=None, component
             "🤖 AI Model Configuration",
             "🎲 Generate Predictions",
             "📊 Prediction Analysis",
-            "📈 Performance History"
+            "🎰 MaxMillion Analysis" if selected_game == "Lotto Max" else "📈 Performance History"
         ])
         
         with tab1:
@@ -1465,7 +1465,10 @@ def render_prediction_ai_page(services_registry=None, ai_engines=None, component
             _render_prediction_analysis(analyzer)
         
         with tab4:
-            _render_performance_history(analyzer)
+            if selected_game == "Lotto Max":
+                _render_maxmillion_analysis(analyzer, selected_game)
+            else:
+                _render_performance_history(analyzer)
         
         app_log("AI Prediction Engine page rendered successfully", "info")
         
@@ -2670,8 +2673,509 @@ def _render_prediction_analysis(analyzer: SuperIntelligentAIAnalyzer) -> None:
 
 
 # ============================================================================
-# TAB 4: PERFORMANCE HISTORY
+# TAB 4: MAXMILLION ANALYSIS / PERFORMANCE HISTORY
 # ============================================================================
+
+def _render_maxmillion_analysis(analyzer: SuperIntelligentAIAnalyzer, game: str) -> None:
+    """MaxMillion Analysis for Lotto Max - compare predictions with actual draws and MaxMillions."""
+    st.subheader("🎰 MaxMillion Analysis")
+    
+    # Get next draw date
+    next_draw = compute_next_draw_date(game)
+    
+    # Initialize session state for maxmillion analysis
+    if 'maxm_selected_draw_date' not in st.session_state:
+        st.session_state.maxm_selected_draw_date = None
+    if 'maxm_selected_prediction_file' not in st.session_state:
+        st.session_state.maxm_selected_prediction_file = None
+    if 'maxm_comparison_type' not in st.session_state:
+        st.session_state.maxm_comparison_type = None
+    if 'maxm_numbers' not in st.session_state:
+        st.session_state.maxm_numbers = []
+    
+    # Draw Date Selection
+    col1, col2 = st.columns([1, 2])
+    
+    with col1:
+        draw_date_option = st.radio(
+            "Select Draw Date",
+            ["Next Draw Date", "Previous Draw Date"],
+            key="maxm_draw_option"
+        )
+    
+    with col2:
+        if draw_date_option == "Next Draw Date":
+            selected_draw_date = next_draw
+            st.info(f"📅 Next Draw: {next_draw.strftime('%A, %B %d, %Y')}")
+        else:
+            selected_draw_date = st.date_input(
+                "Select Previous Draw Date",
+                value=next_draw - timedelta(days=7),
+                max_value=datetime.now().date(),
+                key="maxm_date_picker"
+            )
+            st.session_state.maxm_selected_draw_date = selected_draw_date
+    
+    st.divider()
+    
+    # If previous draw selected, show actual results
+    winning_numbers = None
+    bonus_number = None
+    jackpot_amount = None
+    
+    if draw_date_option == "Previous Draw Date" and selected_draw_date:
+        winning_numbers, bonus_number, jackpot_amount = _get_draw_results(game, selected_draw_date)
+        
+        if winning_numbers:
+            st.success(f"✅ Draw Results for {selected_draw_date.strftime('%B %d, %Y')}")
+            
+            col1, col2, col3 = st.columns(3)
+            with col1:
+                st.markdown("**Winning Numbers**")
+                _display_number_balls(winning_numbers)
+            with col2:
+                st.markdown("**Bonus Number**")
+                _display_number_balls([bonus_number], is_bonus=True)
+            with col3:
+                st.metric("Jackpot", f"${jackpot_amount:,.0f}" if jackpot_amount else "N/A")
+        else:
+            st.warning(f"⚠️ No draw results found for {selected_draw_date.strftime('%B %d, %Y')}")
+    
+    st.divider()
+    
+    # Prediction File Selection
+    st.markdown("### 📂 Select Prediction File")
+    
+    prediction_files = _get_prediction_files(game, selected_draw_date if draw_date_option == "Previous Draw Date" else next_draw)
+    
+    if prediction_files:
+        selected_file = st.selectbox(
+            "Available Prediction Files",
+            options=prediction_files,
+            format_func=lambda x: x.stem,
+            key="maxm_pred_file_select"
+        )
+        
+        if selected_file:
+            st.session_state.maxm_selected_prediction_file = selected_file
+            
+            # Comparison Type Selection
+            st.divider()
+            st.markdown("### 🔍 Comparison Type")
+            
+            comparison_type = st.radio(
+                "Compare With",
+                ["Main Numbers", "MaxMillions"],
+                key="maxm_comparison_type_radio"
+            )
+            st.session_state.maxm_comparison_type = comparison_type
+            
+            # Load prediction data
+            prediction_data = _load_prediction_file(selected_file)
+            
+            if comparison_type == "Main Numbers":
+                if winning_numbers and draw_date_option == "Previous Draw Date":
+                    _display_main_numbers_comparison(prediction_data, winning_numbers, bonus_number)
+                else:
+                    st.info("ℹ️ Select a previous draw date to compare with main numbers")
+            
+            else:  # MaxMillions
+                st.divider()
+                st.markdown("### 🎰 MaxMillion Numbers")
+                
+                maxmillion_input_method = st.radio(
+                    "Input Method",
+                    ["Load from File", "Input Manually"],
+                    key="maxm_input_method"
+                )
+                
+                if maxmillion_input_method == "Load from File":
+                    maxmillion_file = _load_maxmillion_from_file(game, selected_draw_date if draw_date_option == "Previous Draw Date" else next_draw)
+                    if maxmillion_file:
+                        st.session_state.maxm_numbers = maxmillion_file
+                        _display_maxmillion_sets(maxmillion_file)
+                        _display_maxmillion_comparison(prediction_data, maxmillion_file)
+                else:
+                    # Manual input
+                    st.markdown("**Paste MaxMillion sets below (one set per line, numbers separated by commas or spaces)**")
+                    st.caption("Example with commas: 1,5,12,23,34,45,49")
+                    st.caption("Example with spaces: 1 5 12 23 34 45 49")
+                    
+                    maxmillion_input = st.text_area(
+                        "MaxMillion Sets",
+                        height=200,
+                        placeholder="1,5,12,23,34,45,49\n2 8 15 22 31 38 47\n3,10,18,25,33,40,48",
+                        key="maxm_manual_input"
+                    )
+                    
+                    if st.button("Process & Save MaxMillion Numbers", key="maxm_process_btn"):
+                        if maxmillion_input.strip():
+                            processed_sets = _process_maxmillion_input(maxmillion_input)
+                            if processed_sets:
+                                # Save to file
+                                save_path = _save_maxmillion_data(game, selected_draw_date if draw_date_option == "Previous Draw Date" else next_draw, processed_sets)
+                                st.session_state.maxm_numbers = processed_sets
+                                st.success(f"✅ Processed and saved {len(processed_sets)} MaxMillion sets to: {save_path.name}")
+                                _display_maxmillion_sets(processed_sets)
+                                _display_maxmillion_comparison(prediction_data, processed_sets)
+                            else:
+                                st.error("❌ Failed to process MaxMillion input. Please check format.")
+                        else:
+                            st.warning("⚠️ Please enter MaxMillion numbers")
+                    
+                    # Display if already processed
+                    if st.session_state.maxm_numbers:
+                        _display_maxmillion_sets(st.session_state.maxm_numbers)
+                        _display_maxmillion_comparison(prediction_data, st.session_state.maxm_numbers)
+    else:
+        st.info(f"📝 No prediction files found for {selected_draw_date.strftime('%B %d, %Y')}")
+
+
+def _get_draw_results(game: str, draw_date) -> Tuple[Optional[List[int]], Optional[int], Optional[float]]:
+    """Get actual draw results from training data CSV files."""
+    try:
+        game_folder = _sanitize_game_name(game)
+        data_dir = Path("data") / game_folder
+        
+        # Try to find the draw in CSV files (starting with current year and going back)
+        for year in range(draw_date.year, 2008, -1):
+            csv_file = data_dir / f"training_data_{year}.csv"
+            if csv_file.exists():
+                df = pd.read_csv(csv_file)
+                df['draw_date'] = pd.to_datetime(df['draw_date']).dt.date
+                
+                match = df[df['draw_date'] == draw_date]
+                if not match.empty:
+                    row = match.iloc[0]
+                    numbers_str = row['numbers']
+                    numbers = [int(n.strip()) for n in numbers_str.split(',')]
+                    bonus = int(row['bonus']) if pd.notna(row['bonus']) else None
+                    jackpot = float(row['jackpot']) if pd.notna(row['jackpot']) else None
+                    return numbers, bonus, jackpot
+        
+        return None, None, None
+    except Exception as e:
+        app_log(f"Error getting draw results: {str(e)}", "error")
+        return None, None, None
+
+
+def _get_prediction_files(game: str, target_date) -> List[Path]:
+    """Get prediction files from predictions/{game}/prediction_ai/ folder that match the target draw date."""
+    try:
+        game_folder = _sanitize_game_name(game)
+        pred_dir = Path("predictions") / game_folder / "prediction_ai"
+        
+        if not pred_dir.exists():
+            return []
+        
+        # Get all JSON files
+        all_files = sorted(pred_dir.glob("*.json"), reverse=True)
+        
+        # Filter files by matching next_draw_date
+        matching_files = []
+        target_date_str = target_date.strftime('%Y-%m-%d')
+        
+        for file_path in all_files:
+            try:
+                with open(file_path, 'r') as f:
+                    data = json.load(f)
+                    # Check if next_draw_date matches target date
+                    if data.get('next_draw_date') == target_date_str:
+                        matching_files.append(file_path)
+            except Exception as e:
+                app_log(f"Error reading file {file_path.name}: {str(e)}", "warning")
+                continue
+        
+        return matching_files
+    except Exception as e:
+        app_log(f"Error getting prediction files: {str(e)}", "error")
+        return []
+
+
+def _load_prediction_file(file_path: Path) -> Dict[str, Any]:
+    """Load prediction JSON file."""
+    try:
+        with open(file_path, 'r') as f:
+            return json.load(f)
+    except Exception as e:
+        app_log(f"Error loading prediction file: {str(e)}", "error")
+        return {}
+
+
+def _display_number_balls(numbers: List[int], is_bonus: bool = False) -> None:
+    """Display numbers as lottery balls."""
+    cols = st.columns(len(numbers))
+    for i, num in enumerate(numbers):
+        with cols[i]:
+            color = "🟡" if is_bonus else "🔵"
+            st.markdown(f"<div style='text-align: center; font-size: 24px; font-weight: bold; padding: 10px; background-color: {'#FFD700' if is_bonus else '#4169E1'}; color: white; border-radius: 50%; width: 50px; height: 50px; line-height: 30px; margin: auto;'>{num}</div>", unsafe_allow_html=True)
+
+
+def _display_main_numbers_comparison(prediction_data: Dict[str, Any], winning_numbers: List[int], bonus_number: int) -> None:
+    """Display prediction sets compared with main winning numbers."""
+    st.divider()
+    st.markdown("### 🎯 Prediction Sets Analysis")
+    
+    predictions = prediction_data.get('predictions', [])
+    
+    if not predictions:
+        st.warning("No predictions found in file")
+        return
+    
+    matches_found = []
+    
+    for idx, pred_set in enumerate(predictions, 1):
+        # Convert prediction to integers
+        pred_numbers = [int(n) for n in pred_set]
+        
+        # Calculate matches
+        matching_numbers = set(pred_numbers) & set(winning_numbers)
+        match_count = len(matching_numbers)
+        has_bonus = bonus_number in pred_numbers
+        
+        matches_found.append({
+            'set_num': idx,
+            'numbers': pred_numbers,
+            'match_count': match_count,
+            'has_bonus': has_bonus,
+            'matching_numbers': matching_numbers
+        })
+    
+    # Sort by match count (highest first)
+    matches_found.sort(key=lambda x: (x['match_count'], x['has_bonus']), reverse=True)
+    
+    # Display statistics
+    col1, col2, col3, col4 = st.columns(4)
+    with col1:
+        st.metric("Total Sets", len(predictions))
+    with col2:
+        sets_with_bonus = sum(1 for m in matches_found if m['has_bonus'])
+        st.metric("Sets with Bonus", sets_with_bonus)
+    with col3:
+        best_match = matches_found[0]['match_count'] if matches_found else 0
+        st.metric("Best Match", f"{best_match}/7")
+    with col4:
+        avg_match = sum(m['match_count'] for m in matches_found) / len(matches_found) if matches_found else 0
+        st.metric("Avg Match", f"{avg_match:.1f}/7")
+    
+    st.divider()
+    
+    # Display sets
+    for match_data in matches_found:
+        with st.container(border=True):
+            col1, col2 = st.columns([1, 4])
+            
+            with col1:
+                st.markdown(f"**Set #{match_data['set_num']}**")
+                st.markdown(f"**Match: {match_data['match_count']}/7**")
+                if match_data['has_bonus']:
+                    st.markdown("**🟡 Bonus!**")
+            
+            with col2:
+                # Display numbers as balls
+                cols = st.columns(7)
+                for i, num in enumerate(match_data['numbers']):
+                    with cols[i]:
+                        # Highlight matching numbers in green, bonus in gold
+                        if match_data['has_bonus'] and num == bonus_number:
+                            bg_color = "#FFD700"
+                            label = "🟡"
+                        elif num in match_data['matching_numbers']:
+                            bg_color = "#28a745"
+                            label = "✓"
+                        else:
+                            bg_color = "#6c757d"
+                            label = ""
+                        
+                        st.markdown(f"<div style='text-align: center; font-size: 20px; font-weight: bold; padding: 8px; background-color: {bg_color}; color: white; border-radius: 50%; width: 45px; height: 45px; line-height: 29px; margin: auto;'>{num}<br><span style='font-size: 10px;'>{label}</span></div>", unsafe_allow_html=True)
+
+
+def _process_maxmillion_input(input_text: str) -> List[List[int]]:
+    """Process and validate MaxMillion input text. Accepts both comma and space separated numbers."""
+    try:
+        sets = []
+        lines = input_text.strip().split('\n')
+        
+        for line in lines:
+            line = line.strip()
+            if not line:
+                continue
+            
+            # Parse numbers - support both comma and space separated
+            # First try comma separation
+            if ',' in line:
+                numbers = [int(n.strip()) for n in line.split(',') if n.strip()]
+            else:
+                # Try space separation
+                numbers = [int(n.strip()) for n in line.split() if n.strip()]
+            
+            # Validate
+            if len(numbers) != 7:
+                st.error(f"Invalid set: {line} - Must have exactly 7 numbers")
+                continue
+            
+            if any(n < 1 or n > 50 for n in numbers):
+                st.error(f"Invalid set: {line} - Numbers must be between 1 and 50")
+                continue
+            
+            if len(set(numbers)) != 7:
+                st.error(f"Invalid set: {line} - Numbers must be unique")
+                continue
+            
+            # Sort and add
+            sets.append(sorted(numbers))
+        
+        return sets
+    except Exception as e:
+        app_log(f"Error processing MaxMillion input: {str(e)}", "error")
+        st.error(f"Error processing input: {str(e)}")
+        return []
+
+
+def _save_maxmillion_data(game: str, draw_date, maxmillion_sets: List[List[int]]) -> Path:
+    """Save MaxMillion data to file."""
+    try:
+        game_folder = _sanitize_game_name(game)
+        maxm_dir = Path("data") / game_folder / "maxmillions"
+        maxm_dir.mkdir(parents=True, exist_ok=True)
+        
+        # Create filename with date
+        filename = f"maxmillion_{draw_date.strftime('%Y%m%d')}.json"
+        filepath = maxm_dir / filename
+        
+        # Save data
+        data = {
+            "draw_date": draw_date.strftime('%Y-%m-%d'),
+            "game": game,
+            "maxmillion_sets": maxmillion_sets,
+            "total_sets": len(maxmillion_sets),
+            "saved_at": datetime.now().isoformat()
+        }
+        
+        with open(filepath, 'w') as f:
+            json.dump(data, f, indent=2)
+        
+        app_log(f"Saved MaxMillion data to {filepath}", "info")
+        return filepath
+    except Exception as e:
+        app_log(f"Error saving MaxMillion data: {str(e)}", "error")
+        raise
+
+
+def _load_maxmillion_from_file(game: str, draw_date) -> List[List[int]]:
+    """Load MaxMillion data from file."""
+    try:
+        game_folder = _sanitize_game_name(game)
+        maxm_dir = Path("data") / game_folder / "maxmillions"
+        
+        if not maxm_dir.exists():
+            st.info("📁 No MaxMillion data directory found. Use manual input to create.")
+            return []
+        
+        # Look for file with matching date
+        filename = f"maxmillion_{draw_date.strftime('%Y%m%d')}.json"
+        filepath = maxm_dir / filename
+        
+        if filepath.exists():
+            with open(filepath, 'r') as f:
+                data = json.load(f)
+                st.success(f"✅ Loaded {data['total_sets']} MaxMillion sets from file")
+                return data['maxmillion_sets']
+        else:
+            st.info(f"📁 No MaxMillion file found for {draw_date.strftime('%Y-%m-%d')}. Use manual input to create.")
+            return []
+    except Exception as e:
+        app_log(f"Error loading MaxMillion file: {str(e)}", "error")
+        st.error(f"Error loading file: {str(e)}")
+        return []
+
+
+def _display_maxmillion_sets(maxmillion_sets: List[List[int]]) -> None:
+    """Display MaxMillion sets as game balls."""
+    st.markdown(f"### 🎰 MaxMillion Sets ({len(maxmillion_sets)} total)")
+    
+    for idx, mm_set in enumerate(maxmillion_sets, 1):
+        with st.container(border=True):
+            col1, col2 = st.columns([1, 5])
+            
+            with col1:
+                st.markdown(f"**MM #{idx}**")
+            
+            with col2:
+                cols = st.columns(7)
+                for i, num in enumerate(mm_set):
+                    with cols[i]:
+                        st.markdown(f"<div style='text-align: center; font-size: 20px; font-weight: bold; padding: 8px; background-color: #9C27B0; color: white; border-radius: 50%; width: 45px; height: 45px; line-height: 29px; margin: auto;'>{num}</div>", unsafe_allow_html=True)
+
+
+def _display_maxmillion_comparison(prediction_data: Dict[str, Any], maxmillion_sets: List[List[int]]) -> None:
+    """Display prediction sets that match MaxMillion sets."""
+    st.divider()
+    st.markdown("### 🎯 Prediction Sets vs MaxMillion Analysis")
+    
+    predictions = prediction_data.get('predictions', [])
+    
+    if not predictions:
+        st.warning("No predictions found in file")
+        return
+    
+    # Find matches
+    matching_sets = []
+    
+    for idx, pred_set in enumerate(predictions, 1):
+        pred_numbers = sorted([int(n) for n in pred_set])
+        
+        # Check if this prediction matches any MaxMillion set
+        for mm_idx, mm_set in enumerate(maxmillion_sets, 1):
+            if pred_numbers == sorted(mm_set):
+                matching_sets.append({
+                    'pred_idx': idx,
+                    'mm_idx': mm_idx,
+                    'numbers': pred_numbers
+                })
+                break
+    
+    # Display statistics
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        st.metric("Total Prediction Sets", len(predictions))
+    with col2:
+        st.metric("MaxMillion Sets", len(maxmillion_sets))
+    with col3:
+        st.metric("Exact Matches", len(matching_sets))
+    
+    if matching_sets:
+        st.success(f"🎉 Found {len(matching_sets)} exact match(es)!")
+        
+        for match in matching_sets:
+            with st.container(border=True):
+                st.markdown(f"**Prediction Set #{match['pred_idx']} = MaxMillion #{match['mm_idx']}**")
+                cols = st.columns(7)
+                for i, num in enumerate(match['numbers']):
+                    with cols[i]:
+                        st.markdown(f"<div style='text-align: center; font-size: 20px; font-weight: bold; padding: 8px; background-color: #FFD700; color: black; border-radius: 50%; width: 45px; height: 45px; line-height: 29px; margin: auto;'>{num}</div>", unsafe_allow_html=True)
+    else:
+        st.info("ℹ️ No exact matches found between predictions and MaxMillion sets")
+    
+    # Show all prediction sets with highlighting
+    with st.expander("📋 View All Prediction Sets", expanded=False):
+        for idx, pred_set in enumerate(predictions, 1):
+            pred_numbers = sorted([int(n) for n in pred_set])
+            is_match = any(pred_numbers == sorted(mm_set) for mm_set in maxmillion_sets)
+            
+            with st.container(border=True):
+                if is_match:
+                    st.markdown(f"**Set #{idx} ⭐ MAXMILLION MATCH!**")
+                else:
+                    st.markdown(f"**Set #{idx}**")
+                
+                cols = st.columns(7)
+                for i, num in enumerate(pred_numbers):
+                    with cols[i]:
+                        bg_color = "#FFD700" if is_match else "#4169E1"
+                        text_color = "black" if is_match else "white"
+                        st.markdown(f"<div style='text-align: center; font-size: 20px; font-weight: bold; padding: 8px; background-color: {bg_color}; color: {text_color}; border-radius: 50%; width: 45px; height: 45px; line-height: 29px; margin: auto;'>{num}</div>", unsafe_allow_html=True)
+
 
 def _render_performance_history(analyzer: SuperIntelligentAIAnalyzer) -> None:
     """Show historical prediction performance."""
