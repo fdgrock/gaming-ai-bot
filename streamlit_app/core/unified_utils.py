@@ -380,6 +380,11 @@ def get_available_model_types(game: str) -> List[str]:
         # Filter out lowercase 'ensemble' to avoid duplication (only keep 'Ensemble' capitalized)
         model_types = [m for m in model_types if m.lower() != 'ensemble' or m == 'Ensemble']
         
+        # Check if predictions/game/ensemble folder exists and add Ensemble to list
+        pred_ensemble_dir = Path("predictions") / game_key / "ensemble"
+        if pred_ensemble_dir.exists() and "Ensemble" not in model_types:
+            model_types.append("Ensemble")
+        
         return sorted(model_types)
     
     except Exception as e:
@@ -394,11 +399,22 @@ def get_models_by_type(game: str, model_type: str) -> List[str]:
     - Ensemble models (stored as folders): models/game/ensemble/ensemble_name/
     - Individual models (stored as files): models/game/type/model_name.keras or .joblib
     - Keras models (may be stored as directories): models/game/type/model_name.keras/
+    - Ensemble predictions (from predictions folder): predictions/game/ensemble/*.json
     """
     try:
         game_key = sanitize_game_name(game)
         # Normalize model_type to lowercase to match directory structure
         model_type_normalized = model_type.lower()
+        
+        # Special handling for Ensemble - return list of prediction files from predictions/game/ensemble
+        if model_type_normalized == "ensemble":
+            pred_ensemble_dir = Path("predictions") / game_key / "ensemble"
+            if pred_ensemble_dir.exists():
+                # Return list of ensemble prediction file names (without .json extension)
+                ensemble_files = sorted(pred_ensemble_dir.glob("*.json"), reverse=True)
+                if ensemble_files:
+                    return [f.stem for f in ensemble_files]  # Return filename without extension
+            return []
         type_dir = get_models_dir() / game_key / model_type_normalized
         
         app_log.debug(f"Looking for {model_type_normalized} models in: {type_dir}")

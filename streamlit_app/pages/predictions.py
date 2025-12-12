@@ -2355,25 +2355,46 @@ def _find_predictions_by_model(game: str, model_type: str, model_name: str) -> L
                             # Extract date from filename (YYYYMMDD format)
                             file_date_str = pred_file.name[:8] if len(pred_file.name) >= 8 else None
                             
-                            # Check if filename contains model_name pattern
-                            file_contains_model = model_name.lower() in pred_file.name.lower()
-                            
-                            # Also check content for model_info or model metadata
-                            content_model_name = data.get('model_info', {}).get('name') or data.get('_model_name')
-                            
-                            # Match if filename has model name or content has matching model info
-                            if file_contains_model or (content_model_name and model_name.lower() in content_model_name.lower()):
-                                # Extract draw date
-                                draw_date = data.get('metadata', {}).get('draw_date')
-                                if not draw_date and file_date_str:
-                                    # Convert YYYYMMDD to YYYY-MM-DD
-                                    draw_date = f"{file_date_str[0:4]}-{file_date_str[4:6]}-{file_date_str[6:8]}"
+                            # For Ensemble, match by filename (model_name is the file stem)
+                            if model_type.lower() == "ensemble":
+                                # Only include the specific file that matches model_name
+                                if pred_file.stem == model_name:
+                                    # Extract draw date from the file content first
+                                    draw_date = data.get('draw_date')  # Primary source for ensemble files
+                                    if not draw_date:
+                                        draw_date = data.get('next_draw_date') or data.get('metadata', {}).get('draw_date')
+                                    if not draw_date and 'timestamp' in data:
+                                        draw_date = data.get('timestamp', '').split('T')[0]
+                                    if not draw_date and 'generated_at' in data:
+                                        draw_date = data.get('generated_at', '').split('T')[0]
+                                    if not draw_date and file_date_str:
+                                        draw_date = f"{file_date_str[0:4]}-{file_date_str[4:6]}-{file_date_str[6:8]}"
+                                    
+                                    data['_file'] = pred_file.name
+                                    data['_draw_date'] = draw_date
+                                    data['_model_type'] = model_type
+                                    data['_model_name'] = model_name
+                                    predictions.append(data)
+                            else:
+                                # Check if filename contains model_name pattern
+                                file_contains_model = model_name.lower() in pred_file.name.lower()
                                 
-                                data['_file'] = pred_file.name
-                                data['_draw_date'] = draw_date
-                                data['_model_type'] = model_type
-                                data['_model_name'] = model_name
-                                predictions.append(data)
+                                # Also check content for model_info or model metadata
+                                content_model_name = data.get('model_info', {}).get('name') or data.get('_model_name')
+                                
+                                # Match if filename has model name or content has matching model info
+                                if file_contains_model or (content_model_name and model_name.lower() in content_model_name.lower()):
+                                    # Extract draw date
+                                    draw_date = data.get('metadata', {}).get('draw_date')
+                                    if not draw_date and file_date_str:
+                                        # Convert YYYYMMDD to YYYY-MM-DD
+                                        draw_date = f"{file_date_str[0:4]}-{file_date_str[4:6]}-{file_date_str[6:8]}"
+                                    
+                                    data['_file'] = pred_file.name
+                                    data['_draw_date'] = draw_date
+                                    data['_model_type'] = model_type
+                                    data['_model_name'] = model_name
+                                    predictions.append(data)
                 except Exception as e:
                     app_logger.debug(f"Error reading {pred_file}: {e}")
                     continue
@@ -2386,7 +2407,9 @@ def _find_predictions_by_model(game: str, model_type: str, model_name: str) -> L
 
 
 def _find_predictions_by_date(game: str, target_date: str) -> List[Dict]:
-    """Find all predictions made for a specific date across all models by checking metadata.draw_date or timestamp."""
+    """Find all predictions made for a specific date across all models by checking metadata.draw_date or timestamp.
+    Excludes Ensemble Voting folder as it's used by ML Predictions tab.
+    """
     try:
         game_pred_dir = Path(get_data_dir()).parent / "predictions" / sanitize_game_name(game)
         
@@ -2396,22 +2419,43 @@ def _find_predictions_by_date(game: str, target_date: str) -> List[Dict]:
         predictions = []
         # Recursively search through all prediction files
         for pred_file in game_pred_dir.rglob("*.json"):
+            # Skip files in Ensemble Voting folder (used by ML Predictions tab)
+            if "Ensemble Voting" in str(pred_file):
+                continue
+            
             try:
                 with open(pred_file, 'r') as f:
                     data = json.load(f)
                     if isinstance(data, dict):
-                        # Try to match on metadata.draw_date (complex format)
-                        file_draw_date = data.get('metadata', {}).get('draw_date')
+                        # Try to match on draw_date first (ensemble format)
+                        file_draw_date = data.get('draw_date')
+                        
+                        # Try next_draw_date (prediction_ai format)
+                        if not file_draw_date:
+                            file_draw_date = data.get('next_draw_date')
+                        
+                        # Try metadata.draw_date (complex format)
+                        if not file_draw_date:
+                            file_draw_date = data.get('metadata', {}).get('draw_date')
                         
                         # If no metadata.draw_date, try timestamp field (simple format)
                         if not file_draw_date and 'timestamp' in data:
                             # Extract date from timestamp (format: "2025-11-16T00:00:57.470871")
                             file_draw_date = data.get('timestamp', '').split('T')[0]
                         
+                        # Try generated_at field (ensemble format)
+                        if not file_draw_date and 'generated_at' in data:
+                            file_draw_date = data.get('generated_at', '').split('T')[0]
+                        
                         if file_draw_date == target_date:
                             # Try to extract model info from complex format
                             model_type = data.get('metadata', {}).get('model_type')
                             model_name = data.get('model_info', {}).get('name')
+                            
+                            # Check for ensemble predictions
+                            if not model_name and 'ensemble' in str(pred_file).lower():
+                                model_type = 'Ensemble'
+                                model_name = 'Ensemble Prediction'
                             
                             # If no model info, it's a simple format file
                             if not model_name:
@@ -2530,6 +2574,18 @@ def _render_prediction_history() -> None:
                                 else:
                                     st.markdown(f"**Jackpot:** `{jackpot}`")
                         
+                        # Display Models Used for ensemble predictions
+                        if selected_model_type.lower() == "ensemble":
+                            # Check if predictions array exists and has models_used
+                            predictions_array = pred.get('predictions', [])
+                            if predictions_array and len(predictions_array) > 0:
+                                models_used = predictions_array[0].get('models_used', {})
+                                if models_used:
+                                    st.markdown("---")
+                                    st.markdown("**Models Used:**")
+                                    for model, weight in models_used.items():
+                                        st.markdown(f"• `{model}`: {weight:.4f}")
+                        
                         # Display prediction sets with matching accuracy
                         if sets and isinstance(sets, list):
                             st.markdown("**Predicted Numbers & Accuracy:**")
@@ -2542,10 +2598,17 @@ def _render_prediction_history() -> None:
                             
                             # Display sets stacked vertically with OLG-style game balls
                             for set_idx, prediction_set in enumerate(sets):
-                                # Parse prediction numbers
-                                if isinstance(prediction_set, (list, tuple)):
-                                    nums = [int(n) for n in prediction_set if str(n).isdigit()]
+                                # Parse prediction numbers - handle different formats
+                                if isinstance(prediction_set, dict):
+                                    # Ensemble format: {'numbers': [1,2,3,...], 'confidence': 0.5, ...}
+                                    nums = prediction_set.get('numbers', [])
+                                    if isinstance(nums, list):
+                                        nums = [int(n) for n in nums]
+                                elif isinstance(prediction_set, (list, tuple)):
+                                    # Direct list/tuple of numbers
+                                    nums = [int(n) for n in prediction_set]
                                 else:
+                                    # String format
                                     nums_str = str(prediction_set).strip('[]"')
                                     nums = [int(n.strip()) for n in nums_str.split(',') if n.strip().isdigit()]
                                 
@@ -2617,6 +2680,18 @@ def _render_prediction_history() -> None:
             if predictions:
                 st.success(f"Found {len(predictions)} prediction(s) for {date_str}")
                 
+                # Add dropdown to select specific prediction file
+                if len(predictions) > 1:
+                    pred_options = [f"{p.get('_model_type', 'Unknown')} - {p.get('_file', 'Unknown')}" for p in predictions]
+                    selected_pred_idx = st.selectbox(
+                        "Select Prediction File",
+                        range(len(predictions)),
+                        format_func=lambda x: pred_options[x],
+                        key="hist_date_pred_select"
+                    )
+                    # Filter to show only selected prediction
+                    predictions = [predictions[selected_pred_idx]]
+                
                 # Get draw info for this date
                 draw_info = _get_latest_draw_data_for_date(selected_game, date_str)
                 
@@ -2672,13 +2747,24 @@ def _render_prediction_history() -> None:
                         
                         with col2:
                             # Handle both generation_time and timestamp fields
-                            gen_time = pred.get('generation_time') or pred.get('timestamp', 'N/A')
+                            gen_time = pred.get('generation_time') or pred.get('timestamp') or pred.get('generated_at', 'N/A')
                             st.markdown(f"**Generated:** {gen_time}")
                             # Handle both confidence_scores array and single confidence value
                             conf_scores = pred.get('confidence_scores', [])
                             conf = conf_scores[0] if conf_scores else pred.get('confidence')
                             if conf:
                                 st.markdown(f"**Confidence:** {conf:.2%}" if isinstance(conf, (int, float)) else f"**Confidence:** {conf}")
+                        
+                        # Display Models Used for ensemble predictions
+                        if model_type.lower() == "ensemble":
+                            predictions_array = pred.get('predictions', [])
+                            if predictions_array and len(predictions_array) > 0:
+                                models_used = predictions_array[0].get('models_used', {})
+                                if models_used:
+                                    st.markdown("---")
+                                    st.markdown("**Models Used:**")
+                                    for model, weight in models_used.items():
+                                        st.markdown(f"• `{model}`: {weight:.4f}")
                         
                         # Display prediction sets with matching accuracy
                         if sets and isinstance(sets, list):
@@ -2692,10 +2778,17 @@ def _render_prediction_history() -> None:
                             
                             # Display sets stacked vertically with OLG-style game balls
                             for set_idx, prediction_set in enumerate(sets):
-                                # Parse prediction numbers
-                                if isinstance(prediction_set, (list, tuple)):
-                                    nums = [int(n) for n in prediction_set if str(n).isdigit()]
+                                # Parse prediction numbers - handle different formats
+                                if isinstance(prediction_set, dict):
+                                    # Ensemble format: {'numbers': [1,2,3,...], 'confidence': 0.5, ...}
+                                    nums = prediction_set.get('numbers', [])
+                                    if isinstance(nums, list):
+                                        nums = [int(n) for n in nums]
+                                elif isinstance(prediction_set, (list, tuple)):
+                                    # Direct list/tuple of numbers
+                                    nums = [int(n) for n in prediction_set]
                                 else:
+                                    # String format
                                     nums_str = str(prediction_set).strip('[]"')
                                     nums = [int(n.strip()) for n in nums_str.split(',') if n.strip().isdigit()]
                                 
@@ -2750,63 +2843,45 @@ def _render_prediction_history() -> None:
     
     # ===== TAB 3: ML PREDICTIONS =====
     with tab3:
-        st.subheader("View ML Predictions by Draw Date")
+        st.subheader("View ML Predictions")
         
-        # Mode selector
-        ml_mode = st.selectbox(
-            "Prediction Mode",
-            ["Single Model", "Ensemble"],
-            key="ml_history_mode"
-        )
-        
-        # Get all available draw dates with ML predictions for this game
+        # Get all prediction files from Ensemble Voting folder
         game_key = sanitize_game_name(selected_game)
-        ml_predictions_dir = Path(__file__).parent.parent.parent / "predictions" / game_key
+        ensemble_voting_dir = Path(__file__).parent.parent.parent / "predictions" / game_key / "Ensemble Voting"
         
-        if not ml_predictions_dir.exists():
-            st.info("ℹ️ No ML predictions directory found for this game.")
+        if not ensemble_voting_dir.exists():
+            st.info("ℹ️ No Ensemble Voting predictions directory found for this game.")
         else:
-            # Determine which subdirectory based on mode
-            mode_dir = ml_predictions_dir / ("Single Model" if ml_mode == "Single Model" else "Ensemble Voting")
+            # Get all prediction files
+            pred_files = sorted(ensemble_voting_dir.glob("*.json"), key=lambda p: p.stat().st_mtime, reverse=True)
             
-            if not mode_dir.exists():
-                st.info(f"ℹ️ No {ml_mode} predictions found for this game.")
+            if not pred_files:
+                st.info("ℹ️ No prediction files found in Ensemble Voting folder.")
             else:
-                # Get all prediction files and extract unique draw dates
-                pred_files = sorted(mode_dir.glob("*.json"), key=lambda p: p.stat().st_mtime, reverse=True)
+                # Create list of prediction file names for dropdown
+                pred_file_options = [f.name for f in pred_files]
                 
-                if not pred_files:
-                    st.info(f"ℹ️ No {ml_mode} prediction files found.")
-                else:
-                    # Extract unique draw dates from prediction files
-                    draw_dates_dict = {}  # {date: list of files}
-                    for pred_file in pred_files:
-                        try:
-                            with open(pred_file, 'r') as f:
-                                pred_data = json.load(f)
-                            draw_date = pred_data.get('draw_date', 'Unknown')
-                            if draw_date not in draw_dates_dict:
-                                draw_dates_dict[draw_date] = []
-                            draw_dates_dict[draw_date].append(pred_file)
-                        except:
-                            pass
+                # Select prediction file
+                selected_pred_file_name = st.selectbox(
+                    "Select Prediction File",
+                    pred_file_options,
+                    key="ml_history_file_select"
+                )
+                
+                if selected_pred_file_name:
+                    # Find the selected file path
+                    selected_pred_file = next((f for f in pred_files if f.name == selected_pred_file_name), None)
                     
-                    if not draw_dates_dict:
-                        st.info("ℹ️ No valid ML predictions found.")
-                    else:
-                        # Sort dates with newest first
-                        sorted_dates = sorted(draw_dates_dict.keys(), reverse=True)
-                        
-                        # Select draw date
-                        selected_draw_date = st.selectbox(
-                            "Select Draw Date",
-                            sorted_dates,
-                            key="ml_history_date_select"
-                        )
-                        
-                        if selected_draw_date:
+                    if selected_pred_file:
+                        try:
+                            with open(selected_pred_file, 'r') as f:
+                                pred_data = json.load(f)
+                            
+                            # Extract draw date from prediction data
+                            selected_draw_date = pred_data.get('draw_date', 'Unknown')
+                            
                             # Get draw info for this date
-                            draw_info = _get_latest_draw_data_for_date(selected_game, selected_draw_date)
+                            draw_info = _get_latest_draw_data_for_date(selected_game, selected_draw_date) if selected_draw_date != 'Unknown' else None
                             
                             # Display draw information header
                             if draw_info:
@@ -2834,134 +2909,106 @@ def _render_prediction_history() -> None:
                             
                             st.divider()
                             
-                            # Get predictions for this date (usually just the latest one per mode)
-                            date_predictions = draw_dates_dict.get(selected_draw_date, [])
+                            # Display prediction details
+                            predictions_list = pred_data.get('predictions', [])
+                            prediction_type = pred_data.get('prediction_type', 'Ensemble Voting')
+                            generated_at = pred_data.get('generated_at', 'N/A')
                             
-                            # Display the most recent prediction file
-                            if date_predictions:
-                                # Use only the first (most recent) prediction file
-                                pred_file = date_predictions[0]
+                            with st.container(border=True):
+                                st.markdown("### 📋 Prediction Details")
                                 
-                                try:
-                                    with open(pred_file, 'r') as f:
-                                        pred_data = json.load(f)
-                                    
-                                    predictions_list = pred_data.get('predictions', [])
-                                    prediction_type = pred_data.get('prediction_type', ml_mode)
-                                    generated_at = pred_data.get('generated_at', 'N/A')
-                                    
-                                    with st.container(border=True):
-                                        # Header with draw information
-                                        st.markdown("### 📋 ML Prediction Details")
-                                        
-                                        col1, col2, col3, col4 = st.columns(4)
-                                        
-                                        with col1:
-                                            st.markdown(f"**Draw Date:** `{selected_draw_date if selected_draw_date != 'Unknown' else 'Not Available'}`")
-                                        
-                                        with col2:
-                                            if draw_info:
-                                                winning_nums = draw_info.get('numbers', [])
-                                                st.markdown(f"**Winning Numbers:** `{', '.join(map(str, winning_nums))}`")
-                                            else:
-                                                st.markdown("**Winning Numbers:** `Not Available`")
-                                        
-                                        with col3:
-                                            if draw_info:
-                                                jackpot = draw_info.get('jackpot', 0)
-                                                if isinstance(jackpot, (int, float)) and jackpot > 0:
-                                                    st.markdown(f"**Jackpot:** `${jackpot:,.0f}`")
-                                                else:
-                                                    st.markdown("**Jackpot:** `Not Available`")
-                                            else:
-                                                st.markdown("**Jackpot:** `Not Available`")
-                                        
-                                        with col4:
-                                            st.markdown(f"**Generated:** `{generated_at[:16] if generated_at != 'N/A' else 'N/A'}`")
-                                        
-                                        st.divider()
-                                        
-                                        st.markdown(f"**Prediction Mode:** {prediction_type}")
-                                        st.markdown(f"**Total Prediction Sets:** {len(predictions_list)}")
-                                        
-                                        if predictions_list:
-                                            avg_confidence = sum(p.get('confidence', 0) for p in predictions_list) / len(predictions_list)
-                                            st.markdown(f"**Average Confidence:** `{avg_confidence:.2%}`")
-                                        
-                                        if ml_mode == "Ensemble" and predictions_list:
-                                            models_used = predictions_list[0].get('models_used', {})
-                                            if isinstance(models_used, dict):
-                                                st.markdown(f"**Models Used:** `{len(models_used)}`")
-                                        
+                                col1, col2, col3 = st.columns(3)
+                                
+                                with col1:
+                                    st.markdown(f"**Prediction Type:** {prediction_type}")
+                                
+                                with col2:
+                                    st.markdown(f"**Total Sets:** {len(predictions_list)}")
+                                
+                                with col3:
+                                    if predictions_list:
+                                        avg_confidence = sum(p.get('confidence', 0) for p in predictions_list) / len(predictions_list)
+                                        st.markdown(f"**Avg Confidence:** `{avg_confidence:.2%}`")
+                                
+                                # Show models used if ensemble
+                                if predictions_list and len(predictions_list) > 0:
+                                    models_used = predictions_list[0].get('models_used', {})
+                                    if isinstance(models_used, dict) and models_used:
                                         st.markdown("---")
-                                        st.markdown("### 🎯 Predicted Numbers & Accuracy")
-                                        
-                                        # Calculate accuracy if we have winning numbers
-                                        accuracy_data = {}
-                                        if draw_info:
-                                            winning_nums = draw_info.get('numbers', [])
-                                            accuracy_data = _calculate_prediction_accuracy(predictions_list, winning_nums)
-                                        
-                                        # Display prediction sets with OLG-style game balls - each set as a row
-                                        for set_idx, pred_set in enumerate(predictions_list):
-                                            # Parse prediction numbers
-                                            nums = pred_set.get('numbers', [])
-                                            if isinstance(nums, str):
-                                                nums = [int(n.strip()) for n in nums.strip('[]"').split(',') if n.strip().isdigit()]
-                                            elif not isinstance(nums, list):
-                                                nums = list(nums) if hasattr(nums, '__iter__') else []
+                                        st.markdown("**Models Used:**")
+                                        for model, weight in models_used.items():
+                                            st.markdown(f"• `{model}`: {weight:.4f}")
+                            
+                            st.divider()
+                            st.markdown("### 🎯 Predicted Numbers & Accuracy")
+                            
+                            # Calculate accuracy if we have winning numbers
+                            accuracy_data = {}
+                            if draw_info:
+                                winning_nums = draw_info.get('numbers', [])
+                                accuracy_data = _calculate_prediction_accuracy(predictions_list, winning_nums)
+                            
+                            # Display prediction sets
+                            for set_idx, pred_set in enumerate(predictions_list):
+                                # Parse prediction numbers
+                                nums = pred_set.get('numbers', [])
+                                if isinstance(nums, str):
+                                    nums = [int(n.strip()) for n in nums.strip('[]"').split(',') if n.strip().isdigit()]
+                                elif not isinstance(nums, list):
+                                    nums = list(nums) if hasattr(nums, '__iter__') else []
+                                
+                                # Get accuracy for this set
+                                acc = accuracy_data.get(set_idx, {})
+                                matched = acc.get('matched_numbers', [])
+                                match_count = acc.get('match_count', 0)
+                                total = acc.get('total_count', len(nums))
+                                
+                                # Set header
+                                confidence = pred_set.get('confidence', 0)
+                                st.markdown(f"**Set {set_idx + 1}** - ✓ {match_count}/{total} matched | Confidence: `{confidence:.2%}`")
+                                
+                                # Display numbers as game balls
+                                num_cols = st.columns(len(nums) if nums else 6)
+                                if nums:
+                                    for num_idx, (col, num) in enumerate(zip(num_cols, nums)):
+                                        with col:
+                                            # Determine color based on match
+                                            is_correct = num in matched
+                                            if is_correct:
+                                                gradient_color = "linear-gradient(135deg, #86efac 0%, #22c55e 50%, #16a34a 100%)"
+                                                shadow_color = "rgba(34, 197, 94, 0.3)"
+                                            else:
+                                                gradient_color = "linear-gradient(135deg, #fecaca 0%, #f87171 50%, #dc2626 100%)"
+                                                shadow_color = "rgba(220, 38, 38, 0.3)"
                                             
-                                            # Get accuracy for this set
-                                            acc = accuracy_data.get(set_idx, {})
-                                            matched = acc.get('matched_numbers', [])
-                                            match_count = acc.get('match_count', 0)
-                                            total = acc.get('total_count', len(nums))
-                                            
-                                            # Set header with match count
-                                            confidence = pred_set.get('confidence', 0)
-                                            st.markdown(f"**Set {set_idx + 1}** - ✓ {match_count}/{total} matched | Confidence: `{confidence:.2%}`")
-                                            
-                                            # Display numbers as OLG-style game balls with color coding
-                                            num_cols = st.columns(len(nums) if nums else 6)
-                                            if nums:
-                                                for num_idx, (col, num) in enumerate(zip(num_cols, nums)):
-                                                    with col:
-                                                        # Determine color based on match
-                                                        is_correct = num in matched
-                                                        if is_correct:
-                                                            gradient_color = "linear-gradient(135deg, #86efac 0%, #22c55e 50%, #16a34a 100%)"
-                                                            shadow_color = "rgba(34, 197, 94, 0.3)"
-                                                        else:
-                                                            gradient_color = "linear-gradient(135deg, #fecaca 0%, #f87171 50%, #dc2626 100%)"
-                                                            shadow_color = "rgba(220, 38, 38, 0.3)"
-                                                        
-                                                        st.markdown(
-                                                            f'''
-                                                            <div style="
-                                                                text-align: center;
-                                                                padding: 0;
-                                                                margin: 0 auto;
-                                                                width: 70px;
-                                                                height: 70px;
-                                                                background: {gradient_color};
-                                                                border-radius: 50%;
-                                                                color: white;
-                                                                font-weight: 900;
-                                                                font-size: 32px;
-                                                                box-shadow: 0 6px 12px {shadow_color}, inset 0 1px 0 rgba(255,255,255,0.4);
-                                                                display: flex;
-                                                                align-items: center;
-                                                                justify-content: center;
-                                                                border: 2px solid rgba(255,255,255,0.3);
-                                                            ">{num}</div>
-                                                            ''',
-                                                            unsafe_allow_html=True
-                                                        )
-                                            
-                                            st.markdown("")  # Spacing between sets
-                                except Exception as e:
-                                    app_logger.error(f"Error displaying ML prediction: {e}")
-                                    st.warning(f"Error loading prediction file: {e}")
+                                            st.markdown(
+                                                f'''
+                                                <div style="
+                                                    text-align: center;
+                                                    padding: 0;
+                                                    margin: 0 auto;
+                                                    width: 70px;
+                                                    height: 70px;
+                                                    background: {gradient_color};
+                                                    border-radius: 50%;
+                                                    color: white;
+                                                    font-weight: 900;
+                                                    font-size: 32px;
+                                                    box-shadow: 0 6px 12px {shadow_color}, inset 0 1px 0 rgba(255,255,255,0.4);
+                                                    display: flex;
+                                                    align-items: center;
+                                                    justify-content: center;
+                                                    border: 2px solid rgba(255,255,255,0.3);
+                                                ">{num}</div>
+                                                ''',
+                                                unsafe_allow_html=True
+                                            )
+                                
+                                st.markdown("")  # Spacing between sets
+                        
+                        except Exception as e:
+                            app_logger.error(f"Error loading prediction file: {e}")
+                            st.error(f"Error loading prediction: {str(e)}")
 
 
 

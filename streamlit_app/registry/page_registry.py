@@ -2,66 +2,7 @@
 🚀 Enhanced Page Registry - Advanced Dynamic Page Management System
 
 This system provides comprehensive page lifecycle management with:
-• Dynamic Page Loading: Hot-reloadable page modules with dep                                                                # Medium Pages (3)
-                {
-                    'name': 'dashboard',
-                    'title': '🎮 Enhanced Gaming AI Dashboard',
-                    'description': 'Main command center for AI-powered gaming intelligence',
-                    'category': PageCategory.MEDIUM,
-                    'module_path': 'streamlit_app.pages.dashboard',
-                    'render_function': 'render_page',
-                    'icon': '🎮', 
-                    'tags': ['dashboard', 'main', 'control']
-                },ium Pages (2)
-                {
-                    'name': 'dashboard',
-                    'title': '🎯 Enhanced Gaming AI Dashboard',
-                    'description': 'Main dashboard with advanced AI capabilities',
-                    'category': PageCategory.MEDIUM,
-                    'module_path': 'streamlit_app.pages.dashboard',
-                    'render_function': 'render_page',
-                    'icon': '🎯', 
-                    'tags': ['dashboard', 'ai', 'gaming']
-                },     # Medium Pages (2)},
-                
-                # Medium Pages (2)
-                { 
-                # Medium Pages (2)
-                    'name': 'dashboard',
-                    'title': '🎯 Enhanced Gaming AI Dashboard',
-                    'description': 'Main dashboard with advanced AI capabilities',
-                    'category': PageCategory.MEDIUM,
-                    'module_path': 'streamlit_app.pages.dashboard',
-                    'render_function': 'render_page',
-                    'icon': '🎯', 
-                    'tags': ['dashboard', 'ai', 'gaming']
-                },                    'name': 'dashboard',
-                    'title': '🎮 Enhanced Gaming AI Bot',
-                    'description': 'Main command center for AI-powered gaming intelligence',
-                    'category': PageCategory.MEDIUM,
-                    'module_path': 'streamlit_app.pages.dashboard',
-                    'render_function': 'render_page',
-                    'icon': '🎮', 
-                    'tags': ['dashboard', 'main', 'control']
-                },dium Pages (3)
-                {
-                    'name': 'dashboard',
-                    'title': '🎮 Enhanced Gaming AI Bot',
-                    'description': 'Main command center for AI-powered gaming intelligence',
-                    'category': PageCategory.MEDIUM,
-                    'module_path': 'streamlit_app.pages.dashboard',
-                    'render_function': 'render_page',
-                    'icon': '🎮', 
-                    'tags': ['dashboard', 'main', 'control']
-                },                    'name': 'dashboard',
-                    'title': '📊 Enhanced Dashboard',
-                    'description': 'Real-time analytics dashboard with comprehensive insights',
-                    'category': PageCategory.MEDIUM,
-                    'module_path': 'streamlit_app.pages.dashboard',
-                    'render_function': 'render_page',
-                    'icon': '📊', 
-                    'tags': ['dashboard', 'analytics', 'insights']
-                },jection
+• Dynamic Page Loading: Hot-reloadable page modules with dependency injection
 • Smart Navigation: Context-aware navigation with state persistence
 • Permission System: Role-based access control and page authorization
 • Performance Monitoring: Page load times, error tracking, and usage analytics
@@ -263,13 +204,13 @@ class EnhancedPageRegistry:
                 # Medium Pages (3)
                 {
                     'name': 'dashboard',
-                    'title': '� Advanced Dashboard',
-                    'description': 'Minimal test dashboard to isolate shadowing issues',
+                    'title': '🎮 Advanced Dashboard',
+                    'description': 'Main command center for AI-powered gaming intelligence',
                     'category': PageCategory.MEDIUM,
                     'module_path': 'streamlit_app.pages.dashboard',
                     'render_function': 'render_page',
-                    'icon': '�', 
-                    'tags': ['dashboard', 'test', 'minimal']
+                    'icon': '🎮', 
+                    'tags': ['dashboard', 'main', 'control']
                 },
                 {
                     'name': 'history',
@@ -511,6 +452,7 @@ class EnhancedPageRegistry:
     
     def _load_page_module(self, page_info: PageInfo) -> Optional[Any]:
         """Load page module with caching and hot-reload support."""
+        module = None
         try:
             module_path = page_info.module_path
             app_log.info(f"🔍 DEBUG: _load_page_module called with module_path: '{module_path}'")
@@ -534,6 +476,10 @@ class EnhancedPageRegistry:
                 app_log.info(f"🔍 DEBUG: Importing new module")
                 module = importlib.import_module(module_path)
             
+            if module is None:
+                app_log.error(f"🔍 DEBUG: importlib returned None for module '{module_path}'")
+                return None
+                
             app_log.info(f"🔍 DEBUG: Module loaded successfully: {module}")
             app_log.info(f"🔍 DEBUG: Module attributes: {dir(module)}")
             
@@ -544,9 +490,19 @@ class EnhancedPageRegistry:
             
             return module
             
+        except ModuleNotFoundError as e:
+            app_log.error(f"🔍 DEBUG: Module not found '{page_info.module_path}': {e}")
+            app_log.error(f"🔍 DEBUG: sys.path: {sys.path}")
+            app_log.error(f"🔍 DEBUG: Error traceback: {traceback.format_exc()}")
+            return None
         except Exception as e:
             app_log.error(f"🔍 DEBUG: Error loading module '{page_info.module_path}': {e}")
+            app_log.error(f"🔍 DEBUG: Error type: {type(e)}")
             app_log.error(f"🔍 DEBUG: Error traceback: {traceback.format_exc()}")
+            # Still return the module if it was loaded before the error
+            if module is not None:
+                app_log.info(f"🔍 DEBUG: Returning partially loaded module despite error")
+                return module
             return None
     
     def _needs_reload(self, module: Any) -> bool:
