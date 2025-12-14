@@ -167,6 +167,29 @@ class AdvancedFeatureGenerator:
             return []
         return sorted(self.raw_data_dir.glob("training_data_*.csv"))
     
+    def _get_feature_files_for_type(self, feature_type: str) -> List[Path]:
+        """Get all feature files for a specific feature type."""
+        type_dirs = {
+            'lstm': self.lstm_dir,
+            'cnn': self.cnn_dir,
+            'transformer': self.transformer_dir,
+            'xgboost': self.xgboost_dir,
+            'catboost': self.catboost_dir,
+            'lightgbm': self.lightgbm_dir
+        }
+        
+        feature_dir = type_dirs.get(feature_type)
+        if not feature_dir or not feature_dir.exists():
+            return []
+        
+        # Get all relevant files based on type
+        if feature_type in ['lstm', 'cnn']:
+            # NPZ files for neural network features
+            return sorted(feature_dir.glob("*.npz"))
+        else:
+            # CSV files for tree-based model features
+            return sorted(feature_dir.glob("*.csv"))
+    
     def load_raw_data(self, files: List[Path]) -> Optional[pd.DataFrame]:
         """Load and combine raw data from multiple files."""
         try:
@@ -988,19 +1011,53 @@ class AdvancedFeatureGenerator:
             raise
     
     def save_transformer_features_csv(self, features_df: pd.DataFrame, metadata: Dict[str, Any]) -> bool:
-        """Save Transformer features to CSV file."""
+        """Save Transformer features to CSV file with quality indicators."""
         try:
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            filename = f"transformer_features_{timestamp}.csv"
+            
+            # Build filename with quality indicators
+            filename_parts = ["transformer", "features"]
+            if metadata.get('optimization_applied', False):
+                filename_parts.append("optimized")
+            if metadata.get('validation_passed', False):
+                filename_parts.append("validated")
+            filename_parts.append(timestamp)
+            filename = "_".join(filename_parts) + ".csv"
             filepath = self.transformer_dir / filename
             
             # Save CSV
             features_df.to_csv(filepath, index=False)
             
-            # Also save metadata
-            metadata_file = self.transformer_dir / f"transformer_metadata_{timestamp}.json"
+            # Save comprehensive metadata
+            metadata_enhanced = {
+                'feature_type': 'transformer',
+                'game': self.game,
+                'created_at': timestamp,
+                'feature_count': len(features_df.columns),
+                'sample_count': len(features_df),
+                'optimization_applied': metadata.get('optimization_applied', False),
+                'optimization_config': metadata.get('optimization_config', None),
+                'validation_passed': metadata.get('validation_passed', False),
+                'validation_config': metadata.get('validation_config', None),
+                'validation_results': metadata.get('validation_results', None),
+                'enhanced_features': metadata.get('enhanced_features_config', {}),
+                'target_representation': metadata.get('target_representation', 'binary'),
+                'original_metadata': metadata
+            }
+            
+            # Add feature statistics for drift detection
+            numeric_cols = features_df.select_dtypes(include=[np.number]).columns
+            if len(numeric_cols) > 0:
+                metadata_enhanced['feature_stats'] = {
+                    'mean': features_df[numeric_cols].mean().to_dict(),
+                    'std': features_df[numeric_cols].std().to_dict(),
+                    'min': features_df[numeric_cols].min().to_dict(),
+                    'max': features_df[numeric_cols].max().to_dict()
+                }
+            
+            metadata_file = self.transformer_dir / f"{filename}.meta.json"
             with open(metadata_file, 'w') as f:
-                json.dump(metadata, f, indent=2, default=str)
+                json.dump(metadata_enhanced, f, indent=2, default=str)
             
             app_log(f"✓ Saved Transformer features to {filepath}", "info")
             app_log(f"✓ Saved metadata to {metadata_file}", "info")
@@ -1326,20 +1383,60 @@ class AdvancedFeatureGenerator:
             return False
     
     def save_xgboost_features(self, features_df: pd.DataFrame, metadata: Dict[str, Any]) -> bool:
-        """Save XGBoost features to disk."""
+        """Save XGBoost features to disk with quality indicators."""
         try:
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            filename = f"advanced_xgboost_features_t{timestamp}.csv"
+            
+            # Build filename with quality indicators
+            filename_parts = ["xgboost", "features"]
+            
+            # Add optimization indicator
+            if metadata.get('optimization_applied', False):
+                filename_parts.append("optimized")
+            
+            # Add validation indicator
+            if metadata.get('validation_passed', False):
+                filename_parts.append("validated")
+            
+            filename_parts.append(timestamp)
+            filename = "_".join(filename_parts) + ".csv"
             filepath = self.xgboost_dir / filename
             
             features_df.to_csv(filepath, index=False)
             
-            # Save metadata
+            # Save comprehensive metadata
+            metadata_enhanced = {
+                'feature_type': 'xgboost',
+                'game': self.game,
+                'created_at': timestamp,
+                'feature_count': len(features_df.columns),
+                'sample_count': len(features_df),
+                'optimization_applied': metadata.get('optimization_applied', False),
+                'optimization_config': metadata.get('optimization_config', None),
+                'validation_passed': metadata.get('validation_passed', False),
+                'validation_config': metadata.get('validation_config', None),
+                'validation_results': metadata.get('validation_results', None),
+                'enhanced_features': metadata.get('enhanced_features_config', {}),
+                'target_representation': metadata.get('target_representation', 'binary'),
+                'original_metadata': metadata
+            }
+            
+            # Add feature statistics for drift detection
+            numeric_cols = features_df.select_dtypes(include=[np.number]).columns
+            if len(numeric_cols) > 0:
+                metadata_enhanced['feature_stats'] = {
+                    'mean': features_df[numeric_cols].mean().to_dict(),
+                    'std': features_df[numeric_cols].std().to_dict(),
+                    'min': features_df[numeric_cols].min().to_dict(),
+                    'max': features_df[numeric_cols].max().to_dict()
+                }
+            
             meta_filepath = self.xgboost_dir / f"{filename}.meta.json"
             with open(meta_filepath, "w") as f:
-                json.dump(metadata, f, indent=2, default=str)
+                json.dump(metadata_enhanced, f, indent=2, default=str)
             
             app_log(f"✓ Saved XGBoost features to {filepath}", "info")
+            app_log(f"✓ Saved metadata to {meta_filepath}", "info")
             return True
         except Exception as e:
             app_log(f"Error saving XGBoost features: {e}", "error")
@@ -1811,41 +1908,631 @@ class AdvancedFeatureGenerator:
             return pd.DataFrame(), {}
     
     def save_catboost_features(self, features_df: pd.DataFrame, metadata: Dict[str, Any]) -> bool:
-        """Save CatBoost features to disk."""
+        """Save CatBoost features to disk with quality indicators."""
         try:
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            filename = f"catboost_features_t{timestamp}.csv"
+            
+            # Build filename with quality indicators
+            filename_parts = ["catboost", "features"]
+            if metadata.get('optimization_applied', False):
+                filename_parts.append("optimized")
+            if metadata.get('validation_passed', False):
+                filename_parts.append("validated")
+            filename_parts.append(timestamp)
+            filename = "_".join(filename_parts) + ".csv"
             filepath = self.catboost_dir / filename
             
             features_df.to_csv(filepath, index=False)
             
-            # Save metadata
+            # Save comprehensive metadata
+            metadata_enhanced = {
+                'feature_type': 'catboost',
+                'game': self.game,
+                'created_at': timestamp,
+                'feature_count': len(features_df.columns),
+                'sample_count': len(features_df),
+                'optimization_applied': metadata.get('optimization_applied', False),
+                'optimization_config': metadata.get('optimization_config', None),
+                'validation_passed': metadata.get('validation_passed', False),
+                'validation_config': metadata.get('validation_config', None),
+                'validation_results': metadata.get('validation_results', None),
+                'enhanced_features': metadata.get('enhanced_features_config', {}),
+                'target_representation': metadata.get('target_representation', 'binary'),
+                'original_metadata': metadata
+            }
+            
+            # Add feature statistics for drift detection
+            numeric_cols = features_df.select_dtypes(include=[np.number]).columns
+            if len(numeric_cols) > 0:
+                metadata_enhanced['feature_stats'] = {
+                    'mean': features_df[numeric_cols].mean().to_dict(),
+                    'std': features_df[numeric_cols].std().to_dict(),
+                    'min': features_df[numeric_cols].min().to_dict(),
+                    'max': features_df[numeric_cols].max().to_dict()
+                }
+            
             meta_filepath = self.catboost_dir / f"{filename}.meta.json"
             with open(meta_filepath, "w") as f:
-                json.dump(metadata, f, indent=2, default=str)
+                json.dump(metadata_enhanced, f, indent=2, default=str)
             
             app_log(f"✓ Saved CatBoost features to {filepath}", "info")
+            app_log(f"✓ Saved metadata to {meta_filepath}", "info")
             return True
         except Exception as e:
             app_log(f"Error saving CatBoost features: {e}", "error")
             return False
     
     def save_lightgbm_features(self, features_df: pd.DataFrame, metadata: Dict[str, Any]) -> bool:
-        """Save LightGBM features to disk."""
+        """Save LightGBM features to disk with quality indicators."""
         try:
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            filename = f"lightgbm_features_t{timestamp}.csv"
+            
+            # Build filename with quality indicators
+            filename_parts = ["lightgbm", "features"]
+            if metadata.get('optimization_applied', False):
+                filename_parts.append("optimized")
+            if metadata.get('validation_passed', False):
+                filename_parts.append("validated")
+            filename_parts.append(timestamp)
+            filename = "_".join(filename_parts) + ".csv"
             filepath = self.lightgbm_dir / filename
             
             features_df.to_csv(filepath, index=False)
             
-            # Save metadata
+            # Save comprehensive metadata
+            metadata_enhanced = {
+                'feature_type': 'lightgbm',
+                'game': self.game,
+                'created_at': timestamp,
+                'feature_count': len(features_df.columns),
+                'sample_count': len(features_df),
+                'optimization_applied': metadata.get('optimization_applied', False),
+                'optimization_config': metadata.get('optimization_config', None),
+                'validation_passed': metadata.get('validation_passed', False),
+                'validation_config': metadata.get('validation_config', None),
+                'validation_results': metadata.get('validation_results', None),
+                'enhanced_features': metadata.get('enhanced_features_config', {}),
+                'target_representation': metadata.get('target_representation', 'binary'),
+                'original_metadata': metadata
+            }
+            
+            # Add feature statistics for drift detection
+            numeric_cols = features_df.select_dtypes(include=[np.number]).columns
+            if len(numeric_cols) > 0:
+                metadata_enhanced['feature_stats'] = {
+                    'mean': features_df[numeric_cols].mean().to_dict(),
+                    'std': features_df[numeric_cols].std().to_dict(),
+                    'min': features_df[numeric_cols].min().to_dict(),
+                    'max': features_df[numeric_cols].max().to_dict()
+                }
+            
             meta_filepath = self.lightgbm_dir / f"{filename}.meta.json"
             with open(meta_filepath, "w") as f:
-                json.dump(metadata, f, indent=2, default=str)
+                json.dump(metadata_enhanced, f, indent=2, default=str)
             
             app_log(f"✓ Saved LightGBM features to {filepath}", "info")
+            app_log(f"✓ Saved metadata to {meta_filepath}", "info")
             return True
         except Exception as e:
             app_log(f"Error saving LightGBM features: {e}", "error")
             return False
+    
+    # ========================================
+    # ENHANCED LOTTERY FEATURES
+    # ========================================
+    
+    def _calculate_hot_cold_frequency(self, data: pd.DataFrame, idx: int, numbers: List[int], 
+                                      windows: List[int]) -> Dict[str, float]:
+        """Calculate hot/cold number frequencies over multiple windows."""
+        features = {}
+        
+        for window in windows:
+            if idx >= window:
+                # Get recent draws
+                recent_draws = data.iloc[max(0, idx-window):idx]
+                all_recent_numbers = []
+                for _, row in recent_draws.iterrows():
+                    all_recent_numbers.extend(row['numbers_list'])
+                
+                # Calculate frequency for each number in current draw
+                hot_count = 0
+                cold_count = 0
+                for num in numbers:
+                    freq = all_recent_numbers.count(num)
+                    if freq >= window * 0.15:  # Hot if appears in 15%+ of draws
+                        hot_count += 1
+                    elif freq <= window * 0.05:  # Cold if appears in <5% of draws
+                        cold_count += 1
+                
+                features[f'hot_numbers_window_{window}'] = hot_count
+                features[f'cold_numbers_window_{window}'] = cold_count
+                features[f'hot_ratio_window_{window}'] = hot_count / len(numbers) if numbers else 0
+            else:
+                features[f'hot_numbers_window_{window}'] = 0
+                features[f'cold_numbers_window_{window}'] = 0
+                features[f'hot_ratio_window_{window}'] = 0
+        
+        return features
+    
+    def _calculate_gap_analysis(self, data: pd.DataFrame, idx: int, numbers: List[int], 
+                                max_num: int = 50) -> Dict[str, float]:
+        """Calculate draws since each number last appeared."""
+        features = {}
+        
+        if idx > 0:
+            gaps = []
+            for num in numbers:
+                # Find last appearance
+                last_seen = -1
+                for i in range(idx - 1, -1, -1):
+                    if num in data.iloc[i]['numbers_list']:
+                        last_seen = idx - i
+                        break
+                
+                if last_seen > 0:
+                    gaps.append(last_seen)
+            
+            if gaps:
+                features['avg_gap_since_last'] = np.mean(gaps)
+                features['max_gap_since_last'] = np.max(gaps)
+                features['min_gap_since_last'] = np.min(gaps)
+                features['gap_variance'] = np.var(gaps)
+                features['overdue_count'] = sum(1 for g in gaps if g > 10)  # Not seen in 10+ draws
+            else:
+                features['avg_gap_since_last'] = 0
+                features['max_gap_since_last'] = 0
+                features['min_gap_since_last'] = 0
+                features['gap_variance'] = 0
+                features['overdue_count'] = 0
+        else:
+            features['avg_gap_since_last'] = 0
+            features['max_gap_since_last'] = 0
+            features['min_gap_since_last'] = 0
+            features['gap_variance'] = 0
+            features['overdue_count'] = 0
+        
+        return features
+    
+    def _calculate_pattern_features(self, numbers: List[int]) -> Dict[str, float]:
+        """Calculate pattern features: consecutive runs, clusters, spacing."""
+        features = {}
+        
+        sorted_nums = sorted(numbers)
+        
+        # Consecutive runs
+        consecutive_count = 0
+        for i in range(len(sorted_nums) - 1):
+            if sorted_nums[i+1] - sorted_nums[i] == 1:
+                consecutive_count += 1
+        features['consecutive_pairs'] = consecutive_count
+        features['has_consecutive'] = 1.0 if consecutive_count > 0 else 0.0
+        
+        # Clustering (numbers within 5 of each other)
+        clusters = 0
+        for i in range(len(sorted_nums) - 1):
+            if sorted_nums[i+1] - sorted_nums[i] <= 5:
+                clusters += 1
+        features['cluster_pairs'] = clusters
+        features['cluster_ratio'] = clusters / max(1, len(sorted_nums) - 1)
+        
+        # Spacing patterns
+        gaps = [sorted_nums[i+1] - sorted_nums[i] for i in range(len(sorted_nums) - 1)]
+        if gaps:
+            features['spacing_mean'] = np.mean(gaps)
+            features['spacing_std'] = np.std(gaps)
+            features['spacing_uniformity'] = 1.0 / (1.0 + np.std(gaps))  # Higher = more uniform
+            features['max_spacing'] = np.max(gaps)
+            features['min_spacing'] = np.min(gaps)
+        else:
+            features['spacing_mean'] = 0
+            features['spacing_std'] = 0
+            features['spacing_uniformity'] = 0
+            features['max_spacing'] = 0
+            features['min_spacing'] = 0
+        
+        # Pattern score (composite)
+        features['pattern_score'] = (
+            features['consecutive_pairs'] * 0.3 +
+            features['cluster_ratio'] * 0.4 +
+            features['spacing_uniformity'] * 0.3
+        )
+        
+        return features
+    
+    def _calculate_entropy_randomness(self, numbers: List[int], max_num: int = 50) -> Dict[str, float]:
+        """Calculate entropy and randomness scores."""
+        features = {}
+        
+        # Shannon entropy
+        if numbers:
+            # Normalize numbers to probabilities
+            probs = np.array(numbers) / max_num
+            probs = probs / np.sum(probs)
+            entropy = -np.sum(probs * np.log2(probs + 1e-10))
+            features['shannon_entropy'] = entropy
+            features['normalized_entropy'] = entropy / np.log2(len(numbers))
+        else:
+            features['shannon_entropy'] = 0
+            features['normalized_entropy'] = 0
+        
+        # Randomness score (based on distribution)
+        if len(numbers) > 1:
+            # Perfect randomness would have even distribution
+            expected_gap = max_num / len(numbers)
+            sorted_nums = sorted(numbers)
+            gaps = [sorted_nums[i+1] - sorted_nums[i] for i in range(len(sorted_nums) - 1)]
+            gap_variance = np.var(gaps) if gaps else 0
+            randomness = 1.0 / (1.0 + gap_variance / expected_gap)
+            features['randomness_score'] = randomness
+        else:
+            features['randomness_score'] = 0
+        
+        # Digit entropy (ones, tens places)
+        ones_digits = [n % 10 for n in numbers]
+        tens_digits = [n // 10 for n in numbers if n >= 10]
+        
+        if ones_digits:
+            ones_unique = len(set(ones_digits))
+            features['ones_digit_diversity'] = ones_unique / len(ones_digits)
+        else:
+            features['ones_digit_diversity'] = 0
+        
+        if tens_digits:
+            tens_unique = len(set(tens_digits))
+            features['tens_digit_diversity'] = tens_unique / len(tens_digits)
+        else:
+            features['tens_digit_diversity'] = 0
+        
+        return features
+    
+    def _calculate_correlation_features(self, data: pd.DataFrame, idx: int, 
+                                       numbers: List[int]) -> Dict[str, float]:
+        """Calculate number co-occurrence patterns."""
+        features = {}
+        
+        if idx >= 20:  # Need history for meaningful correlations
+            # Look at last 20 draws
+            recent_draws = data.iloc[max(0, idx-20):idx]
+            
+            # Build co-occurrence matrix for current numbers
+            co_occurrences = {}
+            for num1 in numbers:
+                for num2 in numbers:
+                    if num1 < num2:
+                        pair = (num1, num2)
+                        count = 0
+                        for _, row in recent_draws.iterrows():
+                            draw_nums = row['numbers_list']
+                            if num1 in draw_nums and num2 in draw_nums:
+                                count += 1
+                        co_occurrences[pair] = count
+            
+            if co_occurrences:
+                features['max_pair_frequency'] = max(co_occurrences.values())
+                features['avg_pair_frequency'] = np.mean(list(co_occurrences.values()))
+                features['strong_pairs'] = sum(1 for v in co_occurrences.values() if v >= 3)
+            else:
+                features['max_pair_frequency'] = 0
+                features['avg_pair_frequency'] = 0
+                features['strong_pairs'] = 0
+        else:
+            features['max_pair_frequency'] = 0
+            features['avg_pair_frequency'] = 0
+            features['strong_pairs'] = 0
+        
+        return features
+    
+    def _calculate_position_specific_features(self, numbers: List[int]) -> Dict[str, float]:
+        """Calculate position-specific biases (position 1 tends low, position 7 tends high, etc.)."""
+        features = {}
+        
+        sorted_nums = sorted(numbers)
+        
+        # Analyze each position
+        for pos in range(min(7, len(sorted_nums))):
+            num = sorted_nums[pos]
+            features[f'position_{pos+1}_value'] = num
+            features[f'position_{pos+1}_normalized'] = num / 50.0
+            
+            # Position-specific expectations
+            # Position 1 should be low (1-15), Position 7 should be high (35-50)
+            if pos == 0:  # First position
+                features[f'position_1_is_low'] = 1.0 if num <= 15 else 0.0
+            elif pos == len(sorted_nums) - 1:  # Last position
+                features[f'position_last_is_high'] = 1.0 if num >= 35 else 0.0
+        
+        # Position spread analysis
+        if len(sorted_nums) >= 2:
+            features['position_spread'] = sorted_nums[-1] - sorted_nums[0]
+            features['position_spread_normalized'] = features['position_spread'] / 50.0
+        else:
+            features['position_spread'] = 0
+            features['position_spread_normalized'] = 0
+        
+        return features
+    
+    def apply_enhanced_features(self, data: pd.DataFrame, idx: int, 
+                               numbers: List[int], config: Dict[str, Any]) -> Dict[str, float]:
+        """Apply enhanced lottery features based on configuration."""
+        features = {}
+        max_num = 50
+        
+        if config.get('frequency', False):
+            freq_windows = config.get('frequency_windows', [10, 20, 50])
+            features.update(self._calculate_hot_cold_frequency(data, idx, numbers, freq_windows))
+        
+        if config.get('gap_analysis', False):
+            features.update(self._calculate_gap_analysis(data, idx, numbers, max_num))
+        
+        if config.get('patterns', False):
+            features.update(self._calculate_pattern_features(numbers))
+        
+        if config.get('entropy', False):
+            features.update(self._calculate_entropy_randomness(numbers, max_num))
+        
+        if config.get('correlation', False):
+            features.update(self._calculate_correlation_features(data, idx, numbers))
+        
+        if config.get('position_specific', False):
+            features.update(self._calculate_position_specific_features(numbers))
+        
+        return features
+    
+    # ========================================
+    # FEATURE OPTIMIZATION
+    # ========================================
+    
+    def apply_feature_optimization(self, features_df: pd.DataFrame, 
+                                   config: Dict[str, Any]) -> Tuple[pd.DataFrame, Dict[str, Any]]:
+        """Apply feature optimization and dimensionality reduction."""
+        from sklearn.feature_selection import RFE
+        from sklearn.ensemble import RandomForestClassifier
+        from sklearn.decomposition import PCA as SKLearnPCA
+        from sklearn.preprocessing import StandardScaler
+        
+        if not config.get('enabled', False):
+            return features_df, {'optimization': 'disabled'}
+        
+        method = config.get('method', 'RFE')
+        optimization_info = {'method': method, 'original_features': features_df.shape[1]}
+        
+        # Separate features from metadata columns
+        exclude_cols = []
+        if 'draw_date' in features_df.columns:
+            exclude_cols.append('draw_date')
+        if 'numbers' in features_df.columns:
+            exclude_cols.append('numbers')
+        
+        feature_cols = [col for col in features_df.columns if col not in exclude_cols]
+        X = features_df[feature_cols].values
+        
+        # For RFE/Importance, we need a simple target (use first column as proxy)
+        if len(X) > 0:
+            y_proxy = X[:, 0] > np.median(X[:, 0])
+        else:
+            return features_df, optimization_info
+        
+        result_features = X
+        selected_feature_names = feature_cols
+        
+        try:
+            if 'RFE' in method or 'Hybrid' in method:
+                n_features = config.get('rfe_n_features', 200)
+                n_features = min(n_features, X.shape[1])
+                
+                # Use Random Forest for feature selection
+                estimator = RandomForestClassifier(n_estimators=10, random_state=42, max_depth=5)
+                selector = RFE(estimator, n_features_to_select=n_features, step=10)
+                
+                result_features = selector.fit_transform(X, y_proxy)
+                selected_feature_names = [feature_cols[i] for i, selected in enumerate(selector.support_) if selected]
+                optimization_info['rfe_features_selected'] = n_features
+                optimization_info['rfe_support'] = selector.support_.tolist()
+            
+            if 'PCA' in method or 'Hybrid' in method:
+                variance_threshold = config.get('pca_variance', 0.95)
+                max_components = config.get('pca_max_components', 150)
+                
+                # Standardize before PCA
+                scaler = StandardScaler()
+                X_scaled = scaler.fit_transform(result_features)
+                
+                # Apply PCA
+                pca = SKLearnPCA(n_components=min(max_components, result_features.shape[1]), random_state=42)
+                result_features = pca.fit_transform(X_scaled)
+                
+                # Find number of components for variance threshold
+                cumsum_variance = np.cumsum(pca.explained_variance_ratio_)
+                n_components = np.argmax(cumsum_variance >= variance_threshold) + 1
+                result_features = result_features[:, :n_components]
+                
+                selected_feature_names = [f'PC{i+1}' for i in range(n_components)]
+                optimization_info['pca_components'] = n_components
+                optimization_info['pca_explained_variance'] = cumsum_variance[n_components-1]
+            
+            if 'Importance' in method:
+                threshold_pct = config.get('importance_threshold', 30) / 100.0
+                
+                # Train model and get feature importances
+                model = RandomForestClassifier(n_estimators=20, random_state=42, max_depth=5)
+                model.fit(X, y_proxy)
+                importances = model.feature_importances_
+                
+                # Select top features
+                n_features_to_keep = max(10, int(len(importances) * threshold_pct))
+                indices = np.argsort(importances)[-n_features_to_keep:]
+                
+                result_features = X[:, indices]
+                selected_feature_names = [feature_cols[i] for i in indices]
+                optimization_info['importance_threshold'] = threshold_pct
+                optimization_info['features_selected'] = n_features_to_keep
+            
+            # Create optimized dataframe
+            optimized_df = pd.DataFrame(result_features, columns=selected_feature_names)
+            
+            # Add back metadata columns
+            for col in exclude_cols:
+                optimized_df[col] = features_df[col].values
+            
+            optimization_info['final_features'] = len(selected_feature_names)
+            optimization_info['reduction_ratio'] = len(selected_feature_names) / len(feature_cols)
+            
+            app_log(f"Feature optimization: {len(feature_cols)} → {len(selected_feature_names)} features", "info")
+            
+            return optimized_df, optimization_info
+        
+        except Exception as e:
+            app_log(f"Error during feature optimization: {e}", "error")
+            return features_df, {'optimization': 'failed', 'error': str(e)}
+    
+    # ========================================
+    # FEATURE VALIDATION
+    # ========================================
+    
+    def validate_features(self, features_data: np.ndarray, config: Dict[str, Any]) -> Dict[str, Any]:
+        """Validate feature quality based on configuration."""
+        validation_results = {
+            'checks_run': [],
+            'issues_found': [],
+            'warnings': [],
+            'passed': True
+        }
+        
+        if not config.get('enabled', False):
+            return validation_results
+        
+        # Check for NaN/Inf
+        if config.get('check_nan', True):
+            validation_results['checks_run'].append('NaN/Inf check')
+            nan_count = np.isnan(features_data).sum()
+            inf_count = np.isinf(features_data).sum()
+            
+            if nan_count > 0 or inf_count > 0:
+                validation_results['issues_found'].append(f'Found {nan_count} NaN and {inf_count} Inf values')
+                validation_results['passed'] = False
+        
+        # Check for constant features
+        if config.get('check_constant', True):
+            validation_results['checks_run'].append('Constant feature check')
+            variance_threshold = config.get('variance_threshold', 0.01)
+            
+            if len(features_data.shape) == 2:
+                variances = np.var(features_data, axis=0)
+                constant_count = (variances < variance_threshold).sum()
+                
+                if constant_count > 0:
+                    validation_results['warnings'].append(f'Found {constant_count} near-constant features')
+        
+        # Check for high correlation
+        if config.get('check_correlation', True) and len(features_data.shape) == 2:
+            validation_results['checks_run'].append('Correlation check')
+            correlation_threshold = config.get('correlation_threshold', 0.95)
+            
+            try:
+                # Sample if too large
+                if features_data.shape[0] > 5000:
+                    indices = np.random.choice(features_data.shape[0], 5000, replace=False)
+                    sample_data = features_data[indices]
+                else:
+                    sample_data = features_data
+                
+                corr_matrix = np.corrcoef(sample_data, rowvar=False)
+                high_corr_mask = (np.abs(corr_matrix) > correlation_threshold) & (np.abs(corr_matrix) < 1.0)
+                high_corr_count = high_corr_mask.sum() // 2
+                
+                if high_corr_count > 0:
+                    validation_results['warnings'].append(f'Found {high_corr_count} highly correlated feature pairs')
+            except:
+                pass
+        
+        return validation_results
+    
+    # ========================================
+    # FEATURE EXPORT
+    # ========================================
+    
+    def export_feature_samples(self, features_df: pd.DataFrame, config: Dict[str, Any],
+                               feature_type: str) -> Optional[Path]:
+        """Export feature samples in specified format."""
+        if not config.get('enabled', False):
+            return None
+        
+        try:
+            sample_size = config.get('sample_size', 1000)
+            strategy = config.get('strategy', 'Random')
+            export_format = config.get('format', 'CSV')
+            
+            # Sampling
+            if strategy == 'Random':
+                if len(features_df) > sample_size:
+                    sample_df = features_df.sample(n=sample_size, random_state=42)
+                else:
+                    sample_df = features_df.copy()
+            elif strategy == 'Recent draws':
+                sample_df = features_df.tail(sample_size)
+            else:  # Stratified
+                # Simple stratified sampling by index
+                if len(features_df) > sample_size:
+                    indices = np.linspace(0, len(features_df)-1, sample_size, dtype=int)
+                    sample_df = features_df.iloc[indices]
+                else:
+                    sample_df = features_df.copy()
+            
+            # Prepare export directory
+            export_dir = self.features_dir / "samples" / self.game_folder
+            export_dir.mkdir(parents=True, exist_ok=True)
+            
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            base_filename = f"{feature_type}_sample_{timestamp}"
+            
+            exported_files = []
+            
+            # Export in requested formats
+            if export_format in ['CSV', 'All formats']:
+                csv_path = export_dir / f"{base_filename}.csv"
+                sample_df.to_csv(csv_path, index=False)
+                exported_files.append(csv_path)
+            
+            if export_format in ['JSON', 'All formats']:
+                json_path = export_dir / f"{base_filename}.json"
+                sample_df.to_json(json_path, orient='records', indent=2)
+                exported_files.append(json_path)
+            
+            if export_format in ['Parquet', 'All formats']:
+                parquet_path = export_dir / f"{base_filename}.parquet"
+                sample_df.to_parquet(parquet_path, index=False)
+                exported_files.append(parquet_path)
+            
+            # Export metadata if requested
+            if config.get('include_metadata', True) or config.get('include_stats', True):
+                metadata = {
+                    'feature_type': feature_type,
+                    'game': self.game,
+                    'sample_size': len(sample_df),
+                    'sampling_strategy': strategy,
+                    'export_date': datetime.now().isoformat(),
+                    'total_features': len(sample_df.columns)
+                }
+                
+                if config.get('include_stats', True):
+                    numeric_cols = sample_df.select_dtypes(include=[np.number]).columns
+                    stats = {
+                        'mean': sample_df[numeric_cols].mean().to_dict(),
+                        'std': sample_df[numeric_cols].std().to_dict(),
+                        'min': sample_df[numeric_cols].min().to_dict(),
+                        'max': sample_df[numeric_cols].max().to_dict(),
+                        'median': sample_df[numeric_cols].median().to_dict()
+                    }
+                    metadata['statistics'] = stats
+                
+                metadata_path = export_dir / f"{base_filename}.metadata.json"
+                with open(metadata_path, 'w') as f:
+                    json.dump(metadata, f, indent=2, default=str)
+                exported_files.append(metadata_path)
+            
+            app_log(f"Exported {len(exported_files)} sample files for {feature_type}", "info")
+            return exported_files[0] if exported_files else None
+        
+        except Exception as e:
+            app_log(f"Error exporting samples: {e}", "error")
+            return None

@@ -174,6 +174,7 @@ class ProbabilityGenerator:
         """
         Load pre-generated features from data/features/{model_type}/ directory.
         Uses the most recent feature file and loads the last row (most recent data).
+        Prefers optimized and validated features over regular features.
         
         Args:
             model_type: Type of model (lstm, cnn, xgboost, catboost, lightgbm, transformer)
@@ -190,13 +191,57 @@ class ProbabilityGenerator:
                 logger.warning(f"Features directory not found: {features_dir}")
                 return None
             
-            # Find the most recent feature CSV file
-            feature_files = sorted(features_dir.glob("*_features_*.csv"))
+            # PRIORITY 1: Look for optimized + validated features (best quality)
+            feature_files = sorted(features_dir.glob(f"*_features_optimized_validated_*.csv"))
+            quality_level = "optimized+validated"
+            
+            # PRIORITY 2: Look for optimized features
+            if not feature_files:
+                feature_files = sorted(features_dir.glob(f"*_features_optimized_*.csv"))
+                quality_level = "optimized"
+            
+            # PRIORITY 3: Look for validated features
+            if not feature_files:
+                feature_files = sorted(features_dir.glob(f"*_features_validated_*.csv"))
+                quality_level = "validated"
+            
+            # PRIORITY 4: Fallback to any feature files
+            if not feature_files:
+                feature_files = sorted(features_dir.glob("*_features_*.csv"))
+                quality_level = "regular"
+            
             if not feature_files:
                 logger.warning(f"No feature files found in {features_dir}")
                 return None
             
             latest_feature_file = feature_files[-1]  # Most recent file
+            logger.info(f"Using {quality_level} features: {latest_feature_file.name}")
+            
+            # Load feature metadata if available
+            metadata_file = latest_feature_file.parent / f"{latest_feature_file.stem}.meta.json"
+            if metadata_file.exists():
+                try:
+                    with open(metadata_file, 'r') as f:
+                        feature_metadata = json.load(f)
+                    
+                    logger.info(f"Feature metadata loaded:")
+                    logger.info(f"  - Optimization: {feature_metadata.get('optimization_applied', False)}")
+                    logger.info(f"  - Validation: {feature_metadata.get('validation_passed', False)}")
+                    logger.info(f"  - Feature count: {feature_metadata.get('feature_count', 'unknown')}")
+                    logger.info(f"  - Created: {feature_metadata.get('created_at', 'unknown')}")
+                    
+                    # Warn if features are not validated
+                    if not feature_metadata.get('validation_passed', False):
+                        logger.warning("⚠️ Using features that have NOT been validated!")
+                    
+                    # Warn if features are not optimized
+                    if not feature_metadata.get('optimization_applied', False):
+                        logger.warning("⚠️ Using features that have NOT been optimized!")
+                        
+                except Exception as e:
+                    logger.warning(f"Could not load feature metadata: {e}")
+            else:
+                logger.warning(f"No metadata file found for features (expected: {metadata_file.name})")
             
             # Load features
             features_df = pd.read_csv(latest_feature_file)

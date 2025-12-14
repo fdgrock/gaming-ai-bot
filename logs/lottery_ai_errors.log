@@ -949,3 +949,7 @@ UnboundLocalError: cannot access local variable 'go' where it is not associated 
 2025-12-13 21:05:26 - lottery_ai - ERROR - logger.py:138 - ❌ Model training error: Found input variables with inconsistent numbers of samples: [239, 1]
 2025-12-13 21:16:22 - lottery_ai - ERROR - logger.py:138 - ❌ Model training error: 'complete_set_accuracy'
 2025-12-13 22:47:05 - lottery_ai - ERROR - logger.py:138 - ❌ Model training error: Found input variables with inconsistent numbers of samples: [437, 1]
+2025-12-14 11:37:13 - lottery_ai - ERROR - logger.py:138 - Error rendering training page: `st.session_state.train_prefer_optimized` cannot be modified after the widget with key `train_prefer_optimized` is instantiated.
+2025-12-14 11:48:27 - lottery_ai - ERROR - logger.py:138 - XGBoost generation error: 'AdvancedFeatureGenerator' object has no attribute 'apply_feature_optimization'
+2025-12-14 12:05:42 - lottery_ai - ERROR - logger.py:138 - XGBoost generation error: 'AdvancedFeatureGenerator' object has no attribute 'apply_feature_optimization'
+2025-12-14 12:07:32 - lottery_ai - ERROR - logger.py:138 - XGBoost generation error: ufunc 'divide' not supported for the input types, and the inputs could not be safely coerced to any supported types according to the casting rule ''safe''

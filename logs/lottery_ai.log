@@ -16847,3 +16847,91 @@ UnboundLocalError: cannot access local variable 'go' where it is not associated 
 2025-12-14 09:34:21 - lottery_ai - INFO - logger.py:138 - Model manager rendered
 2025-12-14 09:35:12 - lottery_ai - INFO - logger.py:138 - Model manager rendered
 2025-12-14 09:40:35 - lottery_ai - INFO - logger.py:138 - Dashboard rendered successfully
+2025-12-14 10:03:53 - lottery_ai - INFO - logger.py:138 - Training page rendered
+2025-12-14 10:07:41 - lottery_ai - INFO - logger.py:138 - Dashboard rendered successfully
+2025-12-14 10:08:26 - lottery_ai - INFO - logger.py:138 - Training page rendered
+2025-12-14 10:09:58 - lottery_ai - INFO - logger.py:138 - Training page rendered
+2025-12-14 10:27:42 - lottery_ai - INFO - logger.py:138 - Dashboard rendered successfully
+2025-12-14 10:27:52 - lottery_ai - INFO - logger.py:138 - Training page rendered
+2025-12-14 10:28:31 - lottery_ai - INFO - logger.py:138 - Training page rendered
+2025-12-14 10:28:37 - lottery_ai - INFO - logger.py:138 - Training page rendered
+2025-12-14 10:28:40 - lottery_ai - INFO - logger.py:138 - Training page rendered
+2025-12-14 10:46:54 - lottery_ai - INFO - logger.py:138 - Dashboard rendered successfully
+2025-12-14 10:47:00 - lottery_ai - INFO - logger.py:138 - Training page rendered
+2025-12-14 11:37:07 - lottery_ai - INFO - logger.py:138 - Dashboard rendered successfully
+2025-12-14 11:37:13 - lottery_ai - ERROR - logger.py:138 - Error rendering training page: `st.session_state.train_prefer_optimized` cannot be modified after the widget with key `train_prefer_optimized` is instantiated.
+2025-12-14 11:38:55 - lottery_ai - INFO - logger.py:138 - Dashboard rendered successfully
+2025-12-14 11:39:02 - lottery_ai - INFO - logger.py:138 - Training page rendered
+2025-12-14 11:46:44 - lottery_ai - INFO - logger.py:138 - Training page rendered
+2025-12-14 11:46:54 - lottery_ai - INFO - logger.py:138 - Training page rendered
+2025-12-14 11:47:40 - lottery_ai - INFO - logger.py:138 - Training page rendered
+2025-12-14 11:48:22 - lottery_ai - INFO - logger.py:138 - Generating comprehensive XGBoost features...
+2025-12-14 11:48:27 - lottery_ai - INFO - logger.py:138 - Padded XGBoost features from 78 to 93
+2025-12-14 11:48:27 - lottery_ai - INFO - logger.py:138 - ✓ Generated 93 advanced XGBoost features for 1264 draws (target: 93)
+2025-12-14 11:48:27 - lottery_ai - INFO - logger.py:138 - Saved FeatureSchema to C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\data\features\xgboost\lotto_max\feature_schema.json
+2025-12-14 11:48:27 - lottery_ai - ERROR - logger.py:138 - XGBoost generation error: 'AdvancedFeatureGenerator' object has no attribute 'apply_feature_optimization'
+2025-12-14 11:48:28 - lottery_ai - INFO - logger.py:138 - Training page rendered
+2025-12-14 11:57:08 - lottery_ai - INFO - logger.py:138 - Dashboard rendered successfully
+2025-12-14 12:04:47 - lottery_ai - INFO - logger.py:138 - Training page rendered
+2025-12-14 12:05:03 - lottery_ai - INFO - logger.py:138 - Training page rendered
+2025-12-14 12:05:36 - lottery_ai - INFO - logger.py:138 - Generating comprehensive XGBoost features...
+2025-12-14 12:05:42 - lottery_ai - INFO - logger.py:138 - Padded XGBoost features from 78 to 93
+2025-12-14 12:05:42 - lottery_ai - INFO - logger.py:138 - ✓ Generated 93 advanced XGBoost features for 1264 draws (target: 93)
+2025-12-14 12:05:42 - lottery_ai - INFO - logger.py:138 - Saved FeatureSchema to C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\data\features\xgboost\lotto_max\feature_schema.json
+2025-12-14 12:05:42 - lottery_ai - ERROR - logger.py:138 - XGBoost generation error: 'AdvancedFeatureGenerator' object has no attribute 'apply_feature_optimization'
+2025-12-14 12:05:43 - lottery_ai - INFO - logger.py:138 - Training page rendered
+2025-12-14 12:06:39 - lottery_ai - INFO - logger.py:138 - Dashboard rendered successfully
+2025-12-14 12:06:45 - lottery_ai - INFO - logger.py:138 - Training page rendered
+2025-12-14 12:07:05 - lottery_ai - INFO - logger.py:138 - Training page rendered
+2025-12-14 12:07:26 - lottery_ai - INFO - logger.py:138 - Generating comprehensive XGBoost features...
+2025-12-14 12:07:32 - lottery_ai - INFO - logger.py:138 - Padded XGBoost features from 78 to 93
+2025-12-14 12:07:32 - lottery_ai - INFO - logger.py:138 - ✓ Generated 93 advanced XGBoost features for 1264 draws (target: 93)
+2025-12-14 12:07:32 - lottery_ai - INFO - logger.py:138 - Saved FeatureSchema to C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\data\features\xgboost\lotto_max\feature_schema.json
+2025-12-14 12:07:32 - lottery_ai - ERROR - logger.py:138 - XGBoost generation error: ufunc 'divide' not supported for the input types, and the inputs could not be safely coerced to any supported types according to the casting rule ''safe''
+2025-12-14 12:07:33 - lottery_ai - INFO - logger.py:138 - Training page rendered
+2025-12-14 12:09:17 - lottery_ai - INFO - logger.py:138 - Dashboard rendered successfully
+2025-12-14 12:09:24 - lottery_ai - INFO - logger.py:138 - Training page rendered
+2025-12-14 12:09:33 - lottery_ai - INFO - logger.py:138 - Training page rendered
+2025-12-14 12:09:46 - lottery_ai - INFO - logger.py:138 - Generating comprehensive XGBoost features...
+2025-12-14 12:09:53 - lottery_ai - INFO - logger.py:138 - Padded XGBoost features from 78 to 93
+2025-12-14 12:09:53 - lottery_ai - INFO - logger.py:138 - ✓ Generated 93 advanced XGBoost features for 1264 draws (target: 93)
+2025-12-14 12:09:53 - lottery_ai - INFO - logger.py:138 - Saved FeatureSchema to C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\data\features\xgboost\lotto_max\feature_schema.json
+2025-12-14 12:09:53 - lottery_ai - INFO - logger.py:138 - Feature optimization: 92 → 37 features
+2025-12-14 12:09:53 - lottery_ai - INFO - logger.py:138 - ✓ Saved XGBoost features to C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\data\features\xgboost\lotto_max\xgboost_features_optimized_validated_20251214_120953.csv
+2025-12-14 12:09:53 - lottery_ai - INFO - logger.py:138 - ✓ Saved metadata to C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\data\features\xgboost\lotto_max\xgboost_features_optimized_validated_20251214_120953.csv.meta.json
+2025-12-14 12:09:53 - lottery_ai - INFO - logger.py:138 - Exported 2 sample files for xgboost
+2025-12-14 12:09:54 - lottery_ai - INFO - logger.py:138 - Training page rendered
+2025-12-14 12:11:49 - lottery_ai - INFO - logger.py:138 - Generating CatBoost features optimized for categorical boosting...
+2025-12-14 12:11:57 - lottery_ai - INFO - logger.py:138 - Saved FeatureSchema to C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\data\features\catboost\lotto_max\feature_schema.json
+2025-12-14 12:11:57 - lottery_ai - INFO - logger.py:138 - Feature optimization: 92 → 39 features
+2025-12-14 12:11:57 - lottery_ai - INFO - logger.py:138 - ✓ Saved CatBoost features to C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\data\features\catboost\lotto_max\catboost_features_optimized_validated_20251214_121157.csv
+2025-12-14 12:11:57 - lottery_ai - INFO - logger.py:138 - ✓ Saved metadata to C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\data\features\catboost\lotto_max\catboost_features_optimized_validated_20251214_121157.csv.meta.json
+2025-12-14 12:11:57 - lottery_ai - INFO - logger.py:138 - Exported 2 sample files for catboost
+2025-12-14 12:11:57 - lottery_ai - INFO - logger.py:138 - Training page rendered
+2025-12-14 12:12:14 - lottery_ai - INFO - logger.py:138 - Generating LightGBM features optimized for gradient boosting...
+2025-12-14 12:12:21 - lottery_ai - INFO - logger.py:138 - Saved FeatureSchema to C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\data\features\lightgbm\lotto_max\feature_schema.json
+2025-12-14 12:12:21 - lottery_ai - INFO - logger.py:138 - Feature optimization: 92 → 39 features
+2025-12-14 12:12:21 - lottery_ai - INFO - logger.py:138 - ✓ Saved LightGBM features to C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\data\features\lightgbm\lotto_max\lightgbm_features_optimized_validated_20251214_121221.csv
+2025-12-14 12:12:21 - lottery_ai - INFO - logger.py:138 - ✓ Saved metadata to C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\data\features\lightgbm\lotto_max\lightgbm_features_optimized_validated_20251214_121221.csv.meta.json
+2025-12-14 12:12:21 - lottery_ai - INFO - logger.py:138 - Exported 2 sample files for lightgbm
+2025-12-14 12:12:21 - lottery_ai - INFO - logger.py:138 - Training page rendered
+2025-12-14 12:12:33 - lottery_ai - INFO - logger.py:138 - Training page rendered
+2025-12-14 12:12:42 - lottery_ai - INFO - logger.py:138 - Training page rendered
+2025-12-14 12:15:22 - lottery_ai - INFO - logger.py:138 - Dashboard rendered successfully
+2025-12-14 12:15:31 - lottery_ai - INFO - logger.py:138 - Training page rendered
+2025-12-14 12:15:45 - lottery_ai - INFO - logger.py:138 - Training page rendered
+2025-12-14 12:15:49 - lottery_ai - INFO - logger.py:138 - Training page rendered
+2025-12-14 12:17:44 - lottery_ai - INFO - logger.py:138 - Training page rendered
+2025-12-14 12:17:48 - lottery_ai - INFO - logger.py:138 - Training page rendered
+2025-12-14 12:20:03 - lottery_ai - INFO - logger.py:138 - Dashboard rendered successfully
+2025-12-14 12:20:14 - lottery_ai - INFO - logger.py:138 - Training page rendered
+2025-12-14 12:20:35 - lottery_ai - INFO - logger.py:138 - Training page rendered
+2025-12-14 12:20:39 - lottery_ai - INFO - logger.py:138 - Training page rendered
+2025-12-14 12:21:03 - lottery_ai - INFO - logger.py:138 - Training page rendered
+2025-12-14 12:21:05 - lottery_ai - INFO - logger.py:138 - Training page rendered
+2025-12-14 12:21:38 - lottery_ai - INFO - logger.py:138 - Training page rendered
+2025-12-14 12:21:41 - lottery_ai - INFO - logger.py:138 - Training page rendered
+2025-12-14 12:22:57 - lottery_ai - INFO - logger.py:138 - Training page rendered
+2025-12-14 12:23:00 - lottery_ai - INFO - logger.py:138 - Training page rendered
+2025-12-14 12:23:37 - lottery_ai - INFO - logger.py:138 - Training page rendered
+2025-12-14 12:23:40 - lottery_ai - INFO - logger.py:138 - Training page rendered
