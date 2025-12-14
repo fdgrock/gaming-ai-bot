@@ -38,6 +38,7 @@ from sklearn.metrics import (
     confusion_matrix, classification_report, roc_auc_score
 )
 from sklearn.ensemble import RandomForestClassifier, GradientBoostingClassifier
+from sklearn.multioutput import MultiOutputClassifier
 from sklearn.calibration import CalibratedClassifierCV
 
 import xgboost as xgb
@@ -397,6 +398,43 @@ class AdvancedModelTrainer:
         # Determine game-specific parameters
         self.main_numbers = self._get_main_numbers_count(game)
     
+    def _is_multi_output(self, y: np.ndarray) -> bool:
+        """Check if target is multi-output (7-number sets) or single-output.
+        
+        Args:
+            y: Target array
+        
+        Returns:
+            True if multi-output (shape: (n_samples, 7)), False if single-output (shape: (n_samples,))
+        """
+        return y.ndim == 2 and y.shape[1] > 1
+    
+    def _get_output_info(self, y: np.ndarray) -> Dict[str, Any]:
+        """Get information about the output format.
+        
+        Args:
+            y: Target array
+        
+        Returns:
+            Dictionary with output_type, n_outputs, and description
+        """
+        is_multi = self._is_multi_output(y)
+        if is_multi:
+            n_outputs = y.shape[1]
+            return {
+                "output_type": "multi-output",
+                "n_outputs": n_outputs,
+                "description": f"Predicting {n_outputs} lottery numbers per draw",
+                "shape": y.shape
+            }
+        else:
+            return {
+                "output_type": "single-output",
+                "n_outputs": 1,
+                "description": "Predicting first lottery number only",
+                "shape": y.shape
+            }
+    
     def _get_main_numbers_count(self, game: str) -> int:
         """Determine the number of main lottery numbers for the game.
         
@@ -520,31 +558,29 @@ class AdvancedModelTrainer:
         has_neural_features = bool(data_sources.get("lstm") or data_sources.get("cnn") or data_sources.get("transformer"))
         has_raw_csv = bool(data_sources.get("raw_csv"))
         
+        # Store raw_csv files for target extraction (needed later)
+        raw_csv_files_for_targets = data_sources.get("raw_csv", [])
+        
+        # Skip raw_csv for FEATURE loading when we have engineered features
+        skip_raw_csv_features = False
         if (has_tree_features or has_neural_features) and has_raw_csv:
-            app_log("⚠️  WARNING: Engineered features + raw_csv would create dimension mismatch", "warning")
-            app_log("   Removing raw_csv to prevent schema mismatch", "info")
-            data_sources = {k: v for k, v in data_sources.items() if k != "raw_csv"}
-            has_raw_csv = False
-        
-        if (has_tree_features or has_neural_features) and not has_raw_csv:
+            app_log("ℹ️  Raw CSV will be used for TARGET extraction only (not features)", "info")
+            app_log("   Using ONLY engineered features to prevent schema mismatch", "info")
+            skip_raw_csv_features = True
             feature_type = "tree" if has_tree_features else "neural"
-            app_log(f"✅ Using ONLY {feature_type} engineered features (correct for schema synchronization)", "info")
-        
-        # VALIDATION: If ONLY using raw_csv (should not happen), warn about targets
-        if not has_tree_features and not has_neural_features and has_raw_csv:
-            app_log("⚠️  WARNING: Using ONLY raw CSV. Target extraction may be limited.", "warning")
+            app_log(f"✅ Loading {feature_type} engineered features (correct for schema synchronization)", "info")
         
         all_features = []
         all_metadata = {"sources": defaultdict(int), "feature_count": 0, "loaded_files": []}
         
-        # Load raw CSV data
-        if "raw_csv" in data_sources and data_sources["raw_csv"]:
+        # Load raw CSV data (skip if we have engineered features to avoid dimension mismatch)
+        if not skip_raw_csv_features and "raw_csv" in data_sources and data_sources["raw_csv"]:
             raw_features, raw_count = self._load_raw_csv(data_sources["raw_csv"])
             if raw_features is not None:
                 all_features.append(raw_features)
                 all_metadata["sources"]["raw_csv"] = raw_count
                 all_metadata["loaded_files"].extend([f.name for f in data_sources["raw_csv"]])
-                app_log(f"Loaded {raw_count} raw CSV samples", "info")
+                app_log(f"Loaded {raw_count} raw CSV samples as FEATURES", "info")
         
         # Load LSTM sequences
         if "lstm" in data_sources and data_sources["lstm"]:
@@ -624,10 +660,23 @@ class AdvancedModelTrainer:
         # This ensures consistency with all feature loaders which sort by date
         # Now using improved target extraction: FIRST NUMBER DIRECTLY (0-based class index)
         # This trains proper multi-class models instead of digit-based models
-        y = self._extract_targets(data_sources.get("raw_csv", []), disable_lag=disable_lag, max_number=max_number)
+        
+        # Use the raw CSV files we saved earlier (even if skipped for features)
+        if not raw_csv_files_for_targets:
+            app_log("⚠️  WARNING: No raw CSV files provided - attempting to use XGBoost features for targets", "warning")
+            # Try to extract from feature files instead
+            xgb_files = data_sources.get("xgboost", [])
+            if xgb_files:
+                app_log(f"  Attempting target extraction from {len(xgb_files)} XGBoost feature files", "info")
+                y = self._extract_targets_from_feature_csv(xgb_files)
+            else:
+                raise ValueError("❌ No raw CSV or XGBoost features available for target extraction")
+        else:
+            app_log(f"📥 Extracting targets from {len(raw_csv_files_for_targets)} raw CSV files", "info")
+            y = self._extract_targets(raw_csv_files_for_targets, disable_lag=disable_lag, max_number=max_number)
         
         if y is None or len(y) == 0:
-            raise ValueError("Failed to extract targets - raw CSV data required")
+            raise ValueError("❌ Failed to extract targets - check raw CSV files")
         
         # IMPORTANT: After lag shift, targets are 1 row shorter
         # We need to trim features to match (remove last row)
@@ -1034,10 +1083,10 @@ class AdvancedModelTrainer:
             return np.array([])
     
     def _extract_targets_proper(self, raw_csv_files: List[Path], disable_lag: bool = True, max_number: int = 49) -> np.ndarray:
-        """🎯 IMPROVED: Extract target as FIRST WINNING NUMBER (1-49 or 1-50).
+        """🎯 MULTI-OUTPUT: Extract target as ALL 7 WINNING NUMBERS (1-49 or 1-50).
         
-        ✅ RECOMMENDED - This trains proper multi-class models (49-50 classes).
-        Predictions output direct number probabilities, no digit conversion needed.
+        ✅ RECOMMENDED - This trains proper multi-output models for complete lottery sets.
+        Predictions output probabilities for all 7 number positions simultaneously.
         
         Args:
             raw_csv_files: List of paths to raw CSV files
@@ -1045,14 +1094,32 @@ class AdvancedModelTrainer:
             max_number: Maximum lottery number (49 for Lotto 6/49, 50 for Lotto Max)
         
         Returns:
-            Target array with values in range [0, max_number-1] (0-based class indices for numbers 1-max_number)
+            Target array of shape (n_samples, 7) with values in range [0, max_number-1] 
+            (0-based class indices for numbers 1-max_number)
         """
         targets_with_dates = []
         try:
-            app_log(f"🎯 PROPER: Extracting {max_number}-class targets from {len(raw_csv_files)} files", "info")
+            app_log(f"🎯 MULTI-OUTPUT: Extracting 7-number set targets from {len(raw_csv_files)} files", "info")
+            
+            # Safety check
+            if not raw_csv_files:
+                app_log("⚠️  No raw CSV files provided for target extraction", "warning")
+                return np.array([])
             
             for filepath in raw_csv_files:
-                df = pd.read_csv(filepath)
+                app_log(f"  Processing file: {filepath}", "info")
+                
+                # Check if file exists
+                if not filepath.exists():
+                    app_log(f"  ⚠️  File not found: {filepath}", "warning")
+                    continue
+                
+                try:
+                    df = pd.read_csv(filepath)
+                    app_log(f"  Loaded {len(df)} rows from {filepath.name}", "info")
+                except Exception as read_error:
+                    app_log(f"  ❌ Error reading {filepath.name}: {read_error}", "error")
+                    continue
                 
                 if "draw_date" in df.columns:
                     df = df.sort_values("draw_date", ascending=True).reset_index(drop=True)
@@ -1064,25 +1131,33 @@ class AdvancedModelTrainer:
                     try:
                         draw_date = row.get("draw_date", None)
                         numbers = [int(n.strip()) for n in str(row.get("numbers", "")).split(",")]
-                        if numbers:
-                            # ✅ IMPROVED: Use first winning number directly as class
+                        if numbers and len(numbers) >= self.main_numbers:
+                            # ✅ MULTI-OUTPUT: Extract winning numbers as separate targets
+                            # Each number is converted to 0-based class index
                             # Class 0 = number 1, Class 1 = number 2, ..., Class 48 = number 49, Class 49 = number 50
-                            first_number = numbers[0]
-                            if 1 <= first_number <= max_number:
-                                target = first_number - 1  # Convert to 0-based index
-                                targets_with_dates.append((draw_date, target))
+                            target_set = []
+                            valid_set = True
+                            for num in numbers[:self.main_numbers]:  # Take configured number of positions
+                                if 1 <= num <= max_number:
+                                    target_set.append(num - 1)  # Convert to 0-based index
+                                else:
+                                    valid_set = False
+                                    break
+                            
+                            if valid_set and len(target_set) == self.main_numbers:
+                                targets_with_dates.append((draw_date, target_set))
                     except:
                         continue
             
             if targets_with_dates:
-                app_log(f"  Extracted {len(targets_with_dates)} valid targets", "info")
+                app_log(f"  Extracted {len(targets_with_dates)} valid {self.main_numbers}-number targets", "info")
                 targets_with_dates.sort(key=lambda x: x[0] if x[0] is not None else "")
-                targets = np.array([t[1] for t in targets_with_dates])
+                targets = np.array([t[1] for t in targets_with_dates])  # Shape: (n_samples, main_numbers)
                 
-                # Show class distribution
-                unique_classes = len(np.unique(targets))
-                app_log(f"  Target classes found: {unique_classes} (expected {max_number})", "info")
+                # Show distribution statistics
+                app_log(f"  Target shape: {targets.shape} (expected (n_samples, {self.main_numbers}))", "info")
                 app_log(f"  Range: [{np.min(targets)} - {np.max(targets)}] (should be [0 - {max_number-1}])", "info")
+                app_log(f"  Unique numbers across all positions: {len(np.unique(targets))}", "info")
                 
                 if disable_lag:
                     app_log(f"  ✅ LAG DISABLED: Predicting SAME draw", "info")
@@ -1095,7 +1170,7 @@ class AdvancedModelTrainer:
             
             return np.array([])
         except Exception as e:
-            app_log(f"Error extracting proper targets: {e}", "error")
+            app_log(f"Error extracting multi-output targets: {e}", "error")
             return np.array([])
     
     def _extract_targets(self, raw_csv_files: List[Path], disable_lag: bool = True, max_number: int = 49) -> np.ndarray:
@@ -1109,38 +1184,55 @@ class AdvancedModelTrainer:
         return self._extract_targets_proper(raw_csv_files, disable_lag=disable_lag, max_number=max_number)
     
     def _extract_targets_from_feature_csv(self, feature_files: List[Path]) -> np.ndarray:
-        """Extract targets from feature CSV files which have draw_date column."""
+        """Extract multi-output targets from feature CSV files.
+        
+        Feature CSVs should have a 'numbers' column with comma-separated winning numbers.
+        If 'numbers' column is missing, returns empty array (caller should use raw CSV instead).
+        
+        Returns:
+            Target array of shape (n_samples, main_numbers) or empty array
+        """
         targets_with_dates = []
         try:
             for filepath in feature_files:
                 if filepath.suffix == ".csv":
                     df = pd.read_csv(filepath)
                     
+                    # Check if numbers column exists
+                    if "numbers" not in df.columns:
+                        app_log(f"⚠️ Feature CSV {filepath.name} missing 'numbers' column - cannot extract targets", "warning")
+                        app_log("  Recommendation: Use raw CSV files or regenerate features with numbers column", "info")
+                        return np.array([])
+                    
                     # Sort by draw_date to maintain chronological order
                     if "draw_date" in df.columns:
                         df = df.sort_values("draw_date", ascending=True).reset_index(drop=True)
                         
-                        # Extract targets - use a simple deterministic function of row index
-                        # since we don't have original numbers in feature CSVs
+                        # Extract multi-output targets from numbers column
                         for idx, row in df.iterrows():
                             try:
                                 draw_date = row.get("draw_date", None)
-                                # Create target from sum of available numeric features as proxy
-                                numeric_cols = df.select_dtypes(include=[np.number]).columns
-                                if len(numeric_cols) > 0:
-                                    # Use first numeric feature modulo 10 as target
-                                    target = int(df.iloc[idx][numeric_cols[0]]) % 10
-                                else:
-                                    target = idx % 10
-                                targets_with_dates.append((draw_date, target))
+                                numbers_str = str(row.get("numbers", ""))
+                                numbers = [int(n.strip()) for n in numbers_str.split(",")]
+                                
+                                # Auto-detect max_number from game
+                                game_lower = self.game.lower()
+                                max_num = 50 if 'max' in game_lower else 49
+                                
+                                if len(numbers) >= self.main_numbers:
+                                    # Convert to 0-based indices
+                                    target_set = [num - 1 for num in numbers[:self.main_numbers] if 1 <= num <= max_num]
+                                    if len(target_set) == self.main_numbers:
+                                        targets_with_dates.append((draw_date, target_set))
                             except:
-                                targets_with_dates.append((None, idx % 10))
+                                continue
             
             # Sort by date
             if targets_with_dates:
                 targets_with_dates.sort(key=lambda x: x[0] if x[0] is not None else "")
-                targets = np.array([t[1] for t in targets_with_dates])
-                app_log(f"Extracted {len(targets)} targets from feature CSVs", "info")
+                targets = np.array([t[1] for t in targets_with_dates])  # Shape: (n_samples, main_numbers)
+                app_log(f"Extracted {len(targets)} multi-output targets from feature CSVs", "info")
+                app_log(f"  Target shape: {targets.shape}", "info")
                 return targets
             
             return np.array([])
@@ -1177,7 +1269,13 @@ class AdvancedModelTrainer:
             model: Trained XGBoost model
             metrics: Training metrics
         """
+        # Detect multi-output targets
+        output_info = self._get_output_info(y)
+        is_multi_output = output_info["output_type"] == "multi-output"
+        
         app_log("Starting advanced XGBoost training with deep ensemble configuration...", "info")
+        app_log(f"  Output format: {output_info['description']}", "info")
+        app_log(f"  Target shape: {output_info['shape']}", "info")
         
         if progress_callback:
             progress_callback(0.1, "Preprocessing data...")
@@ -1196,51 +1294,94 @@ class AdvancedModelTrainer:
         y_train = y[:split_idx]
         y_test = y[split_idx:]
         
-        # Ensure XGBoost sklearn wrapper sees all possible classes
-        # by adding one dummy sample per missing class
-        # Determine the expected class range from ALL data (not just training)
-        all_classes_in_data = np.unique(y)
-        max_class = int(np.max(all_classes_in_data))
-        all_possible_classes = np.arange(max_class + 1)  # 0 to max_class inclusive
-        
-        unique_in_train = np.unique(y_train)
-        missing_classes = np.setdiff1d(all_possible_classes, unique_in_train)
-        
-        if len(missing_classes) > 0:
-            # Create dummy samples for missing classes (with small random noise)
-            X_dummy = np.random.normal(0, 0.01, size=(len(missing_classes), X_train.shape[1]))
-            X_train = np.vstack([X_train, X_dummy])
-            y_train = np.concatenate([y_train, missing_classes])
+        # Handle class distribution differently for single vs multi-output
+        if not is_multi_output:
+            # SINGLE-OUTPUT: Ensure all possible classes are represented
+            all_classes_in_data = np.unique(y)
+            max_class = int(np.max(all_classes_in_data))
+            all_possible_classes = np.arange(max_class + 1)
+            
+            unique_in_train = np.unique(y_train)
+            missing_classes = np.setdiff1d(all_possible_classes, unique_in_train)
+            
+            if len(missing_classes) > 0:
+                X_dummy = np.random.normal(0, 0.01, size=(len(missing_classes), X_train.shape[1]))
+                X_train = np.vstack([X_train, X_dummy])
+                y_train = np.concatenate([y_train, missing_classes])
+            
+            num_classes = len(all_possible_classes)
+        else:
+            # MULTI-OUTPUT: Determine max possible classes from game type
+            # Lotto Max: numbers 1-50 → classes 0-49 (50 classes)
+            # Lotto 6/49: numbers 1-49 → classes 0-48 (49 classes)
+            game_lower = self.game.lower()
+            if 'max' in game_lower:
+                num_classes = 50  # Lotto Max: 1-50
+            else:
+                num_classes = 49  # Lotto 6/49: 1-49
+            
+            max_class = num_classes - 1  # 0-based max index
+            app_log(f"  Multi-output: {output_info['n_outputs']} outputs, each with {num_classes} classes (0-{max_class})", "info")
+            
+            # CRITICAL: For MultiOutputClassifier, EACH output needs to see ALL possible classes
+            # Check each position separately and add dummy samples for missing classes
+            all_possible_classes = np.arange(num_classes)
+            n_positions = output_info['n_outputs']
+            
+            total_dummies_added = 0
+            for pos_idx in range(n_positions):
+                # Get unique classes that appear in this position
+                classes_in_position = np.unique(y_train[:, pos_idx])
+                missing_in_position = np.setdiff1d(all_possible_classes, classes_in_position)
+                
+                if len(missing_in_position) > 0:
+                    app_log(f"  Position {pos_idx+1}: Adding {len(missing_in_position)} dummy samples for missing classes", "info")
+                    # Add dummy samples for each missing class in this position
+                    for missing_cls in missing_in_position:
+                        X_dummy = np.random.normal(0, 0.01, size=(1, X_train.shape[1]))
+                        y_dummy = np.zeros((1, n_positions), dtype=int)
+                        # Set realistic values for all positions (spread across range)
+                        for p in range(n_positions):
+                            y_dummy[0, p] = (missing_cls + p * 7) % num_classes
+                        y_dummy[0, pos_idx] = missing_cls  # Ensure this position has the missing class
+                        X_train = np.vstack([X_train, X_dummy])
+                        y_train = np.vstack([y_train, y_dummy])
+                        total_dummies_added += 1
+            
+            if total_dummies_added > 0:
+                app_log(f"  ✅ Added {total_dummies_added} total dummy samples across {n_positions} positions", "info")
         
         if progress_callback:
-            train_class_dist = dict(zip(*np.unique(y_train, return_counts=True)))
-            test_class_dist = dict(zip(*np.unique(y_test, return_counts=True)))
-            msg = f"📊 XGBoost Split: Train={len(X_train)} Test={len(X_test)} | Train classes={train_class_dist} | Test classes={test_class_dist}"
+            if not is_multi_output:
+                train_class_dist = dict(zip(*np.unique(y_train, return_counts=True)))
+                test_class_dist = dict(zip(*np.unique(y_test, return_counts=True)))
+                msg = f"📊 XGBoost Split: Train={len(X_train)} Test={len(X_test)} | Train classes={train_class_dist} | Test classes={test_class_dist}"
+            else:
+                msg = f"📊 XGBoost Split: Train={len(X_train)} Test={len(X_test)} | Multi-output: {output_info['n_outputs']} positions, {num_classes} classes each"
             progress_callback(0.15, msg)
         
         if progress_callback:
             progress_callback(0.2, "Building advanced XGBoost model...")
         
-        # Ultra-advanced XGBoost hyperparameters (deeper, more aggressive)
-        num_classes = len(all_possible_classes)
+        # Ultra-advanced XGBoost hyperparameters
         xgb_params = {
             "objective": "multi:softprob",
             "num_class": num_classes,
             # Tree structure (deeper trees for complex patterns)
-            "max_depth": 10,  # Increased from 7
-            "min_child_weight": 0.5,  # Decreased for deeper splits
-            "gamma": 0.5,  # Increased pruning requirement
-            # Learning control (more gradual learning)
-            "learning_rate": config.get("learning_rate", 0.01),  # Decreased for stability
+            "max_depth": 10,
+            "min_child_weight": 0.5,
+            "gamma": 0.5,
+            # Learning control
+            "learning_rate": config.get("learning_rate", 0.01),
             "eta": config.get("learning_rate", 0.01),
-            # Regularization (prevent overfitting)
-            "reg_alpha": 1.0,  # L1 regularization (feature selection)
-            "reg_lambda": 2.0,  # L2 regularization (weight decay)
-            # Sampling strategies (improve generalization)
-            "subsample": 0.85,  # Row subsampling
-            "colsample_bytree": 0.8,  # Column subsampling per tree
-            "colsample_bylevel": 0.8,  # Column subsampling per level
-            "colsample_bynode": 0.8,  # Column subsampling per split
+            # Regularization
+            "reg_alpha": 1.0,
+            "reg_lambda": 2.0,
+            # Sampling strategies
+            "subsample": 0.85,
+            "colsample_bytree": 0.8,
+            "colsample_bylevel": 0.8,
+            "colsample_bynode": 0.8,
             # Other parameters
             "random_state": 42,
             "n_jobs": -1,
@@ -1248,12 +1389,19 @@ class AdvancedModelTrainer:
             "eval_metric": "mlogloss"
         }
         
-        # Create XGBoost model with increased estimators
+        # Create base XGBoost model
         num_rounds = config.get("epochs", 500)
-        model = xgb.XGBClassifier(
-            n_estimators=num_rounds,  # Increased from 200 to 500
+        base_model = xgb.XGBClassifier(
+            n_estimators=num_rounds,
             **xgb_params
         )
+        
+        # Wrap with MultiOutputClassifier for multi-output targets
+        if is_multi_output:
+            model = MultiOutputClassifier(base_model, n_jobs=-1)
+            app_log(f"  Wrapped XGBoost with MultiOutputClassifier for {output_info['n_outputs']} outputs", "info")
+        else:
+            model = base_model
         
         # Train model
         if progress_callback:
@@ -1261,118 +1409,157 @@ class AdvancedModelTrainer:
         
         # Create XGBoost callback for real-time progress reporting
         xgb_callback = None
-        if progress_callback:
+        if progress_callback and not is_multi_output:  # Callbacks only work with single-output
             xgb_callback = XGBoostProgressCallback(progress_callback, num_rounds)
         
         try:
-            # Train with eval_set for early stopping and callback for progress
+            # Train with eval_set for early stopping (single-output only)
             callbacks_list = [xgb_callback] if xgb_callback else []
-            model.fit(
-                X_train, y_train,
-                eval_set=[(X_train, y_train), (X_test, y_test)],
-                eval_metric="mlogloss",
-                early_stopping_rounds=20,  # Stop if no improvement for 20 rounds
-                verbose=0,
-                callbacks=callbacks_list
-            )
+            if not is_multi_output:
+                model.fit(
+                    X_train, y_train,
+                    eval_set=[(X_train, y_train), (X_test, y_test)],
+                    eval_metric="mlogloss",
+                    early_stopping_rounds=20,
+                    verbose=0,
+                    callbacks=callbacks_list
+                )
+            else:
+                # Multi-output: simpler training (MultiOutputClassifier doesn't support eval_set)
+                model.fit(X_train, y_train)
         except (TypeError, ValueError):
-            # Fallback: simple training without eval_set (older XGBoost versions)
+            # Fallback: simple training without eval_set
             try:
                 model.fit(
                     X_train, y_train,
                     verbose=0,
-                    callbacks=callbacks_list if xgb_callback else None
+                    callbacks=callbacks_list if xgb_callback and not is_multi_output else None
                 )
             except TypeError:
                 # Ultimate fallback: no callbacks support
-                model.fit(
-                    X_train, y_train,
-                    verbose=0
-                )
+                model.fit(X_train, y_train, verbose=0)
         
         if progress_callback:
             progress_callback(0.7, "Evaluating model...")
         
-        # Model evaluation
+        # Model evaluation (handle both single and multi-output)
         y_pred = model.predict(X_test)
-        y_pred_proba = model.predict_proba(X_test)
         
-        # Calculate row-level accuracy metrics
-        row_metrics = calculate_row_level_accuracy(y_pred_proba, y_test, top_n=self.main_numbers)
-        app_log(f"Row-level Accuracy: {row_metrics['row_accuracy']:.4f} | Partial Matches: {row_metrics['partial_matches']:.2f}/{self.main_numbers}", "info")
-        
-        # Apply probability calibration for realistic confidence scores
-        if progress_callback:
-            progress_callback(0.75, "Calibrating probabilities...")
-        
-        try:
-            # Use a calibration set (hold-out from test set)
-            calibration_split = max(2, len(X_test) // 2)
-            X_calib = X_test[:calibration_split]
-            y_calib = y_test[:calibration_split]
+        # Calculate accuracy differently for single vs multi-output
+        if is_multi_output:
+            # Multi-output: calculate per-position accuracy
+            position_accuracies = []
+            for i in range(y_test.shape[1]):
+                pos_acc = accuracy_score(y_test[:, i], y_pred[:, i])
+                position_accuracies.append(pos_acc)
+                app_log(f"  Position {i+1} accuracy: {pos_acc:.4f}", "info")
             
-            # Create calibrated classifier using remaining test data
-            calibrated_model = CalibratedClassifierCV(model, method='sigmoid', cv='precomputed')
-            # For precomputed, we need to use the full model directly
-            calibrated_model = CalibratedClassifierCV(model, method='sigmoid', cv=2)
-            calibrated_model.fit(X_calib, y_calib)
+            overall_accuracy = np.mean(position_accuracies)
+            set_accuracy = np.mean([np.array_equal(y_test[i], y_pred[i]) for i in range(len(y_test))])
+            app_log(f"  Average position accuracy: {overall_accuracy:.4f}", "info")
+            app_log(f"  Complete set accuracy: {set_accuracy:.4f}", "info")
             
-            # Use calibrated model's probabilities
-            y_pred_proba_cal = calibrated_model.predict_proba(X_test)
-            row_metrics_cal = calculate_row_level_accuracy(y_pred_proba_cal, y_test, top_n=self.main_numbers)
-            app_log(f"Calibrated Row Accuracy: {row_metrics_cal['row_accuracy']:.4f}", "info")
-            
-            # Store calibrated model
-            model.calibrated_model_ = calibrated_model
-            model.is_calibrated_ = True
-        except Exception as e:
-            app_log(f"Probability calibration warning: {str(e)}", "warning")
+            # Skip probability-based metrics for multi-output (not straightforward)
             model.is_calibrated_ = False
+        else:
+            # Single-output: use predict_proba
+            y_pred_proba = model.predict_proba(X_test)
+            
+            # Calculate row-level accuracy metrics
+            row_metrics = calculate_row_level_accuracy(y_pred_proba, y_test, top_n=self.main_numbers)
+            app_log(f"Row-level Accuracy: {row_metrics['row_accuracy']:.4f} | Partial Matches: {row_metrics['partial_matches']:.2f}/{self.main_numbers}", "info")
+            
+            # Apply probability calibration for realistic confidence scores
+            if progress_callback:
+                progress_callback(0.75, "Calibrating probabilities...")
+            
+            try:
+                calibration_split = max(2, len(X_test) // 2)
+                X_calib = X_test[:calibration_split]
+                y_calib = y_test[:calibration_split]
+                
+                calibrated_model = CalibratedClassifierCV(model, method='sigmoid', cv=2)
+                calibrated_model.fit(X_calib, y_calib)
+                
+                y_pred_proba_cal = calibrated_model.predict_proba(X_test)
+                row_metrics_cal = calculate_row_level_accuracy(y_pred_proba_cal, y_test, top_n=self.main_numbers)
+                app_log(f"Calibrated Row Accuracy: {row_metrics_cal['row_accuracy']:.4f}", "info")
+                
+                model.calibrated_model_ = calibrated_model
+                model.is_calibrated_ = True
+            except Exception as e:
+                app_log(f"Probability calibration warning: {str(e)}", "warning")
+                model.is_calibrated_ = False
         
-        # Calculate per-class metrics for detailed diagnostics
-        from sklearn.metrics import classification_report
-        class_report = classification_report(y_test, y_pred, output_dict=True, zero_division=0)
+        # Calculate per-class metrics for detailed diagnostics (single-output only)
+        if not is_multi_output:
+            from sklearn.metrics import classification_report
+            class_report = classification_report(y_test, y_pred, output_dict=True, zero_division=0)
+            
+            per_class_metrics = {}
+            for class_idx in range(len(np.unique(y))):
+                class_str = str(class_idx)
+                if class_str in class_report:
+                    per_class_metrics[class_idx] = {
+                        "precision": class_report[class_str]["precision"],
+                        "recall": class_report[class_str]["recall"],
+                        "f1": class_report[class_str]["f1-score"],
+                        "support": int(class_report[class_str]["support"])
+                    }
+        else:
+            per_class_metrics = {}
         
-        # Format per-class metrics for logging
-        per_class_metrics = {}
-        for class_idx in range(len(np.unique(y))):
-            class_str = str(class_idx)
-            if class_str in class_report:
-                per_class_metrics[class_idx] = {
-                    "precision": class_report[class_str]["precision"],
-                    "recall": class_report[class_str]["recall"],
-                    "f1": class_report[class_str]["f1-score"],
-                    "support": int(class_report[class_str]["support"])
-                }
+        # Log per-class metrics (single-output only)
+        if per_class_metrics:
+            app_log("Per-class Performance:", "info")
+            for class_idx, metrics_dict in per_class_metrics.items():
+                app_log(f"  Class {class_idx}: Precision={metrics_dict['precision']:.4f}, Recall={metrics_dict['recall']:.4f}, F1={metrics_dict['f1']:.4f}, Support={metrics_dict['support']}", "info")
         
-        # Log per-class metrics
-        app_log("Per-class Performance:", "info")
-        for class_idx, metrics_dict in per_class_metrics.items():
-            app_log(f"  Class {class_idx}: Precision={metrics_dict['precision']:.4f}, Recall={metrics_dict['recall']:.4f}, F1={metrics_dict['f1']:.4f}, Support={metrics_dict['support']}", "info")
+        # Build metrics dictionary
+        if is_multi_output:
+            metrics = {
+                "accuracy": overall_accuracy,
+                "set_accuracy": set_accuracy,
+                "position_accuracies": position_accuracies,
+                "train_size": len(X_train),
+                "test_size": len(X_test),
+                "feature_count": X.shape[1],
+                "model_type": "XGBoost (Multi-Output)",
+                "output_type": "multi-output",
+                "n_outputs": output_info['n_outputs'],
+                "timestamp": datetime.now().isoformat(),
+                "n_estimators": num_rounds,
+                "is_calibrated": False
+            }
+        else:
+            metrics = {
+                "accuracy": accuracy_score(y_test, y_pred),
+                "precision": precision_score(y_test, y_pred, average="weighted", zero_division=0),
+                "recall": recall_score(y_test, y_pred, average="weighted", zero_division=0),
+                "f1": f1_score(y_test, y_pred, average="weighted", zero_division=0),
+                "train_size": len(X_train),
+                "test_size": len(X_test),
+                "feature_count": X.shape[1],
+                "unique_classes": len(np.unique(y)),
+                "model_type": "XGBoost",
+                "output_type": "single-output",
+                "timestamp": datetime.now().isoformat(),
+                "n_estimators": getattr(model, "n_estimators", num_rounds),
+                "best_score": getattr(model, "best_score", None),
+                "best_iteration": getattr(model, "best_iteration", None),
+                "per_class_metrics": per_class_metrics,
+                "row_level_accuracy": row_metrics['row_accuracy'],
+                "row_level_precision": row_metrics['row_precision'],
+                "row_level_recall": row_metrics['row_recall'],
+                "row_partial_matches": row_metrics['partial_matches'],
+                "is_calibrated": model.is_calibrated_
+            }
         
-        metrics = {
-            "accuracy": accuracy_score(y_test, y_pred),
-            "precision": precision_score(y_test, y_pred, average="weighted", zero_division=0),
-            "recall": recall_score(y_test, y_pred, average="weighted", zero_division=0),
-            "f1": f1_score(y_test, y_pred, average="weighted", zero_division=0),
-            "train_size": len(X_train),
-            "test_size": len(X_test),
-            "feature_count": X.shape[1],
-            "unique_classes": len(np.unique(y)),
-            "model_type": "XGBoost",
-            "timestamp": datetime.now().isoformat(),
-            "n_estimators": model.n_estimators,
-            "best_score": getattr(model, "best_score", None),
-            "best_iteration": getattr(model, "best_iteration", None),
-            "per_class_metrics": per_class_metrics,
-            "row_level_accuracy": row_metrics['row_accuracy'],
-            "row_level_precision": row_metrics['row_precision'],
-            "row_level_recall": row_metrics['row_recall'],
-            "row_partial_matches": row_metrics['partial_matches'],
-            "is_calibrated": model.is_calibrated_
-        }
-        
-        app_log(f"Advanced XGBoost training complete - Accuracy: {metrics['accuracy']:.4f} | Row Accuracy: {metrics['row_level_accuracy']:.4f} | Estimators: {model.n_estimators}", "info")
+        # Log final metrics
+        if is_multi_output:
+            app_log(f"Advanced XGBoost Multi-Output training complete - Avg Accuracy: {metrics['accuracy']:.4f} | Set Accuracy: {metrics['set_accuracy']:.4f}", "info")
+        else:
+            app_log(f"Advanced XGBoost training complete - Accuracy: {metrics['accuracy']:.4f} | Row Accuracy: {metrics['row_level_accuracy']:.4f}", "info")
         
         # Store scaler as model attribute for later retrieval during prediction
         model.scaler_ = self.scaler
@@ -1415,7 +1602,13 @@ class AdvancedModelTrainer:
             app_log("TensorFlow not available for LSTM training", "warning")
             return None, {}
         
+        # Detect multi-output targets
+        output_info = self._get_output_info(y)
+        is_multi_output = output_info["output_type"] == "multi-output"
+        
         app_log("Starting Advanced LSTM training with deep bidirectional architecture...", "info")
+        app_log(f"  Output format: {output_info['description']}", "info")
+        app_log(f"  Target shape: {output_info['shape']}", "info")
         
         if progress_callback:
             progress_callback(0.1, "Preprocessing sequences...")
@@ -1468,16 +1661,14 @@ class AdvancedModelTrainer:
             progress_callback(0.2, "Building model...")
         
         # Get dimensions
-        num_classes = len(all_possible_classes)  # Use the padded class range
+        num_classes = len(all_possible_classes)
         num_features = X_train.shape[1]
         
         # Build model using CNN's proven architecture (dense layers)
         input_layer = layers.Input(shape=(num_features,))
         
         # ========== FAST DENSE LAYERS (CNN's PROVEN FORMULA) ==========
-        # CNN achieved 87.85% with this exact architecture
-        # Dense layers on flat features = FAST + accurate
-        
+        # Shared feature extraction layers
         x = layers.Dense(256, activation="relu", name="dense_1")(input_layer)
         x = layers.Dropout(0.2)(x)
         
@@ -1487,25 +1678,50 @@ class AdvancedModelTrainer:
         x = layers.Dense(64, activation="relu", name="dense_3")(x)
         x = layers.Dropout(0.05)(x)
         
-        # ========== DENSE LAYERS (CNN's WINNING FORMULA) ==========
-        # Very low dropout - CNN proved this works (87.85% at 0.2→0.15→0.05)
-        
-        # Output layer
-        output = layers.Dense(num_classes, activation="softmax", name="output")(x)
-        
-        model = models.Model(inputs=input_layer, outputs=output)
-        
-        model.compile(
-            optimizer=keras.optimizers.Adam(
-                learning_rate=config.get("learning_rate", 0.0008),  # Standard rate for LSTM
-                beta_1=0.9,
-                beta_2=0.999,
-                epsilon=1e-7,
-                clipvalue=1.0  # Gradient clipping for RNN stability
-            ),
-            loss="sparse_categorical_crossentropy",
-            metrics=["accuracy"]
-        )
+        # ========== OUTPUT LAYER(S) ==========
+        if is_multi_output:
+            # Multi-output: Create 7 separate output heads
+            outputs = []
+            for i in range(output_info['n_outputs']):
+                output = layers.Dense(num_classes, activation="softmax", name=f"output_pos_{i+1}")(x)
+                outputs.append(output)
+            
+            model = models.Model(inputs=input_layer, outputs=outputs)
+            
+            # Prepare targets for multi-output (split into list of arrays)
+            y_train_list = [y_train[:, i] for i in range(output_info['n_outputs'])]
+            y_test_list = [y_test[:, i] for i in range(output_info['n_outputs'])]
+            
+            model.compile(
+                optimizer=keras.optimizers.Adam(
+                    learning_rate=config.get("learning_rate", 0.0008),
+                    beta_1=0.9,
+                    beta_2=0.999,
+                    epsilon=1e-7,
+                    clipvalue=1.0
+                ),
+                loss="sparse_categorical_crossentropy",
+                metrics=["accuracy"]
+            )
+        else:
+            # Single-output: Original architecture
+            output = layers.Dense(num_classes, activation="softmax", name="output")(x)
+            model = models.Model(inputs=input_layer, outputs=output)
+            
+            y_train_list = y_train
+            y_test_list = y_test
+            
+            model.compile(
+                optimizer=keras.optimizers.Adam(
+                    learning_rate=config.get("learning_rate", 0.0008),
+                    beta_1=0.9,
+                    beta_2=0.999,
+                    epsilon=1e-7,
+                    clipvalue=1.0
+                ),
+                loss="sparse_categorical_crossentropy",
+                metrics=["accuracy"]
+            )
         
         app_log(f"Advanced LSTM model built with {model.count_params():,} parameters", "info")
         
@@ -1513,19 +1729,19 @@ class AdvancedModelTrainer:
             progress_callback(0.3, "Training Optimized LSTM model...")
         
         # Train model with SPEED + ACCURACY optimizations
-        num_epochs = config.get("epochs", 120)  # Balanced for speed
-        batch_size = config.get("batch_size", 16)  # Small batch for better learning
+        num_epochs = config.get("epochs", 120)
+        batch_size = config.get("batch_size", 16)
         
         history = model.fit(
-            X_train, y_train,
-            validation_data=(X_test, y_test),
+            X_train, y_train_list,
+            validation_data=(X_test, y_test_list),
             epochs=num_epochs,
             batch_size=batch_size,
             callbacks=[
                 TrainingProgressCallback(progress_callback, num_epochs),
                 callbacks.EarlyStopping(
                     monitor="val_loss",
-                    patience=35,  # Balanced - train longer but not excessively
+                    patience=35,
                     restore_best_weights=True,
                     verbose=0
                 ),
@@ -1543,54 +1759,93 @@ class AdvancedModelTrainer:
         if progress_callback:
             progress_callback(0.8, "Evaluating Advanced LSTM model...")
         
-        # Evaluate
-        y_pred = np.argmax(model.predict(X_test, verbose=0), axis=1)
-        y_pred_proba = model.predict(X_test, verbose=0)  # Get probabilities
-        
-        # Calculate row-level accuracy metrics
-        row_metrics = calculate_row_level_accuracy(y_pred_proba, y_test, top_n=self.main_numbers)
-        app_log(f"Row-level Accuracy: {row_metrics['row_accuracy']:.4f} | Partial Matches: {row_metrics['partial_matches']:.2f}/{self.main_numbers}", "info")
-        
-        # Calculate per-class metrics for detailed diagnostics
-        from sklearn.metrics import classification_report
-        class_report = classification_report(y_test, y_pred, output_dict=True, zero_division=0)
-        
-        # Format per-class metrics for logging
-        per_class_metrics = {}
-        for class_idx in range(len(np.unique(y))):
-            class_str = str(class_idx)
-            if class_str in class_report:
-                per_class_metrics[class_idx] = {
-                    "precision": class_report[class_str]["precision"],
-                    "recall": class_report[class_str]["recall"],
-                    "f1": class_report[class_str]["f1-score"],
-                    "support": int(class_report[class_str]["support"])
-                }
-        
-        # Log per-class metrics
-        app_log("Per-class Performance:", "info")
-        for class_idx, metrics_dict in per_class_metrics.items():
-            app_log(f"  Class {class_idx}: Precision={metrics_dict['precision']:.4f}, Recall={metrics_dict['recall']:.4f}, F1={metrics_dict['f1']:.4f}, Support={metrics_dict['support']}", "info")
-        
-        metrics = {
-            "accuracy": accuracy_score(y_test, y_pred),
-            "precision": precision_score(y_test, y_pred, average="weighted", zero_division=0),
-            "recall": recall_score(y_test, y_pred, average="weighted", zero_division=0),
-            "f1": f1_score(y_test, y_pred, average="weighted", zero_division=0),
-            "train_size": len(X_train),
-            "test_size": len(X_test),
-            "feature_count": X.shape[1],
-            "unique_classes": len(np.unique(y)),
-            "model_type": "LSTM",
-            "timestamp": datetime.now().isoformat(),
-            "parameters": model.count_params(),
-            "per_class_metrics": per_class_metrics,
-            "row_level_accuracy": row_metrics['row_accuracy'],
-            "row_level_precision": row_metrics['row_precision'],
-            "row_level_recall": row_metrics['row_recall'],
-            "row_partial_matches": row_metrics['partial_matches'],
-            "is_calibrated": False  # Note: Keras models need different calibration
-        }
+        # Evaluate - handle multi-output vs single-output
+        if is_multi_output:
+            # Multi-output: Model returns list of arrays, one per position
+            predictions_raw = model.predict(X_test, verbose=0)
+            
+            # Convert to class predictions: predictions_raw is a list of [n_samples, n_classes] arrays
+            y_pred = np.column_stack([np.argmax(pred, axis=1) for pred in predictions_raw])
+            
+            # Calculate position-level accuracies
+            position_accuracies = []
+            for i in range(y_test.shape[1]):
+                pos_acc = accuracy_score(y_test[:, i], y_pred[:, i])
+                position_accuracies.append(pos_acc)
+                app_log(f"  Position {i+1} accuracy: {pos_acc:.4f}", "info")
+            
+            # Calculate overall accuracy (average across positions)
+            overall_accuracy = np.mean(position_accuracies)
+            
+            # Calculate complete set accuracy (all positions correct)
+            set_accuracy = np.mean([np.array_equal(y_test[i], y_pred[i]) for i in range(len(y_test))])
+            
+            app_log(f"Average Position Accuracy: {overall_accuracy:.4f}", "info")
+            app_log(f"Complete Set Accuracy: {set_accuracy:.4f}", "info")
+            
+            metrics = {
+                "accuracy": overall_accuracy,
+                "position_accuracies": position_accuracies,
+                "set_accuracy": set_accuracy,
+                "train_size": len(X_train),
+                "test_size": len(X_test),
+                "feature_count": X.shape[1],
+                "model_type": "LSTM",
+                "output_type": "multi-output",
+                "n_outputs": output_info['n_outputs'],
+                "timestamp": datetime.now().isoformat(),
+                "parameters": model.count_params(),
+                "is_calibrated": False
+            }
+        else:
+            # Single-output evaluation
+            y_pred = np.argmax(model.predict(X_test, verbose=0), axis=1)
+            y_pred_proba = model.predict(X_test, verbose=0)  # Get probabilities
+            
+            # Calculate row-level accuracy metrics
+            row_metrics = calculate_row_level_accuracy(y_pred_proba, y_test, top_n=self.main_numbers)
+            app_log(f"Row-level Accuracy: {row_metrics['row_accuracy']:.4f} | Partial Matches: {row_metrics['partial_matches']:.2f}/{self.main_numbers}", "info")
+            
+            # Calculate per-class metrics for detailed diagnostics
+            from sklearn.metrics import classification_report
+            class_report = classification_report(y_test, y_pred, output_dict=True, zero_division=0)
+            
+            # Format per-class metrics for logging
+            per_class_metrics = {}
+            for class_idx in range(len(np.unique(y))):
+                class_str = str(class_idx)
+                if class_str in class_report:
+                    per_class_metrics[class_idx] = {
+                        "precision": class_report[class_str]["precision"],
+                        "recall": class_report[class_str]["recall"],
+                        "f1": class_report[class_str]["f1-score"],
+                        "support": int(class_report[class_str]["support"])
+                    }
+            
+            # Log per-class metrics
+            app_log("Per-class Performance:", "info")
+            for class_idx, metrics_dict in per_class_metrics.items():
+                app_log(f"  Class {class_idx}: Precision={metrics_dict['precision']:.4f}, Recall={metrics_dict['recall']:.4f}, F1={metrics_dict['f1']:.4f}, Support={metrics_dict['support']}", "info")
+            
+            metrics = {
+                "accuracy": accuracy_score(y_test, y_pred),
+                "precision": precision_score(y_test, y_pred, average="weighted", zero_division=0),
+                "recall": recall_score(y_test, y_pred, average="weighted", zero_division=0),
+                "f1": f1_score(y_test, y_pred, average="weighted", zero_division=0),
+                "train_size": len(X_train),
+                "test_size": len(X_test),
+                "feature_count": X.shape[1],
+                "unique_classes": len(np.unique(y)),
+                "model_type": "LSTM",
+                "timestamp": datetime.now().isoformat(),
+                "parameters": model.count_params(),
+                "per_class_metrics": per_class_metrics,
+                "row_level_accuracy": row_metrics['row_accuracy'],
+                "row_level_precision": row_metrics['row_precision'],
+                "row_level_recall": row_metrics['row_recall'],
+                "row_partial_matches": row_metrics['partial_matches'],
+                "is_calibrated": False  # Note: Keras models need different calibration
+            }
         
         app_log(f"Advanced LSTM training complete - Accuracy: {metrics['accuracy']:.4f} | Row Accuracy: {metrics['row_level_accuracy']:.4f} | Parameters: {model.count_params():,}", "info")
         
@@ -1634,7 +1889,13 @@ class AdvancedModelTrainer:
             app_log("CatBoost not available", "warning")
             return None, {}
         
+        # Detect multi-output targets
+        output_info = self._get_output_info(y)
+        is_multi_output = output_info["output_type"] == "multi-output"
+        
         app_log("Starting CatBoost training optimized for lottery data...", "info")
+        app_log(f"  Output format: {output_info['description']}", "info")
+        app_log(f"  Target shape: {output_info['shape']}", "info")
         
         if progress_callback:
             progress_callback(0.1, "Preprocessing data...")
@@ -1653,72 +1914,127 @@ class AdvancedModelTrainer:
         y_train = y[:split_idx]
         y_test = y[split_idx:]
         
-        # Ensure CatBoost sees all possible classes
-        # by adding one dummy sample per missing class
-        all_classes_in_data = np.unique(y)
-        max_class = int(np.max(all_classes_in_data))
-        all_possible_classes = np.arange(max_class + 1)  # 0 to max_class inclusive
-        
-        unique_in_train = np.unique(y_train)
-        missing_classes = np.setdiff1d(all_possible_classes, unique_in_train)
-        
-        if len(missing_classes) > 0:
-            # Create dummy samples for missing classes (with small random noise)
-            X_dummy = np.random.normal(0, 0.01, size=(len(missing_classes), X_train.shape[1]))
-            X_train = np.vstack([X_train, X_dummy])
-            y_train = np.concatenate([y_train, missing_classes])
+        # Handle class distribution differently for single vs multi-output
+        if not is_multi_output:
+            # SINGLE-OUTPUT: Ensure all possible classes are represented
+            all_classes_in_data = np.unique(y)
+            max_class = int(np.max(all_classes_in_data))
+            all_possible_classes = np.arange(max_class + 1)
+            
+            unique_in_train = np.unique(y_train)
+            missing_classes = np.setdiff1d(all_possible_classes, unique_in_train)
+            
+            if len(missing_classes) > 0:
+                X_dummy = np.random.normal(0, 0.01, size=(len(missing_classes), X_train.shape[1]))
+                X_train = np.vstack([X_train, X_dummy])
+                y_train = np.concatenate([y_train, missing_classes])
+            
+            num_classes = len(all_possible_classes)
+        else:
+            # MULTI-OUTPUT: Determine max possible classes from game type
+            # Lotto Max: numbers 1-50 → classes 0-49 (50 classes)
+            # Lotto 6/49: numbers 1-49 → classes 0-48 (49 classes)
+            game_lower = self.game.lower()
+            if 'max' in game_lower:
+                num_classes = 50  # Lotto Max: 1-50
+            else:
+                num_classes = 49  # Lotto 6/49: 1-49
+            
+            max_class = num_classes - 1  # 0-based max index
+            app_log(f"  Multi-output: {output_info['n_outputs']} outputs, each with {num_classes} classes (0-{max_class})", "info")
+            
+            # CRITICAL: For MultiOutputClassifier, EACH output needs to see ALL possible classes
+            # Check each position separately and add dummy samples for missing classes
+            all_possible_classes = np.arange(num_classes)
+            n_positions = output_info['n_outputs']
+            
+            total_dummies_added = 0
+            for pos_idx in range(n_positions):
+                # Get unique classes that appear in this position
+                classes_in_position = np.unique(y_train[:, pos_idx])
+                missing_in_position = np.setdiff1d(all_possible_classes, classes_in_position)
+                
+                if len(missing_in_position) > 0:
+                    app_log(f"  Position {pos_idx+1}: Adding {len(missing_in_position)} dummy samples for missing classes", "info")
+                    # Add dummy samples for each missing class in this position
+                    for missing_cls in missing_in_position:
+                        X_dummy = np.random.normal(0, 0.01, size=(1, X_train.shape[1]))
+                        y_dummy = np.zeros((1, n_positions), dtype=int)
+                        # Set realistic values for all positions (spread across range)
+                        for p in range(n_positions):
+                            y_dummy[0, p] = (missing_cls + p * 7) % num_classes
+                        y_dummy[0, pos_idx] = missing_cls  # Ensure this position has the missing class
+                        X_train = np.vstack([X_train, X_dummy])
+                        y_train = np.vstack([y_train, y_dummy])
+                        total_dummies_added += 1
+            
+            if total_dummies_added > 0:
+                app_log(f"  ✅ Added {total_dummies_added} total dummy samples across {n_positions} positions", "info")
         
         if progress_callback:
-            train_class_dist = dict(zip(*np.unique(y_train, return_counts=True)))
-            test_class_dist = dict(zip(*np.unique(y_test, return_counts=True)))
-            msg = f"📊 CatBoost Split: Train={len(X_train)} Test={len(X_test)} | Train classes={train_class_dist} | Test classes={test_class_dist}"
+            if not is_multi_output:
+                train_class_dist = dict(zip(*np.unique(y_train, return_counts=True)))
+                test_class_dist = dict(zip(*np.unique(y_test, return_counts=True)))
+                msg = f"📊 CatBoost Split: Train={len(X_train)} Test={len(X_test)} | Train classes={train_class_dist} | Test classes={test_class_dist}"
+            else:
+                msg = f"📊 CatBoost Split: Train={len(X_train)} Test={len(X_test)} | Multi-output: {output_info['n_outputs']} positions"
             progress_callback(0.15, msg)
         
         if progress_callback:
             progress_callback(0.2, "Building CatBoost model...")
         
         # CatBoost hyperparameters optimized for accuracy
-        num_classes = len(all_possible_classes)
         catboost_params = {
-            "iterations": config.get("epochs", 2000),  # Increased from 1000 for more learning
-            "learning_rate": config.get("learning_rate", 0.03),  # Decreased for finer learning steps
-            "depth": 10,  # Increased from 8 for more complex patterns (max 16)
-            "l2_leaf_reg": 3.0,  # Decreased from 5.0 for less regularization
-            "min_data_in_leaf": 3,  # Decreased from 5 to allow finer splits (CatBoost only)
-            "bootstrap_type": "Bernoulli",  # Bernoulli bootstrap for subsample support
-            "subsample": 0.75,  # Row sampling (reduced from 0.8 for more diversity)
-            "random_strength": 0.5,  # Reduced from 1.0 for more deterministic splits
-            "max_ctr_complexity": 3,  # Feature interactions (higher = more complex)
-            "one_hot_max_size": 255,  # Use one-hot encoding for categorical features
+            "iterations": config.get("epochs", 2000),
+            "learning_rate": config.get("learning_rate", 0.03),
+            "depth": 10,
+            "l2_leaf_reg": 3.0,
+            "min_data_in_leaf": 3,
+            "bootstrap_type": "Bernoulli",
+            "subsample": 0.75,
+            "random_strength": 0.5,
+            "max_ctr_complexity": 3,
+            "one_hot_max_size": 255,
             "verbose": False,
             "loss_function": "MultiClass",
             "eval_metric": "Accuracy",
             "random_state": 42,
-            "thread_count": -1,  # Use all CPU cores
-            "early_stopping_rounds": 50,  # Increased from 20 for better convergence
-            "task_type": "CPU",  # Use CPU (GPU if available: "GPU")
+            "thread_count": -1,
+            "early_stopping_rounds": 50,
+            "task_type": "CPU",
         }
         
-        model = cb.CatBoostClassifier(**catboost_params)
+        base_model = cb.CatBoostClassifier(**catboost_params)
+        
+        # Wrap with MultiOutputClassifier for multi-output targets
+        if is_multi_output:
+            model = MultiOutputClassifier(base_model, n_jobs=-1)
+            app_log(f"  Wrapped CatBoost with MultiOutputClassifier for {output_info['n_outputs']} outputs", "info")
+        else:
+            model = base_model
         
         if progress_callback:
             progress_callback(0.3, "Training model with early stopping...")
         
-        # Create progress callback for CatBoost
+        # Create progress callback for CatBoost (single-output only)
         catboost_callback = None
-        if progress_callback:
+        if progress_callback and not is_multi_output:
             total_iterations = config.get("epochs", 2000)
             catboost_callback = CatBoostProgressCallback(progress_callback, total_iterations)
         
-        # Train with eval set
+        # Train with eval set (single-output only)
         try:
-            model.fit(
-                X_train, y_train,
-                eval_set=(X_test, y_test),
-                verbose=False,
-                use_best_model=True,
-                callbacks=[catboost_callback] if catboost_callback else None
-            )
+            if not is_multi_output:
+                model.fit(
+                    X_train, y_train,
+                    eval_set=(X_test, y_test),
+                    verbose=False,
+                    use_best_model=True,
+                    callbacks=[catboost_callback] if catboost_callback else None
+                )
+            else:
+                # Multi-output: simpler training
+                model.fit(X_train, y_train)
             
             # Manual progress updates during training (since CatBoost callbacks may not fire)
             if progress_callback and hasattr(model, 'tree_count_'):
@@ -1736,47 +2052,80 @@ class AdvancedModelTrainer:
         if progress_callback:
             progress_callback(0.7, "Evaluating model...")
         
-        # Model evaluation
+        # Model evaluation (handle both single and multi-output)
         y_pred = model.predict(X_test)
         
-        # Calculate per-class metrics for detailed diagnostics
-        from sklearn.metrics import classification_report
-        class_report = classification_report(y_test, y_pred, output_dict=True, zero_division=0)
+        # Calculate accuracy differently for single vs multi-output
+        if is_multi_output:
+            # Multi-output: calculate per-position accuracy
+            position_accuracies = []
+            for i in range(y_test.shape[1]):
+                pos_acc = accuracy_score(y_test[:, i], y_pred[:, i])
+                position_accuracies.append(pos_acc)
+                app_log(f"  Position {i+1} accuracy: {pos_acc:.4f}", "info")
+            
+            overall_accuracy = np.mean(position_accuracies)
+            set_accuracy = np.mean([np.array_equal(y_test[i], y_pred[i]) for i in range(len(y_test))])
+            app_log(f"  Average position accuracy: {overall_accuracy:.4f}", "info")
+            app_log(f"  Complete set accuracy: {set_accuracy:.4f}", "info")
+            
+            # Build multi-output metrics
+            metrics = {
+                "accuracy": overall_accuracy,
+                "set_accuracy": set_accuracy,
+                "position_accuracies": position_accuracies,
+                "train_size": len(X_train),
+                "test_size": len(X_test),
+                "feature_count": X.shape[1],
+                "model_type": "CatBoost (Multi-Output)",
+                "output_type": "multi-output",
+                "n_outputs": output_info['n_outputs'],
+                "timestamp": datetime.now().isoformat(),
+                "iterations": getattr(model.estimators_[0], 'tree_count_', config.get("epochs", 2000)) if hasattr(model, 'estimators_') else config.get("epochs", 2000),
+            }
+        else:
+            # Single-output evaluation
+            from sklearn.metrics import classification_report
+            class_report = classification_report(y_test, y_pred, output_dict=True, zero_division=0)
+            
+            # Format per-class metrics for logging
+            per_class_metrics = {}
+            for class_idx in range(len(np.unique(y))):
+                class_str = str(class_idx)
+                if class_str in class_report:
+                    per_class_metrics[class_idx] = {
+                        "precision": class_report[class_str]["precision"],
+                        "recall": class_report[class_str]["recall"],
+                        "f1": class_report[class_str]["f1-score"],
+                        "support": int(class_report[class_str]["support"])
+                    }
+            
+            # Log per-class metrics
+            app_log("Per-class Performance:", "info")
+            for class_idx, metrics_dict in per_class_metrics.items():
+                app_log(f"  Class {class_idx}: Precision={metrics_dict['precision']:.4f}, Recall={metrics_dict['recall']:.4f}, F1={metrics_dict['f1']:.4f}, Support={metrics_dict['support']}", "info")
+            
+            metrics = {
+                "accuracy": accuracy_score(y_test, y_pred),
+                "precision": precision_score(y_test, y_pred, average="weighted", zero_division=0),
+                "recall": recall_score(y_test, y_pred, average="weighted", zero_division=0),
+                "f1": f1_score(y_test, y_pred, average="weighted", zero_division=0),
+                "train_size": len(X_train),
+                "test_size": len(X_test),
+                "feature_count": X.shape[1],
+                "unique_classes": len(np.unique(y)),
+                "model_type": "CatBoost",
+                "output_type": "single-output",
+                "timestamp": datetime.now().isoformat(),
+                "iterations": model.tree_count_,
+                "best_iteration": getattr(model, "best_iteration_", None),
+                "per_class_metrics": per_class_metrics
+            }
         
-        # Format per-class metrics for logging
-        per_class_metrics = {}
-        for class_idx in range(len(np.unique(y))):
-            class_str = str(class_idx)
-            if class_str in class_report:
-                per_class_metrics[class_idx] = {
-                    "precision": class_report[class_str]["precision"],
-                    "recall": class_report[class_str]["recall"],
-                    "f1": class_report[class_str]["f1-score"],
-                    "support": int(class_report[class_str]["support"])
-                }
+        app_log(f"CatBoost training complete - Accuracy: {metrics['accuracy']:.4f}", "info")
         
-        # Log per-class metrics
-        app_log("Per-class Performance:", "info")
-        for class_idx, metrics_dict in per_class_metrics.items():
-            app_log(f"  Class {class_idx}: Precision={metrics_dict['precision']:.4f}, Recall={metrics_dict['recall']:.4f}, F1={metrics_dict['f1']:.4f}, Support={metrics_dict['support']}", "info")
-        
-        metrics = {
-            "accuracy": accuracy_score(y_test, y_pred),
-            "precision": precision_score(y_test, y_pred, average="weighted", zero_division=0),
-            "recall": recall_score(y_test, y_pred, average="weighted", zero_division=0),
-            "f1": f1_score(y_test, y_pred, average="weighted", zero_division=0),
-            "train_size": len(X_train),
-            "test_size": len(X_test),
-            "feature_count": X.shape[1],
-            "unique_classes": len(np.unique(y)),
-            "model_type": "CatBoost",
-            "timestamp": datetime.now().isoformat(),
-            "iterations": model.tree_count_,
-            "best_iteration": getattr(model, "best_iteration_", None),
-            "per_class_metrics": per_class_metrics
-        }
-        
-        app_log(f"CatBoost training complete - Accuracy: {metrics['accuracy']:.4f}, Iterations: {model.tree_count_}", "info")
+        # Store scaler for later use in predictions
+        setattr(model, 'scaler_', self.scaler)
         
         if progress_callback:
             progress_callback(0.9, "Model saved...")
@@ -1811,7 +2160,13 @@ class AdvancedModelTrainer:
             model: Trained LightGBM model
             metrics: Training metrics
         """
+        # Detect multi-output targets
+        output_info = self._get_output_info(y)
+        is_multi_output = output_info["output_type"] == "multi-output"
+        
         app_log("Starting LightGBM training optimized for speed and accuracy...", "info")
+        app_log(f"  Output format: {output_info['description']}", "info")
+        app_log(f"  Target shape: {output_info['shape']}", "info")
         
         if progress_callback:
             progress_callback(0.1, "Preprocessing data...")
@@ -1830,32 +2185,69 @@ class AdvancedModelTrainer:
         y_train = y[:split_idx]
         y_test = y[split_idx:]
         
-        # Ensure LightGBM sees all possible classes
-        # by adding one dummy sample per missing class
-        all_classes_in_data = np.unique(y)
-        max_class = int(np.max(all_classes_in_data))
-        all_possible_classes = np.arange(max_class + 1)  # 0 to max_class inclusive
-        
-        unique_in_train = np.unique(y_train)
-        missing_classes = np.setdiff1d(all_possible_classes, unique_in_train)
-        
-        if len(missing_classes) > 0:
-            # Create dummy samples for missing classes (with small random noise)
-            X_dummy = np.random.normal(0, 0.01, size=(len(missing_classes), X_train.shape[1]))
-            X_train = np.vstack([X_train, X_dummy])
-            y_train = np.concatenate([y_train, missing_classes])
+        # Handle class distribution differently for single vs multi-output
+        if not is_multi_output:
+            # SINGLE-OUTPUT: Ensure all possible classes are represented
+            all_classes_in_data = np.unique(y)
+            max_class = int(np.max(all_classes_in_data))
+            all_possible_classes = np.arange(max_class + 1)
+            
+            unique_in_train = np.unique(y_train)
+            missing_classes = np.setdiff1d(all_possible_classes, unique_in_train)
+            
+            if len(missing_classes) > 0:
+                X_dummy = np.random.normal(0, 0.01, size=(len(missing_classes), X_train.shape[1]))
+                X_train = np.vstack([X_train, X_dummy])
+                y_train = np.concatenate([y_train, missing_classes])
+            
+            num_classes = len(all_possible_classes)
+        else:
+            # MULTI-OUTPUT: Determine max possible classes from game type
+            game_lower = self.game.lower()
+            if 'max' in game_lower:
+                num_classes = 50
+            else:
+                num_classes = 49
+            
+            max_class = num_classes - 1
+            app_log(f"  Multi-output: {output_info['n_outputs']} outputs, each with {num_classes} classes (0-{max_class})", "info")
+            
+            # Add dummy samples for each position
+            all_possible_classes = np.arange(num_classes)
+            n_positions = output_info['n_outputs']
+            
+            total_dummies_added = 0
+            for pos_idx in range(n_positions):
+                classes_in_position = np.unique(y_train[:, pos_idx])
+                missing_in_position = np.setdiff1d(all_possible_classes, classes_in_position)
+                
+                if len(missing_in_position) > 0:
+                    app_log(f"  Position {pos_idx+1}: Adding {len(missing_in_position)} dummy samples for missing classes", "info")
+                    for missing_cls in missing_in_position:
+                        X_dummy = np.random.normal(0, 0.01, size=(1, X_train.shape[1]))
+                        y_dummy = np.zeros((1, n_positions), dtype=int)
+                        for p in range(n_positions):
+                            y_dummy[0, p] = (missing_cls + p * 7) % num_classes
+                        y_dummy[0, pos_idx] = missing_cls
+                        X_train = np.vstack([X_train, X_dummy])
+                        y_train = np.vstack([y_train, y_dummy])
+                        total_dummies_added += 1
+            
+            if total_dummies_added > 0:
+                app_log(f"  ✅ Added {total_dummies_added} total dummy samples across {n_positions} positions", "info")
         
         if progress_callback:
-            train_class_dist = dict(zip(*np.unique(y_train, return_counts=True)))
-            test_class_dist = dict(zip(*np.unique(y_test, return_counts=True)))
-            msg = f"📊 Split: Train={len(X_train)} Test={len(X_test)} | Train classes={train_class_dist} | Test classes={test_class_dist}"
+            if not is_multi_output:
+                train_class_dist = dict(zip(*np.unique(y_train, return_counts=True)))
+                test_class_dist = dict(zip(*np.unique(y_test, return_counts=True)))
+                msg = f"📊 LightGBM Split: Train={len(X_train)} Test={len(X_test)} | Train classes={train_class_dist} | Test classes={test_class_dist}"
+            else:
+                msg = f"📊 LightGBM Split: Train={len(X_train)} Test={len(X_test)} | Multi-output: {output_info['n_outputs']} positions, {num_classes} classes each"
             progress_callback(0.15, msg)
         
         if progress_callback:
             progress_callback(0.2, "Building LightGBM model...")
         
-        # LightGBM hyperparameters optimized for accuracy
-        num_classes = len(all_possible_classes)
         lgb_params = {
             "objective": "multiclass",
             "num_class": num_classes,
@@ -1875,35 +2267,46 @@ class AdvancedModelTrainer:
             "metric": "multi_error" if len(np.unique(y)) > 2 else "binary_error",
         }
         
-        model = lgb.LGBMClassifier(
+        base_model = lgb.LGBMClassifier(
             n_estimators=config.get("epochs", 500),
             **lgb_params
         )
         
+        # Wrap with MultiOutputClassifier for multi-output targets
+        if is_multi_output:
+            model = MultiOutputClassifier(base_model, n_jobs=-1)
+            app_log(f"  Wrapped LightGBM with MultiOutputClassifier for {output_info['n_outputs']} outputs", "info")
+        else:
+            model = base_model
+        
         if progress_callback:
             progress_callback(0.3, "Training model with early stopping...")
         
-        # Create progress callback for LightGBM
+        # Create progress callback for LightGBM (single-output only)
         lgb_callback = None
-        if progress_callback:
+        if progress_callback and not is_multi_output:
             total_iterations = config.get("epochs", 500)
             lgb_callback = LightGBMProgressCallback(progress_callback, total_iterations)
         
         # Train with eval set for early stopping
         try:
-            model.fit(
-                X_train, y_train,
-                eval_set=[(X_train, y_train), (X_test, y_test)],
-                eval_metric="multi_error" if len(np.unique(y)) > 2 else "binary_error",
-                callbacks=[
-                    lgb.early_stopping(20),  # Stop if no improvement for 20 rounds
-                    lgb.log_evaluation(period=0),  # Suppress output
-                    lgb_callback  # Custom progress callback
-                ] if lgb_callback else [
-                    lgb.early_stopping(20),
-                    lgb.log_evaluation(period=0)
-                ]
-            )
+            if not is_multi_output:
+                model.fit(
+                    X_train, y_train,
+                    eval_set=[(X_train, y_train), (X_test, y_test)],
+                    eval_metric="multi_error" if len(np.unique(y)) > 2 else "binary_error",
+                    callbacks=[
+                        lgb.early_stopping(20),  # Stop if no improvement for 20 rounds
+                        lgb.log_evaluation(period=0),  # Suppress output
+                        lgb_callback  # Custom progress callback
+                    ] if lgb_callback else [
+                        lgb.early_stopping(20),
+                        lgb.log_evaluation(period=0)
+                    ]
+                )
+            else:
+                # Multi-output: simpler training without callbacks
+                model.fit(X_train, y_train)
         except Exception as e:
             app_log(f"LightGBM training with eval_set failed, falling back: {e}", "warning")
             try:
@@ -1918,44 +2321,81 @@ class AdvancedModelTrainer:
         # Model evaluation
         y_pred = model.predict(X_test)
         
-        # Calculate per-class metrics for detailed diagnostics
-        from sklearn.metrics import classification_report
-        class_report = classification_report(y_test, y_pred, output_dict=True, zero_division=0)
+        # Calculate metrics based on output type
+        if is_multi_output:
+            # Multi-output: Calculate position-level and set-level metrics
+            position_accuracies = []
+            for i in range(y_test.shape[1]):
+                pos_acc = accuracy_score(y_test[:, i], y_pred[:, i])
+                position_accuracies.append(pos_acc)
+                app_log(f"  Position {i+1} accuracy: {pos_acc:.4f}", "info")
+            
+            avg_position_accuracy = np.mean(position_accuracies)
+            
+            # Complete set accuracy (all 7 numbers must match)
+            complete_set_matches = sum(1 for i in range(len(y_test)) if np.array_equal(y_test[i], y_pred[i]))
+            set_accuracy = complete_set_matches / len(y_test)
+            
+            app_log(f"  Average position accuracy: {avg_position_accuracy:.4f}", "info")
+            app_log(f"  Complete set accuracy: {set_accuracy:.4f}", "info")
+            
+            metrics = {
+                "accuracy": avg_position_accuracy,
+                "set_accuracy": set_accuracy,
+                "position_accuracies": position_accuracies,
+                "train_size": len(X_train),
+                "test_size": len(X_test),
+                "feature_count": X.shape[1],
+                "model_type": "LightGBM (Multi-Output)",
+                "output_type": "multi-output",
+                "n_outputs": output_info['n_outputs'],
+                "timestamp": datetime.now().isoformat(),
+                "n_estimators": model.estimators_[0].n_estimators_ if hasattr(model, 'estimators_') else config.get("epochs", 500),
+            }
+            
+            app_log(f"LightGBM multi-output training complete - Avg Position Accuracy: {metrics['accuracy']:.4f}, Set Accuracy: {metrics['set_accuracy']:.4f}", "info")
+        else:
+            # Single-output: Calculate per-class metrics for detailed diagnostics
+            from sklearn.metrics import classification_report
+            class_report = classification_report(y_test, y_pred, output_dict=True, zero_division=0)
+            
+            # Format per-class metrics for logging
+            per_class_metrics = {}
+            for class_idx in range(len(np.unique(y))):
+                class_str = str(class_idx)
+                if class_str in class_report:
+                    per_class_metrics[class_idx] = {
+                        "precision": class_report[class_str]["precision"],
+                        "recall": class_report[class_str]["recall"],
+                        "f1": class_report[class_str]["f1-score"],
+                        "support": int(class_report[class_str]["support"])
+                    }
+            
+            # Log per-class metrics
+            app_log("Per-class Performance:", "info")
+            for class_idx, metrics_dict in per_class_metrics.items():
+                app_log(f"  Class {class_idx}: Precision={metrics_dict['precision']:.4f}, Recall={metrics_dict['recall']:.4f}, F1={metrics_dict['f1']:.4f}, Support={metrics_dict['support']}", "info")
+            
+            metrics = {
+                "accuracy": accuracy_score(y_test, y_pred),
+                "precision": precision_score(y_test, y_pred, average="weighted", zero_division=0),
+                "recall": recall_score(y_test, y_pred, average="weighted", zero_division=0),
+                "f1": f1_score(y_test, y_pred, average="weighted", zero_division=0),
+                "train_size": len(X_train),
+                "test_size": len(X_test),
+                "feature_count": X.shape[1],
+                "unique_classes": len(np.unique(y)),
+                "model_type": "LightGBM",
+                "timestamp": datetime.now().isoformat(),
+                "n_estimators": model.n_estimators,
+                "best_iteration": getattr(model, "best_iteration_", None),
+                "per_class_metrics": per_class_metrics
+            }
+            
+            app_log(f"LightGBM training complete - Accuracy: {metrics['accuracy']:.4f}, Estimators: {model.n_estimators}", "info")
         
-        # Format per-class metrics for logging
-        per_class_metrics = {}
-        for class_idx in range(len(np.unique(y))):
-            class_str = str(class_idx)
-            if class_str in class_report:
-                per_class_metrics[class_idx] = {
-                    "precision": class_report[class_str]["precision"],
-                    "recall": class_report[class_str]["recall"],
-                    "f1": class_report[class_str]["f1-score"],
-                    "support": int(class_report[class_str]["support"])
-                }
-        
-        # Log per-class metrics
-        app_log("Per-class Performance:", "info")
-        for class_idx, metrics_dict in per_class_metrics.items():
-            app_log(f"  Class {class_idx}: Precision={metrics_dict['precision']:.4f}, Recall={metrics_dict['recall']:.4f}, F1={metrics_dict['f1']:.4f}, Support={metrics_dict['support']}", "info")
-        
-        metrics = {
-            "accuracy": accuracy_score(y_test, y_pred),
-            "precision": precision_score(y_test, y_pred, average="weighted", zero_division=0),
-            "recall": recall_score(y_test, y_pred, average="weighted", zero_division=0),
-            "f1": f1_score(y_test, y_pred, average="weighted", zero_division=0),
-            "train_size": len(X_train),
-            "test_size": len(X_test),
-            "feature_count": X.shape[1],
-            "unique_classes": len(np.unique(y)),
-            "model_type": "LightGBM",
-            "timestamp": datetime.now().isoformat(),
-            "n_estimators": model.n_estimators,
-            "best_iteration": getattr(model, "best_iteration_", None),
-            "per_class_metrics": per_class_metrics
-        }
-        
-        app_log(f"LightGBM training complete - Accuracy: {metrics['accuracy']:.4f}, Estimators: {model.n_estimators}", "info")
+        # Store scaler for later use in predictions
+        setattr(model, 'scaler_', self.scaler)
         
         if progress_callback:
             progress_callback(0.9, "Model saved...")
@@ -1995,7 +2435,13 @@ class AdvancedModelTrainer:
             app_log("TensorFlow not available for Transformer training", "warning")
             return None, {}
         
+        # Detect multi-output targets
+        output_info = self._get_output_info(y)
+        is_multi_output = output_info["output_type"] == "multi-output"
+        
         app_log("Starting Advanced Transformer training with state-of-the-art architecture...", "info")
+        app_log(f"  Output format: {output_info['description']}", "info")
+        app_log(f"  Target shape: {output_info['shape']}", "info")
         
         if progress_callback:
             progress_callback(0.1, "Preprocessing embeddings...")
@@ -2107,31 +2553,63 @@ class AdvancedModelTrainer:
         x = layers.Dense(128, activation="relu", name="dense_2")(x)
         x = layers.Dropout(0.1)(x)
         
-        # Output layer
-        output = layers.Dense(num_classes, activation="softmax", name="output")(x)
+        x = layers.Dense(64, activation="relu", name="dense_3")(x)
         
-        model = models.Model(inputs=input_layer, outputs=output)
+        # Output layer - multi-output support
+        if is_multi_output:
+            # Multi-output: 7 separate output heads (one per lottery position)
+            outputs = []
+            for i in range(output_info['n_outputs']):
+                output = layers.Dense(num_classes, activation="softmax", name=f"output_pos_{i+1}")(x)
+                outputs.append(output)
+            model = models.Model(inputs=input_layer, outputs=outputs)
+            app_log(f"  Created {len(outputs)} output heads for multi-output prediction", "info")
+        else:
+            # Single-output: standard output layer
+            output = layers.Dense(num_classes, activation="softmax", name="output")(x)
+            model = models.Model(inputs=input_layer, outputs=output)
         
-        model.compile(
-            optimizer=keras.optimizers.Adam(
-                learning_rate=config.get("learning_rate", 0.001),
-                beta_1=0.9,
-                beta_2=0.999,
-                epsilon=1e-7
-            ),
-            loss="sparse_categorical_crossentropy",
-            metrics=["accuracy"]
-        )
+        # Compile model - different loss for multi-output
+        if is_multi_output:
+            model.compile(
+                optimizer=keras.optimizers.Adam(
+                    learning_rate=config.get("learning_rate", 0.001),
+                    beta_1=0.9,
+                    beta_2=0.999,
+                    epsilon=1e-7
+                ),
+                loss=["sparse_categorical_crossentropy"] * output_info['n_outputs'],
+                metrics=[["accuracy"]] * output_info['n_outputs']
+            )
+        else:
+            model.compile(
+                optimizer=keras.optimizers.Adam(
+                    learning_rate=config.get("learning_rate", 0.001),
+                    beta_1=0.9,
+                    beta_2=0.999,
+                    epsilon=1e-7
+                ),
+                loss="sparse_categorical_crossentropy",
+                metrics=["accuracy"]
+            )
         
         app_log(f"Advanced Transformer model built with {model.count_params():,} parameters", "info")
         
         if progress_callback:
             progress_callback(0.3, "Training Advanced Transformer model...")
         
+        # Prepare training data - split targets for multi-output
+        if is_multi_output:
+            y_train_list = [y_train[:, i] for i in range(output_info['n_outputs'])]
+            y_test_list = [y_test[:, i] for i in range(output_info['n_outputs'])]
+        else:
+            y_train_list = y_train
+            y_test_list = y_test
+        
         # Train model
         num_epochs = config.get("epochs", 150)
         history = model.fit(
-            X_train, y_train,
+            X_train, y_train_list,
             validation_data=(X_test, y_test),
             epochs=num_epochs,
             batch_size=config.get("batch_size", 32),
@@ -2157,32 +2635,71 @@ class AdvancedModelTrainer:
         if progress_callback:
             progress_callback(0.8, "Evaluating Advanced Transformer model...")
         
-        # Evaluate
-        y_pred = np.argmax(model.predict(X_test, verbose=0), axis=1)
-        y_pred_proba = model.predict(X_test, verbose=0)  # Get probabilities
-        
-        # Calculate row-level accuracy metrics
-        row_metrics = calculate_row_level_accuracy(y_pred_proba, y_test, top_n=self.main_numbers)
-        app_log(f"Row-level Accuracy: {row_metrics['row_accuracy']:.4f} | Partial Matches: {row_metrics['partial_matches']:.2f}/{self.main_numbers}", "info")
-        
-        metrics = {
-            "accuracy": accuracy_score(y_test, y_pred),
-            "precision": precision_score(y_test, y_pred, average="weighted", zero_division=0),
-            "recall": recall_score(y_test, y_pred, average="weighted", zero_division=0),
-            "f1": f1_score(y_test, y_pred, average="weighted", zero_division=0),
-            "train_size": len(X_train),
-            "test_size": len(X_test),
-            "feature_count": X.shape[1],
-            "unique_classes": len(np.unique(y)),
-            "model_type": "Transformer",
-            "timestamp": datetime.now().isoformat(),
-            "parameters": model.count_params(),
-            "row_level_accuracy": row_metrics['row_accuracy'],
-            "row_level_precision": row_metrics['row_precision'],
-            "row_level_recall": row_metrics['row_recall'],
-            "row_partial_matches": row_metrics['partial_matches'],
-            "is_calibrated": False
-        }
+        # Evaluate - handle multi-output vs single-output
+        if is_multi_output:
+            # Multi-output: Model returns list of arrays, one per position
+            predictions_raw = model.predict(X_test, verbose=0)
+            
+            # Convert to class predictions: predictions_raw is a list of [n_samples, n_classes] arrays
+            y_pred = np.column_stack([np.argmax(pred, axis=1) for pred in predictions_raw])
+            
+            # Calculate position-level accuracies
+            position_accuracies = []
+            for i in range(y_test.shape[1]):
+                pos_acc = accuracy_score(y_test[:, i], y_pred[:, i])
+                position_accuracies.append(pos_acc)
+                app_log(f"  Position {i+1} accuracy: {pos_acc:.4f}", "info")
+            
+            # Calculate overall accuracy (average across positions)
+            overall_accuracy = np.mean(position_accuracies)
+            
+            # Calculate complete set accuracy (all positions correct)
+            set_accuracy = np.mean([np.array_equal(y_test[i], y_pred[i]) for i in range(len(y_test))])
+            
+            app_log(f"Average Position Accuracy: {overall_accuracy:.4f}", "info")
+            app_log(f"Complete Set Accuracy: {set_accuracy:.4f}", "info")
+            
+            metrics = {
+                "accuracy": overall_accuracy,
+                "position_accuracies": position_accuracies,
+                "set_accuracy": set_accuracy,
+                "train_size": len(X_train),
+                "test_size": len(X_test),
+                "feature_count": X.shape[1],
+                "model_type": "Transformer",
+                "output_type": "multi-output",
+                "n_outputs": output_info['n_outputs'],
+                "timestamp": datetime.now().isoformat(),
+                "parameters": model.count_params(),
+                "is_calibrated": False
+            }
+        else:
+            # Single-output evaluation
+            y_pred = np.argmax(model.predict(X_test, verbose=0), axis=1)
+            y_pred_proba = model.predict(X_test, verbose=0)  # Get probabilities
+            
+            # Calculate row-level accuracy metrics
+            row_metrics = calculate_row_level_accuracy(y_pred_proba, y_test, top_n=self.main_numbers)
+            app_log(f"Row-level Accuracy: {row_metrics['row_accuracy']:.4f} | Partial Matches: {row_metrics['partial_matches']:.2f}/{self.main_numbers}", "info")
+            
+            metrics = {
+                "accuracy": accuracy_score(y_test, y_pred),
+                "precision": precision_score(y_test, y_pred, average="weighted", zero_division=0),
+                "recall": recall_score(y_test, y_pred, average="weighted", zero_division=0),
+                "f1": f1_score(y_test, y_pred, average="weighted", zero_division=0),
+                "train_size": len(X_train),
+                "test_size": len(X_test),
+                "feature_count": X.shape[1],
+                "unique_classes": len(np.unique(y)),
+                "model_type": "Transformer",
+                "timestamp": datetime.now().isoformat(),
+                "parameters": model.count_params(),
+                "row_level_accuracy": row_metrics['row_accuracy'],
+                "row_level_precision": row_metrics['row_precision'],
+                "row_level_recall": row_metrics['row_recall'],
+                "row_partial_matches": row_metrics['partial_matches'],
+                "is_calibrated": False
+            }
         
         app_log(f"Advanced Transformer training complete - Accuracy: {metrics['accuracy']:.4f} | Row Accuracy: {metrics['row_level_accuracy']:.4f} | Parameters: {model.count_params():,}", "info")
         
@@ -2228,7 +2745,13 @@ class AdvancedModelTrainer:
             app_log("TensorFlow not available for CNN training", "warning")
             return None, {}
         
+        # Detect multi-output targets
+        output_info = self._get_output_info(y)
+        is_multi_output = output_info["output_type"] == "multi-output"
+        
         app_log("Starting Multi-Scale CNN training for lottery number prediction...", "info")
+        app_log(f"  Output format: {output_info['description']}", "info")
+        app_log(f"  Target shape: {output_info['shape']}", "info")
         
         if progress_callback:
             progress_callback(0.1, "Preprocessing features for CNN...")
@@ -2321,34 +2844,64 @@ class AdvancedModelTrainer:
         x = layers.Dense(64, activation='relu', name='dense_3')(x)
         x = layers.Dropout(0.05, name='dropout_3')(x)  # Reduced from 0.1 to 0.05
         
-        # Output layer
-        output = layers.Dense(num_classes, activation='softmax', name='output')(x)
+        # Output layer - multi-output support
+        if is_multi_output:
+            # Multi-output: 7 separate output heads (one per lottery position)
+            outputs = []
+            for i in range(output_info['n_outputs']):
+                output = layers.Dense(num_classes, activation='softmax', name=f'output_pos_{i+1}')(x)
+                outputs.append(output)
+            model = models.Model(inputs=input_layer, outputs=outputs)
+            app_log(f"  Created {len(outputs)} output heads for multi-output prediction", "info")
+        else:
+            # Single-output: standard output layer
+            output = layers.Dense(num_classes, activation='softmax', name='output')(x)
+            model = models.Model(inputs=input_layer, outputs=output)
         
-        model = models.Model(inputs=input_layer, outputs=output)
-        
-        model.compile(
-            optimizer=keras.optimizers.Adam(
-                learning_rate=config.get("learning_rate", 0.001),
-                beta_1=0.9,
-                beta_2=0.999,
-                epsilon=1e-7
-            ),
-            loss="sparse_categorical_crossentropy",
-            metrics=["accuracy"]
-        )
+        # Compile model - different loss for multi-output
+        if is_multi_output:
+            model.compile(
+                optimizer=keras.optimizers.Adam(
+                    learning_rate=config.get("learning_rate", 0.001),
+                    beta_1=0.9,
+                    beta_2=0.999,
+                    epsilon=1e-7
+                ),
+                loss=["sparse_categorical_crossentropy"] * output_info['n_outputs'],
+                metrics=[["accuracy"]] * output_info['n_outputs']
+            )
+        else:
+            model.compile(
+                optimizer=keras.optimizers.Adam(
+                    learning_rate=config.get("learning_rate", 0.001),
+                    beta_1=0.9,
+                    beta_2=0.999,
+                    epsilon=1e-7
+                ),
+                loss="sparse_categorical_crossentropy",
+                metrics=["accuracy"]
+            )
         
         app_log(f"Multi-Scale CNN model built with {model.count_params():,} parameters", "info")
         
         if progress_callback:
             progress_callback(0.3, "Training Multi-Scale CNN model...")
         
+        # Prepare training data - split targets for multi-output
+        if is_multi_output:
+            y_train_list = [y_train[:, i] for i in range(output_info['n_outputs'])]
+            y_test_list = [y_test[:, i] for i in range(output_info['n_outputs'])]
+        else:
+            y_train_list = y_train
+            y_test_list = y_test
+        
         # Train model (Phase 1 Optimization: Better batch size and early stopping)
         num_epochs = config.get("epochs", 200)  # Increased from 100 to 200
         batch_size = config.get("batch_size", 16)  # Reduced from 32 to 16 for better gradient flow
         
         history = model.fit(
-            X_train, y_train,
-            validation_data=(X_test, y_test),
+            X_train, y_train_list,
+            validation_data=(X_test, y_test_list),
             epochs=num_epochs,
             batch_size=batch_size,
             callbacks=[
@@ -2373,69 +2926,112 @@ class AdvancedModelTrainer:
         if progress_callback:
             progress_callback(0.8, "Evaluating CNN model...")
         
-        # Evaluate
+        # Evaluate - handle multi-output vs single-output
         app_log(f"🟩 CNN: Predicting on test set...", "info")
-        y_pred = np.argmax(model.predict(X_test, verbose=0), axis=1)
-        y_pred_proba = model.predict(X_test, verbose=0)  # Get probabilities
-        app_log(f"🟩 CNN: Predictions complete. Calculating metrics...", "info")
         
-        try:
-            accuracy = accuracy_score(y_test, y_pred)
-            precision = precision_score(y_test, y_pred, average="weighted", zero_division=0)
-            recall = recall_score(y_test, y_pred, average="weighted", zero_division=0)
-            f1 = f1_score(y_test, y_pred, average="weighted", zero_division=0)
+        if is_multi_output:
+            # Multi-output: Model returns list of arrays, one per position
+            predictions_raw = model.predict(X_test, verbose=0)
             
-            # Calculate row-level accuracy metrics
-            row_metrics = calculate_row_level_accuracy(y_pred_proba, y_test, top_n=self.main_numbers)
-            app_log(f"Row-level Accuracy: {row_metrics['row_accuracy']:.4f} | Partial Matches: {row_metrics['partial_matches']:.2f}/{self.main_numbers}", "info")
+            # Convert to class predictions: predictions_raw is a list of [n_samples, n_classes] arrays
+            y_pred = np.column_stack([np.argmax(pred, axis=1) for pred in predictions_raw])
+            app_log(f"🟩 CNN: Predictions complete. Calculating multi-output metrics...", "info")
             
-            # Calculate per-class metrics
-            per_class_metrics = {}
-            for class_idx in range(len(np.unique(y))):
-                class_mask = y_test == class_idx
-                if class_mask.sum() > 0:
-                    class_pred_mask = y_pred == class_idx
-                    tp = (class_mask & class_pred_mask).sum()
-                    fp = (~class_mask & class_pred_mask).sum()
-                    fn = (class_mask & ~class_pred_mask).sum()
-                    
-                    class_precision = tp / (tp + fp) if (tp + fp) > 0 else 0
-                    class_recall = tp / (tp + fn) if (tp + fn) > 0 else 0
-                    class_f1 = 2 * (class_precision * class_recall) / (class_precision + class_recall) if (class_precision + class_recall) > 0 else 0
-                    
-                    per_class_metrics[class_idx] = {
-                        "precision": class_precision,
-                        "recall": class_recall,
-                        "f1": class_f1,
-                        "support": int(class_mask.sum())
-                    }
+            # Calculate position-level accuracies
+            position_accuracies = []
+            for i in range(y_test.shape[1]):
+                pos_acc = accuracy_score(y_test[:, i], y_pred[:, i])
+                position_accuracies.append(pos_acc)
+                app_log(f"  Position {i+1} accuracy: {pos_acc:.4f}", "info")
+            
+            # Calculate overall accuracy (average across positions)
+            overall_accuracy = np.mean(position_accuracies)
+            
+            # Calculate complete set accuracy (all positions correct)
+            set_accuracy = np.mean([np.array_equal(y_test[i], y_pred[i]) for i in range(len(y_test))])
+            
+            app_log(f"Average Position Accuracy: {overall_accuracy:.4f}", "info")
+            app_log(f"Complete Set Accuracy: {set_accuracy:.4f}", "info")
             
             metrics = {
-                "accuracy": accuracy,
-                "precision": precision,
-                "recall": recall,
-                "f1": f1,
-                "per_class_metrics": per_class_metrics,
+                "accuracy": overall_accuracy,
+                "position_accuracies": position_accuracies,
+                "set_accuracy": set_accuracy,
                 "train_size": len(X_train),
                 "test_size": len(X_test),
                 "feature_count": X.shape[1],
-                "unique_classes": len(np.unique(y)),
                 "model_type": "CNN",
+                "output_type": "multi-output",
+                "n_outputs": output_info['n_outputs'],
                 "timestamp": datetime.now().isoformat(),
                 "parameters": model.count_params(),
-                "row_level_accuracy": row_metrics['row_accuracy'],
-                "row_level_precision": row_metrics['row_precision'],
-                "row_level_recall": row_metrics['row_recall'],
-                "row_partial_matches": row_metrics['partial_matches'],
                 "is_calibrated": False
             }
             
-            app_log(f"🟩 CNN: Metrics calculated. Accuracy: {accuracy:.4f} | Row Accuracy: {row_metrics['row_accuracy']:.4f}", "info")
-        except Exception as e:
-            app_log(f"🟩 CNN: Metrics calculation failed: {str(e)}", "error")
-            import traceback
-            app_log(f"🟩 CNN: Metrics error traceback: {traceback.format_exc()}", "error")
-            return None, {}
+            app_log(f"🟩 CNN: Metrics calculated. Avg Position Accuracy: {overall_accuracy:.4f} | Set Accuracy: {set_accuracy:.4f}", "info")
+        else:
+            # Single-output evaluation
+            y_pred = np.argmax(model.predict(X_test, verbose=0), axis=1)
+            y_pred_proba = model.predict(X_test, verbose=0)  # Get probabilities
+            app_log(f"🟩 CNN: Predictions complete. Calculating metrics...", "info")
+            
+            try:
+                accuracy = accuracy_score(y_test, y_pred)
+                precision = precision_score(y_test, y_pred, average="weighted", zero_division=0)
+                recall = recall_score(y_test, y_pred, average="weighted", zero_division=0)
+                f1 = f1_score(y_test, y_pred, average="weighted", zero_division=0)
+                
+                # Calculate row-level accuracy metrics
+                row_metrics = calculate_row_level_accuracy(y_pred_proba, y_test, top_n=self.main_numbers)
+                app_log(f"Row-level Accuracy: {row_metrics['row_accuracy']:.4f} | Partial Matches: {row_metrics['partial_matches']:.2f}/{self.main_numbers}", "info")
+                
+                # Calculate per-class metrics
+                per_class_metrics = {}
+                for class_idx in range(len(np.unique(y))):
+                    class_mask = y_test == class_idx
+                    if class_mask.sum() > 0:
+                        class_pred_mask = y_pred == class_idx
+                        tp = (class_mask & class_pred_mask).sum()
+                        fp = (~class_mask & class_pred_mask).sum()
+                        fn = (class_mask & ~class_pred_mask).sum()
+                        
+                        class_precision = tp / (tp + fp) if (tp + fp) > 0 else 0
+                        class_recall = tp / (tp + fn) if (tp + fn) > 0 else 0
+                        class_f1 = 2 * (class_precision * class_recall) / (class_precision + class_recall) if (class_precision + class_recall) > 0 else 0
+                        
+                        per_class_metrics[class_idx] = {
+                            "precision": class_precision,
+                            "recall": class_recall,
+                            "f1": class_f1,
+                            "support": int(class_mask.sum())
+                        }
+                
+                metrics = {
+                    "accuracy": accuracy,
+                    "precision": precision,
+                    "recall": recall,
+                    "f1": f1,
+                    "per_class_metrics": per_class_metrics,
+                    "train_size": len(X_train),
+                    "test_size": len(X_test),
+                    "feature_count": X.shape[1],
+                    "unique_classes": len(np.unique(y)),
+                    "model_type": "CNN",
+                    "timestamp": datetime.now().isoformat(),
+                    "parameters": model.count_params(),
+                    "row_level_accuracy": row_metrics['row_accuracy'],
+                    "row_level_precision": row_metrics['row_precision'],
+                    "row_level_recall": row_metrics['row_recall'],
+                    "row_partial_matches": row_metrics['partial_matches'],
+                    "is_calibrated": False
+                }
+                
+                app_log(f"🟩 CNN: Metrics calculated. Accuracy: {accuracy:.4f} | Row Accuracy: {row_metrics['row_accuracy']:.4f}", "info")
+            except Exception as e:
+                app_log(f"🟩 CNN: Metrics calculation failed: {str(e)}", "error")
+                import traceback
+                app_log(f"🟩 CNN: Metrics error traceback: {traceback.format_exc()}", "error")
+                return None, {}
         
         app_log(f"Multi-Scale CNN training complete - Accuracy: {metrics['accuracy']:.4f}, Parameters: {model.count_params():,}", "info")
         

@@ -922,13 +922,19 @@ class AdvancedFeatureGenerator:
             # Convert to DataFrame
             features_df = pd.DataFrame(features_list)
             
-            # Ensure numeric types
-            features_df = features_df.astype(float)
+            # ✅ CRITICAL: Add draw_date and numbers columns BEFORE normalization
+            features_df.insert(0, "draw_date", data["draw_date"].values)
+            if "numbers" in data.columns:
+                features_df.insert(1, "numbers", data["numbers"].values)
             
-            # Normalize features to 0-1 range for better Transformer input
+            # Ensure numeric types for feature columns only (skip draw_date and numbers)
+            feature_cols = [col for col in features_df.columns if col not in ["draw_date", "numbers"]]
+            features_df[feature_cols] = features_df[feature_cols].astype(float)
+            
+            # Normalize features to 0-1 range for better Transformer input (only numeric feature columns)
             scaler = MinMaxScaler()
-            features_normalized = scaler.fit_transform(features_df)
-            features_df = pd.DataFrame(features_normalized, columns=features_df.columns)
+            features_normalized = scaler.fit_transform(features_df[feature_cols])
+            features_df[feature_cols] = features_normalized
             
             metadata = {
                 "model_type": "transformer",
@@ -1023,6 +1029,10 @@ class AdvancedFeatureGenerator:
             
             features_df = pd.DataFrame()
             features_df["draw_date"] = data["draw_date"]
+            
+            # ✅ CRITICAL: Preserve original numbers for multi-output target extraction
+            if "numbers" in data.columns:
+                features_df["numbers"] = data["numbers"]
             
             # 1. BASIC STATISTICAL FEATURES (10 features)
             features_df["sum"] = data["numbers_list"].apply(np.sum)
@@ -1347,6 +1357,10 @@ class AdvancedFeatureGenerator:
             features_df = pd.DataFrame()
             features_df["draw_date"] = data["draw_date"]
             
+            # ✅ CRITICAL: Preserve original numbers for multi-output target extraction
+            if "numbers" in data.columns:
+                features_df["numbers"] = data["numbers"]
+            
             # 1. BASIC STATISTICAL FEATURES (10 features)
             features_df["sum"] = data["numbers_list"].apply(np.sum)
             features_df["mean"] = data["numbers_list"].apply(np.mean)
@@ -1576,6 +1590,10 @@ class AdvancedFeatureGenerator:
             data = self._parse_numbers(raw_data)
             features_df = pd.DataFrame()
             features_df["draw_date"] = data["draw_date"]
+            
+            # ✅ CRITICAL: Preserve original numbers for multi-output target extraction
+            if "numbers" in data.columns:
+                features_df["numbers"] = data["numbers"]
             
             # 1. BASIC STATISTICAL FEATURES (10 features)
             features_df["sum"] = data["numbers_list"].apply(np.sum)

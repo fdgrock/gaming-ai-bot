@@ -936,3 +936,16 @@ UnboundLocalError: cannot access local variable 'go' where it is not associated 
 
 2025-12-11 20:05:15 - lottery_ai - ERROR - logger.py:138 - Error processing MaxMillion input: invalid literal for int() with base 10: '01  03  05  26  31  38  4501  05  10  26  30  41  4202  03  20  29  34  48  4902  04  18  26  28  29  5002  04  20  30  36  42  4604  07  14  23  28  42  4804  08  18  32  39  44  4704  13  23  29  4
 2025-12-11 20:06:47 - lottery_ai - ERROR - logger.py:138 - Error processing MaxMillion input: invalid literal for int() with base 10: '01  03  05  26  31  38  45'
+2025-12-13 19:09:31 - lottery_ai - ERROR - logger.py:138 - ❌ Model training error: Failed to extract targets - raw CSV data required
+2025-12-13 19:45:38 - lottery_ai - ERROR - logger.py:138 - ❌ Model training error: Invalid classes inferred from unique values of `y`.  Expected: [ 0  1  2  3  4  5  6  7  8  9 10 11 12 13 14 15 16 17 18 19 20 21 22 23
+ 24 25 26 27 28 29 30 31 32], got [16 17 18 19 20 21 22 23 24 25 26 27 28 29 30 31 32 33 34 35 36 37 38 39
+ 40 41 42 43 44 45 46 47 48]
+2025-12-13 19:52:16 - lottery_ai - ERROR - logger.py:138 - ❌ Model training error: Invalid classes inferred from unique values of `y`.  Expected: [ 0  1  2  3  4  5  6  7  8  9 10 11 12 13 14 15 16 17 18 19 20 21 22 23
+ 24 25 26 27 28 29 30 31 32], got [16 17 18 19 20 21 22 23 24 25 26 27 28 29 30 31 32 33 34 35 36 37 38 39
+ 40 41 42 43 44 45 46 47 48]
+2025-12-13 19:55:28 - lottery_ai - ERROR - logger.py:138 - ❌ Model training error: Invalid classes inferred from unique values of `y`.  Expected: [ 0  1  2  3  4  5  6  7  8  9 10 11 12 13 14 15 16 17 18 19 20 21 22 23
+ 24 25 26], got [ 0  1  2  3  4  5  6  7  8  9 10 11 12 13 14 15 16 17 18 19 20 21 22 24
+ 25 29 32]
+2025-12-13 21:05:26 - lottery_ai - ERROR - logger.py:138 - ❌ Model training error: Found input variables with inconsistent numbers of samples: [239, 1]
+2025-12-13 21:16:22 - lottery_ai - ERROR - logger.py:138 - ❌ Model training error: 'complete_set_accuracy'
+2025-12-13 22:47:05 - lottery_ai - ERROR - logger.py:138 - ❌ Model training error: Found input variables with inconsistent numbers of samples: [437, 1]

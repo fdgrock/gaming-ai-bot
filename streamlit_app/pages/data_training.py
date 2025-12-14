@@ -1900,22 +1900,57 @@ def _train_advanced_model(
                         app_log(f"  {comp_name.upper()} - Accuracy: {accuracy:.4f}, Weight: {weight:.1f}%", "info")
         else:
             metrics_data = metrics_to_save.get(model_type.lower(), {})
-            st.info(f"""
-            **Model Details:**
-            - 📁 **Saved Location:** `{model_path}`
-            - 🤖 **Model Type:** {model_type}
-            - 📊 **Accuracy:** {metrics_data.get('accuracy', 0):.4f}
-            - 🎯 **Precision:** {metrics_data.get('precision', 0):.4f}
-            - 📈 **Recall:** {metrics_data.get('recall', 0):.4f}
-            - 🔧 **F1 Score:** {metrics_data.get('f1', 0):.4f}
-            """)
             
-            app_log(f"{model_type} Model Details:", "info")
-            app_log(f"  - Location: {model_path}", "info")
-            app_log(f"  - Accuracy: {metrics_data.get('accuracy', 0):.4f}", "info")
-            app_log(f"  - Precision: {metrics_data.get('precision', 0):.4f}", "info")
-            app_log(f"  - Recall: {metrics_data.get('recall', 0):.4f}", "info")
-            app_log(f"  - F1 Score: {metrics_data.get('f1', 0):.4f}", "info")
+            # Check if this is a multi-output model
+            is_multi_output = metrics_data.get('output_type') == 'multi-output'
+            
+            if is_multi_output:
+                # Multi-output specific metrics display
+                st.info(f"""
+                **Model Details:**
+                - 📁 **Saved Location:** `{model_path}`
+                - 🤖 **Model Type:** {model_type} (Multi-Output)
+                - 🎯 **Output Positions:** {metrics_data.get('n_outputs', 7)}
+                - 📊 **Avg Position Accuracy:** {metrics_data.get('accuracy', 0):.4f}
+                - 🎲 **Complete Set Accuracy:** {metrics_data.get('set_accuracy', 0):.4f}
+                - 📈 **Train Size:** {metrics_data.get('train_size', 0)}
+                - 🧪 **Test Size:** {metrics_data.get('test_size', 0)}
+                """)
+                
+                app_log(f"{model_type} Model Details (Multi-Output):", "info")
+                app_log(f"  - Location: {model_path}", "info")
+                app_log(f"  - Output Positions: {metrics_data.get('n_outputs', 7)}", "info")
+                app_log(f"  - Avg Position Accuracy: {metrics_data.get('accuracy', 0):.4f}", "info")
+                app_log(f"  - Complete Set Accuracy: {metrics_data.get('set_accuracy', 0):.4f}", "info")
+                
+                # Show per-position accuracies
+                if 'position_accuracies' in metrics_data:
+                    st.markdown("**Per-Position Accuracy:**")
+                    pos_cols = st.columns(7)
+                    for i, acc in enumerate(metrics_data['position_accuracies']):
+                        with pos_cols[i]:
+                            st.metric(f"Pos {i+1}", f"{acc:.3f}")
+                    app_log("  Per-position accuracies:", "info")
+                    for i, acc in enumerate(metrics_data['position_accuracies']):
+                        app_log(f"    Position {i+1}: {acc:.4f}", "info")
+            else:
+                # Single-output metrics display
+                st.info(f"""
+                **Model Details:**
+                - 📁 **Saved Location:** `{model_path}`
+                - 🤖 **Model Type:** {model_type}
+                - 📊 **Accuracy:** {metrics_data.get('accuracy', 0):.4f}
+                - 🎯 **Precision:** {metrics_data.get('precision', 0):.4f}
+                - 📈 **Recall:** {metrics_data.get('recall', 0):.4f}
+                - 🔧 **F1 Score:** {metrics_data.get('f1', 0):.4f}
+                """)
+                
+                app_log(f"{model_type} Model Details:", "info")
+                app_log(f"  - Location: {model_path}", "info")
+                app_log(f"  - Accuracy: {metrics_data.get('accuracy', 0):.4f}", "info")
+                app_log(f"  - Precision: {metrics_data.get('precision', 0):.4f}", "info")
+                app_log(f"  - Recall: {metrics_data.get('recall', 0):.4f}", "info")
+                app_log(f"  - F1 Score: {metrics_data.get('f1', 0):.4f}", "info")
         
         # Display comprehensive metrics
         st.markdown("**Training Metrics:**")

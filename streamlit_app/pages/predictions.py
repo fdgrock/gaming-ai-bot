@@ -27,6 +27,7 @@ from plotly.subplots import make_subplots
 import json
 import traceback
 from sklearn.preprocessing import StandardScaler
+from sklearn.multioutput import MultiOutputClassifier
 
 # ML Prediction Engine imports
 try:
@@ -35,6 +36,11 @@ except ImportError:
     # Fallback if import fails
     PredictionEngine = None
     SamplingStrategy = None
+
+# Multi-output detection helper
+def _is_multi_output_model(model) -> bool:
+    """Check if model is multi-output (predicts all 7 lottery numbers)"""
+    return isinstance(model, MultiOutputClassifier) or hasattr(model, 'estimators_')
 
 # Synchronized prediction system imports
 try:
@@ -4251,108 +4257,134 @@ def _generate_single_model_predictions(game: str, count: int, mode: str, model_t
                 # Get prediction probabilities
                 try:
                     tracer.log("MODEL_PREDICT", f"Set {i+1}: Calling model.predict_proba with input shape {random_input_scaled.shape if hasattr(random_input_scaled, 'shape') else 'unknown'}")
-                    pred_probs = model.predict_proba(random_input_scaled)[0]
-                    tracer.log("MODEL_OUTPUT", f"Set {i+1}: Got prediction probabilities shape {pred_probs.shape}, values: {[f'{p:.4f}' for p in pred_probs[:min(10, len(pred_probs))]]}")
+                    
+                    # Detect multi-output model
+                    is_multi_output = _is_multi_output_model(model)
+                    
+                    if is_multi_output:
+                        # Multi-output model: returns (n_samples, 7) predictions
+                        # Each position predicts one lottery number (1-50 for Lotto Max)
+                        pred_indices = model.predict(random_input_scaled)[0]  # Shape: (7,)
+                        numbers = sorted([int(idx) + 1 for idx in pred_indices])  # Convert 0-based to 1-based
+                        
+                        # Calculate confidence from position-level probabilities
+                        pred_probs_multi = model.predict_proba(random_input_scaled)  # List of 7 arrays
+                        position_confidences = []
+                        for pos_idx, pred_class in enumerate(pred_indices):
+                            if hasattr(pred_probs_multi, '__getitem__'):
+                                pos_probs = pred_probs_multi[pos_idx][0]  # Probs for this position
+                                position_confidences.append(pos_probs[int(pred_class)])
+                        confidence = float(np.mean(position_confidences)) if position_confidences else 0.85
+                        
+                        tracer.log("MULTI_OUTPUT", f"Set {i+1}: Multi-output model predicted {numbers} with confidence {confidence:.3f}")
+                        tracer.log("MODEL_OUTPUT", f"Set {i+1}: Position predictions: {pred_indices.tolist()}, Confidence per position: {[f'{c:.3f}' for c in position_confidences]}")
+                    else:
+                        # Single-output model: standard prediction flow
+                        pred_probs = model.predict_proba(random_input_scaled)[0]
+                        tracer.log("MODEL_OUTPUT", f"Set {i+1}: Got prediction probabilities shape {pred_probs.shape}, values: {[f'{p:.4f}' for p in pred_probs[:min(10, len(pred_probs))]]}")
                 except AttributeError:
                     app_logger.warning(f"Model type {model_type_lower} does not have predict_proba, using random fallback")
                     tracer.log_fallback(i+1, "Model does not have predict_proba", "Random")
                     numbers = sorted(rng.choice(range(1, max_number + 1), main_nums, replace=False).tolist())
                     confidence = confidence_threshold
+                    is_multi_output = False
                 else:
-                    # For models trained on digits (0-9), we need multiple samples to get all positions
-                    # Each model prediction gives us the first digit, so generate multiple times
-                    if len(pred_probs) == 10:  # Digit classification (0-9)
-                        tracer.log("NUMBER_GEN", f"Set {i+1}: Digit classification mode detected (10 classes)")
-                        # Generate full lottery numbers using sequential predictions
-                        candidates = []
-                        for attempt in range(100):  # Try up to 100 different inputs to find variety
-                            # Use different noise levels for each attempt
-                            attempt_noise = rng.normal(0, 0.02 + (attempt / 500), size=feature_vector.shape)
-                            attempt_input = feature_vector * (1 + attempt_noise)
-                            attempt_input = attempt_input.reshape(1, -1)
+                    # Only process single-output predictions if not multi-output
+                    if not is_multi_output:
+                        # For models trained on digits (0-9), we need multiple samples to get all positions
+                        # Each model prediction gives us the first digit, so generate multiple times
+                        if len(pred_probs) == 10:  # Digit classification (0-9)
+                            tracer.log("NUMBER_GEN", f"Set {i+1}: Digit classification mode detected (10 classes)")
+                            # Generate full lottery numbers using sequential predictions
+                            candidates = []
+                            for attempt in range(100):  # Try up to 100 different inputs to find variety
+                                # Use different noise levels for each attempt
+                                attempt_noise = rng.normal(0, 0.02 + (attempt / 500), size=feature_vector.shape)
+                                attempt_input = feature_vector * (1 + attempt_noise)
+                                attempt_input = attempt_input.reshape(1, -1)
+                                
+                                try:
+                                    attempt_scaled = active_scaler.transform(attempt_input)
+                                except ValueError:
+                                    # Handle dimension mismatch
+                                    if attempt_input.shape[1] < active_scaler.n_features_in_:
+                                        padding = np.zeros((attempt_input.shape[0], active_scaler.n_features_in_ - attempt_input.shape[1]))
+                                        attempt_input = np.hstack([attempt_input, padding])
+                                    else:
+                                        attempt_input = attempt_input[:, :active_scaler.n_features_in_]
+                                    attempt_scaled = active_scaler.transform(attempt_input)
+                                
+                                # Pad scaled data to model's feature count
+                                if attempt_scaled.shape[1] < feature_dim:
+                                    padding = np.zeros((attempt_scaled.shape[0], feature_dim - attempt_scaled.shape[1]))
+                                    attempt_scaled = np.hstack([attempt_scaled, padding])
+                                elif attempt_scaled.shape[1] > feature_dim:
+                                    attempt_scaled = attempt_scaled[:, :feature_dim]
+                                
+                                try:
+                                    attempt_probs = model.predict_proba(attempt_scaled)[0]
+                                    # Pick number based on weighted probability from ALL available classes
+                                    # Don't hardcode to 10 classes - use however many the model outputs
+                                    num_classes = len(attempt_probs)
+                                    if num_classes > 0:
+                                        predicted_class = rng.choice(num_classes, p=attempt_probs / attempt_probs.sum())
+                                        # Convert class index (0-based) to lottery number (1-based)
+                                        predicted_num = predicted_class + 1
+                                        candidates.append(predicted_num)
+                                except:
+                                    pass
+                                
+                                if len(candidates) >= main_nums * 2:  # Enough candidates
+                                    break
                             
-                            try:
-                                attempt_scaled = active_scaler.transform(attempt_input)
-                            except ValueError:
-                                # Handle dimension mismatch
-                                if attempt_input.shape[1] < active_scaler.n_features_in_:
-                                    padding = np.zeros((attempt_input.shape[0], active_scaler.n_features_in_ - attempt_input.shape[1]))
-                                    attempt_input = np.hstack([attempt_input, padding])
+                            if candidates:
+                                # Pick most likely numbers (those that appear most in candidates)
+                                counter = Counter(candidates)
+                                top_nums = [num for num, _ in counter.most_common()]  # Get all candidates sorted by frequency
+                                
+                                # Model may only generate candidates in range 1-32 (if model has 32 classes)
+                                # Take top model predictions, then fill remaining from full range for diversity
+                                max_from_model = min(main_nums - 1, len(top_nums))  # Keep at least 1 slot for diversity
+                                selected_from_model = sorted(top_nums[:max_from_model])
+                                
+                                # Fill remaining slots from full range to ensure coverage
+                                needed = main_nums - len(selected_from_model)
+                                if needed > 0:
+                                    available = [n for n in range(1, max_number + 1) if n not in selected_from_model]
+                                    if available:
+                                        additional = sorted(rng.choice(available, min(needed, len(available)), replace=False).tolist())
+                                        numbers = sorted(selected_from_model + additional)
+                                    else:
+                                        numbers = sorted(selected_from_model + rng.choice(range(1, max_number + 1), needed, replace=True).tolist())
                                 else:
-                                    attempt_input = attempt_input[:, :active_scaler.n_features_in_]
-                                attempt_scaled = active_scaler.transform(attempt_input)
-                            
-                            # Pad scaled data to model's feature count
-                            if attempt_scaled.shape[1] < feature_dim:
-                                padding = np.zeros((attempt_scaled.shape[0], feature_dim - attempt_scaled.shape[1]))
-                                attempt_scaled = np.hstack([attempt_scaled, padding])
-                            elif attempt_scaled.shape[1] > feature_dim:
-                                attempt_scaled = attempt_scaled[:, :feature_dim]
-                            
-                            try:
-                                attempt_probs = model.predict_proba(attempt_scaled)[0]
-                                # Pick number based on weighted probability from ALL available classes
-                                # Don't hardcode to 10 classes - use however many the model outputs
-                                num_classes = len(attempt_probs)
-                                if num_classes > 0:
-                                    predicted_class = rng.choice(num_classes, p=attempt_probs / attempt_probs.sum())
-                                    # Convert class index (0-based) to lottery number (1-based)
-                                    predicted_num = predicted_class + 1
-                                    candidates.append(predicted_num)
-                            except:
-                                pass
-                            
-                            if len(candidates) >= main_nums * 2:  # Enough candidates
-                                break
-                        
-                        if candidates:
-                            # Pick most likely numbers (those that appear most in candidates)
-                            counter = Counter(candidates)
-                            top_nums = [num for num, _ in counter.most_common()]  # Get all candidates sorted by frequency
-                            
-                            # Model may only generate candidates in range 1-32 (if model has 32 classes)
-                            # Take top model predictions, then fill remaining from full range for diversity
-                            max_from_model = min(main_nums - 1, len(top_nums))  # Keep at least 1 slot for diversity
-                            selected_from_model = sorted(top_nums[:max_from_model])
-                            
-                            # Fill remaining slots from full range to ensure coverage
-                            needed = main_nums - len(selected_from_model)
-                            if needed > 0:
-                                available = [n for n in range(1, max_number + 1) if n not in selected_from_model]
-                                if available:
-                                    additional = sorted(rng.choice(available, min(needed, len(available)), replace=False).tolist())
-                                    numbers = sorted(selected_from_model + additional)
-                                else:
-                                    numbers = sorted(selected_from_model + rng.choice(range(1, max_number + 1), needed, replace=True).tolist())
+                                    numbers = sorted(selected_from_model)
+                                
+                                # Confidence based on how consistent model predictions were
+                                most_common_count = counter[top_nums[0]]
+                                confidence = min(0.95, most_common_count / len(candidates))
                             else:
-                                numbers = sorted(selected_from_model)
-                            
-                            # Confidence based on how consistent model predictions were
-                            most_common_count = counter[top_nums[0]]
-                            confidence = min(0.95, most_common_count / len(candidates))
+                                # Fallback to probability-based selection
+                                if len(pred_probs) > main_nums:
+                                    top_indices = np.argsort(pred_probs)[-main_nums:]
+                                    numbers = sorted((top_indices + 1).tolist())
+                                    confidence = float(np.mean(np.sort(pred_probs)[-main_nums:]))
+                                    tracer.log_number_extraction(i+1, list(top_indices + 1), numbers, "Top probability indices", 
+                                                                {"top_probs": [f"{p:.4f}" for p in np.sort(pred_probs)[-main_nums:]]})
+                                else:
+                                    numbers = sorted(rng.choice(range(1, max_number + 1), main_nums, replace=False).tolist())
+                                    confidence = np.mean(pred_probs)
+                                    tracer.log("NUMBER_GEN", f"Set {i+1}: Used random fallback (pred_probs too small: {len(pred_probs)} < {main_nums})")
                         else:
-                            # Fallback to probability-based selection
+                            # For other classification types, extract top numbers by probability
                             if len(pred_probs) > main_nums:
                                 top_indices = np.argsort(pred_probs)[-main_nums:]
                                 numbers = sorted((top_indices + 1).tolist())
                                 confidence = float(np.mean(np.sort(pred_probs)[-main_nums:]))
-                                tracer.log_number_extraction(i+1, list(top_indices + 1), numbers, "Top probability indices", 
-                                                            {"top_probs": [f"{p:.4f}" for p in np.sort(pred_probs)[-main_nums:]]})
+                                tracer.log("NUMBER_GEN", f"Set {i+1}: Selected {numbers} from classification output")
                             else:
                                 numbers = sorted(rng.choice(range(1, max_number + 1), main_nums, replace=False).tolist())
                                 confidence = np.mean(pred_probs)
-                                tracer.log("NUMBER_GEN", f"Set {i+1}: Used random fallback (pred_probs too small: {len(pred_probs)} < {main_nums})")
-                    else:
-                        # For other classification types, extract top numbers by probability
-                        if len(pred_probs) > main_nums:
-                            top_indices = np.argsort(pred_probs)[-main_nums:]
-                            numbers = sorted((top_indices + 1).tolist())
-                            confidence = float(np.mean(np.sort(pred_probs)[-main_nums:]))
-                            tracer.log("NUMBER_GEN", f"Set {i+1}: Selected {numbers} from classification output")
-                        else:
-                            numbers = sorted(rng.choice(range(1, max_number + 1), main_nums, replace=False).tolist())
-                            confidence = np.mean(pred_probs)
-                            tracer.log_fallback(i+1, f"Output too small ({len(pred_probs)} classes)", "Random selection")
+                                tracer.log_fallback(i+1, f"Output too small ({len(pred_probs)} classes)", "Random selection")
             
             # ===== ADVANCED PROBABILITY MANIPULATION WITH MATHEMATICAL RIGOR =====
             # Apply advanced techniques to improve prediction diversity and quality
@@ -5256,6 +5288,29 @@ def _generate_ensemble_predictions(game: str, count: int, models_dict: Dict[str,
             for model_type, model in models_loaded.items():
                 try:
                     pred_probs = None
+                    
+                    # Detect multi-output model
+                    is_multi_output = _is_multi_output_model(model)
+                    
+                    if is_multi_output:
+                        # Multi-output model: predicts all 7 positions
+                        pred_indices = model.predict(random_input_scaled)[0]  # Shape: (7,)
+                        pred_numbers = [int(idx) + 1 for idx in pred_indices]  # Convert to 1-based
+                        
+                        # Get confidence per position from predict_proba
+                        pred_probs_multi = model.predict_proba(random_input_scaled)
+                        weight = ensemble_weights.get(model_type, 1.0 / len(models_loaded))
+                        
+                        # Vote for each predicted number with position-level confidence
+                        for pos_idx, num in enumerate(pred_numbers):
+                            pos_probs = pred_probs_multi[pos_idx][0]
+                            pos_confidence = pos_probs[int(pred_indices[pos_idx])]
+                            vote_strength = pos_confidence * weight
+                            all_votes[num] = all_votes.get(num, 0) + vote_strength
+                        
+                        model_predictions[model_type] = sorted(pred_numbers)
+                        app_logger.debug(f"Ensemble set {pred_set_idx}: {model_type} (multi-output) voted for {sorted(pred_numbers)} with weight {weight:.3f}")
+                        continue  # Skip single-output path
                     
                     if model_type in ["Transformer", "LSTM", "CNN"]:
                         # Reshape for deep learning models
