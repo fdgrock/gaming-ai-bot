@@ -3199,7 +3199,7 @@ class AdvancedModelTrainer:
             metrics: Model metrics (should include 'feature_count')
         
         Returns:
-            model_path: Path where model was saved
+            model_path: Path where model was saved (with extension)
         """
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         model_name = f"{model_type}_{self.game_folder}_{timestamp}"
@@ -3218,11 +3218,17 @@ class AdvancedModelTrainer:
         else:
             model_dir = self.models_dir / model_type
             model_dir.mkdir(parents=True, exist_ok=True)
-            model_path = model_dir / model_name
-            self._save_single_model(model, model_path, model_type, metrics)
+            base_model_path = model_dir / model_name
+            self._save_single_model(model, base_model_path, model_type, metrics)
+            
+            # Return path with correct extension
+            if model_type in ["lstm", "transformer", "cnn"]:
+                model_path = f"{base_model_path}.keras"
+            else:
+                model_path = f"{base_model_path}.joblib"
         
         # Save metadata
-        metadata_path = Path(model_path) / "metadata.json" if model_type == "ensemble" else Path(str(model_path) + "_metadata.json")
+        metadata_path = Path(model_path) / "metadata.json" if model_type == "ensemble" else Path(str(model_path).replace('.keras', '').replace('.joblib', '') + "_metadata.json")
         metadata_path.parent.mkdir(parents=True, exist_ok=True)
         
         with open(metadata_path, "w") as f:

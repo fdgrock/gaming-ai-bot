@@ -95,14 +95,14 @@ class ProbabilityGenerator:
                 "number_range": (1, 49),
                 "bonus": 1,
                 "display_name": "Lotto 6/49",
-                "registry_name": "lotto 6_49"
+                "registry_name": "lotto_6_49"
             },
             "lotto_max": {
                 "main_numbers": 7,
                 "number_range": (1, 50),
                 "bonus": 1,
                 "display_name": "Lotto Max",
-                "registry_name": "lotto max"
+                "registry_name": "lotto_max"
             }
         }
         
@@ -430,16 +430,48 @@ class ProbabilityGenerator:
                 model = joblib.load(model_path)
                 
                 if hasattr(model, 'predict_proba'):
-                    class_probs = model.predict_proba(features)[0]  # Take first (only) sample
-                    logger.info(f"Tree model {model_type} output {len(class_probs)} class probabilities")
-                    logger.info(f"Class probs sample: {class_probs[:5]}...")
+                    proba_output = model.predict_proba(features)
                     
-                    # Convert to number probabilities
-                    number_probs = self._convert_class_probs_to_number_probs(class_probs)
-                    logger.info(f"Converted to {len(number_probs)} number probabilities")
-                    top_indices = np.argsort(number_probs)[-5:][::-1]
-                    logger.info(f"Top 5 numbers: {top_indices + 1}, probs: {number_probs[top_indices]}")
-                    return number_probs
+                    # Check if this is multi-output (list of arrays) or single-output (single array)
+                    if isinstance(proba_output, list):
+                        # Multi-output model: each element is probabilities for one position
+                        logger.info(f"Multi-output tree model with {len(proba_output)} positions")
+                        
+                        # Aggregate probabilities across all positions
+                        number_probs = np.zeros(self.num_numbers)
+                        for pos_idx, pos_probs in enumerate(proba_output):
+                            # pos_probs shape: (n_samples, n_classes)
+                            # Take first sample, get probabilities for each class (number)
+                            if len(pos_probs.shape) == 2:
+                                sample_probs = pos_probs[0]  # First sample
+                            else:
+                                sample_probs = pos_probs
+                            
+                            # Add this position's probabilities (classes 0-49 map to numbers 1-50)
+                            for class_id, prob in enumerate(sample_probs):
+                                if class_id < self.num_numbers:
+                                    number_probs[class_id] += prob
+                            
+                            logger.info(f"Position {pos_idx + 1} top class: {np.argmax(sample_probs) + 1} (prob: {np.max(sample_probs):.3f})")
+                        
+                        # Normalize to sum to 1
+                        number_probs = number_probs / number_probs.sum()
+                        logger.info(f"Aggregated {len(number_probs)} number probabilities from multi-output")
+                        top_indices = np.argsort(number_probs)[-5:][::-1]
+                        logger.info(f"Top 5 numbers: {top_indices + 1}, probs: {number_probs[top_indices]}")
+                        return number_probs
+                    else:
+                        # Single-output model: class probabilities
+                        class_probs = proba_output[0] if len(proba_output.shape) == 2 else proba_output
+                        logger.info(f"Single-output tree model with {len(class_probs)} class probabilities")
+                        logger.info(f"Class probs sample: {class_probs[:5]}...")
+                        
+                        # Convert to number probabilities
+                        number_probs = self._convert_class_probs_to_number_probs(class_probs)
+                        logger.info(f"Converted to {len(number_probs)} number probabilities")
+                        top_indices = np.argsort(number_probs)[-5:][::-1]
+                        logger.info(f"Top 5 numbers: {top_indices + 1}, probs: {number_probs[top_indices]}")
+                        return number_probs
                 else:
                     # No predict_proba, use uniform fallback
                     return np.ones(self.num_numbers) / self.num_numbers

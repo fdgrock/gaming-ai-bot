@@ -3071,6 +3071,57 @@ def _train_advanced_model(
         model_path = trainer.save_model(model_to_save, model_type.lower(), metrics_to_save)
         app_log(f"✅ Model saved to: {model_path}", "info")
         
+        # Step 4: Register model in registry for prediction engine
+        progress_callback(0.95, "📝 Registering model in ModelRegistry...")
+        app_log("Registering model in ModelRegistry for prediction engine...", "info")
+        
+        try:
+            from streamlit_app.services.model_registry import ModelRegistry
+            from streamlit_app.services.feature_schema import FeatureSchema, NormalizationMethod
+            import platform
+            
+            registry = ModelRegistry()
+            
+            # Create feature schema from metadata (use datetime already imported at top of file)
+            feature_names = list(trainer.feature_names) if hasattr(trainer, 'feature_names') and trainer.feature_names else []
+            current_timestamp = datetime.now().isoformat()
+            
+            feature_schema = FeatureSchema(
+                model_type=model_type.lower(),
+                game=game,
+                schema_version="1.0",
+                created_at=current_timestamp,
+                feature_names=feature_names if feature_names else [f"feature_{i}" for i in range(metadata.get("feature_count", X.shape[1]))],
+                feature_count=metadata.get("feature_count", X.shape[1]),
+                normalization_method=NormalizationMethod.ROBUST_SCALER,
+                data_shape=(X.shape[0], X.shape[1]),
+                raw_data_version="1.0",
+                raw_data_date_generated=current_timestamp,
+                python_version=platform.python_version(),
+                created_by="AdvancedModelTrainer"
+            )
+            
+            # Register the model
+            success, message = registry.register_model(
+                model_path=Path(model_path),
+                model_type=model_type.lower(),
+                game=game,
+                feature_schema=feature_schema,
+                metadata=metrics_to_save
+            )
+            
+            if success:
+                app_log(f"Model registered successfully: {game} - {model_type.lower()}", "info")
+                progress_callback(0.98, f"✅ Model registered: {game} - {model_type}")
+            else:
+                app_log(f"Model registration warning: {message}", "warning")
+                progress_callback(0.98, f"⚠️ Registration warning: {message}")
+                
+        except Exception as e:
+            app_log(f"Could not register model in registry: {str(e)}", "error")
+            progress_callback(0.98, "⚠️ Model registration failed (non-critical)")
+            # Don't fail training if registration fails
+        
         progress_callback(1.0, "✅ Training complete!")
         
         st.divider()

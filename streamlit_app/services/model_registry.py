@@ -55,7 +55,9 @@ class ModelRegistry:
     
     def _get_registry_key(self, game: str, model_type: str) -> str:
         """Generate unique registry key"""
-        return f"{game.lower().replace('/', '_')}_{model_type.lower()}"
+        # Normalize: lowercase, replace slashes and spaces with underscores
+        game_normalized = game.lower().replace('/', '_').replace(' ', '_')
+        return f"{game_normalized}_{model_type.lower()}"
     
     def register_model(
         self,
