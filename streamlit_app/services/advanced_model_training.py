@@ -958,8 +958,11 @@ class AdvancedModelTrainer:
                     # CRITICAL: Sort by draw_date to maintain chronological order
                     if "draw_date" in df.columns:
                         df = df.sort_values("draw_date", ascending=True).reset_index(drop=True)
-                    # Drop non-numeric columns
+                    # Drop non-numeric columns AND metadata columns
                     numeric_df = df.select_dtypes(include=[np.number])
+                    # Explicitly exclude 'numbers' column if it somehow got included
+                    if "numbers" in numeric_df.columns:
+                        numeric_df = numeric_df.drop(columns=["numbers"])
                     dfs.append(numeric_df)
             
             if dfs:
@@ -988,6 +991,9 @@ class AdvancedModelTrainer:
                         df = df.sort_values("draw_date", ascending=True).reset_index(drop=True)
                     # Drop non-numeric columns (like draw_date)
                     numeric_df = df.select_dtypes(include=[np.number])
+                    # Explicitly exclude 'numbers' column if it somehow got included
+                    if "numbers" in numeric_df.columns:
+                        numeric_df = numeric_df.drop(columns=["numbers"])
                     dfs.append(numeric_df)
             
             if dfs:
@@ -1023,6 +1029,9 @@ class AdvancedModelTrainer:
                     
                     # Drop non-numeric columns (like draw_date)
                     numeric_df = df.select_dtypes(include=[np.number])
+                    # Explicitly exclude 'numbers' column if it somehow got included
+                    if "numbers" in numeric_df.columns:
+                        numeric_df = numeric_df.drop(columns=["numbers"])
                     dfs.append(numeric_df)
             
             if dfs:

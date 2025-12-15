@@ -911,11 +911,33 @@ def _render_advanced_features():
         **Why Feature Optimization?**
         - Too many features → overfitting, slow training, poor generalization
         - Solution → Keep only the most predictive features
+        
+        **⚠️ IMPORTANT - Model-Specific Recommendations:**
         """)
         
-        enable_optimization = st.checkbox("Enable Feature Optimization", value=True, key="enable_optimization")
+        # Add recommendation table
+        st.markdown("""
+        | Model Type | Recommended Setting | Reason |
+        |------------|-------------------|---------|
+        | **XGBoost** | ❌ **Disable** or use **RFE only** | Tree models handle high dimensions well, PCA loses interpretability |
+        | **CatBoost** | ❌ **Disable** or use **RFE only** | Excels with many features, built-in feature importance |
+        | **LightGBM** | ❌ **Disable** or use **RFE only** | Leaf-wise growth benefits from all features |
+        | **LSTM** | ✅ **RFE or Hybrid** | Reduces sequence complexity, prevents overfitting |
+        | **CNN** | ✅ **PCA or Hybrid** | Works well with compressed representations |
+        | **Transformer** | ⚠️ **Disable** | Attention mechanism handles feature selection internally |
+        
+        **Quick Guide:**
+        - **Tree Models (XGBoost/CatBoost/LightGBM)**: Use original features for best accuracy
+        - **Neural Models (LSTM/CNN)**: Optimization helps reduce parameters
+        - **Hybrid (RFE+PCA)**: ⚠️ Can reduce accuracy significantly - use with caution!
+        """)
+        
+        enable_optimization = st.checkbox("Enable Feature Optimization", value=False, key="enable_optimization",
+            help="⚠️ See recommendations above - disabling often gives better results for tree models!")
         
         if enable_optimization:
+            st.warning("⚠️ Optimization enabled - this may reduce accuracy for tree-based models. Check recommendations above!")
+            
             optimization_method = st.radio(
                 "Optimization Method",
                 [
@@ -924,7 +946,8 @@ def _render_advanced_features():
                     "Feature Importance Thresholding",
                     "Hybrid (RFE + PCA)"
                 ],
-                key="opt_method"
+                key="opt_method",
+                help="RFE: Removes least important features | PCA: Compresses to principal components | Importance: Threshold-based selection | Hybrid: Both RFE and PCA"
             )
             
             col_opt1, col_opt2 = st.columns(2)
@@ -1592,12 +1615,20 @@ def _render_advanced_features():
                 # Validate if configured
                 if validation_config.get('enabled', False):
                     with st.spinner("Validating feature quality..."):
+                        # Get only numeric columns, excluding metadata columns
                         numeric_cols = xgb_features.select_dtypes(include=[np.number]).columns
-                        validation_results = feature_gen.validate_features(xgb_features[numeric_cols].values, validation_config)
-                        xgb_metadata['validation_passed'] = validation_results['passed']
-                        xgb_metadata['validation_config'] = validation_config
-                        xgb_metadata['validation_results'] = validation_results
-                        validation_passed = validation_results['passed']
+                        # Explicitly exclude any metadata columns that might have snuck through
+                        exclude_cols = ['numbers', 'draw_date']
+                        numeric_cols = [col for col in numeric_cols if col not in exclude_cols]
+                        
+                        if len(numeric_cols) == 0:
+                            st.warning("⚠️ No numeric columns found for validation")
+                        else:
+                            validation_results = feature_gen.validate_features(xgb_features[numeric_cols].values, validation_config)
+                            xgb_metadata['validation_passed'] = validation_results['passed']
+                            xgb_metadata['validation_config'] = validation_config
+                            xgb_metadata['validation_results'] = validation_results
+                            validation_passed = validation_results['passed']
                         
                         if not validation_results['passed']:
                             st.error(f"⚠️ Validation found {len(validation_results['issues_found'])} issues")
@@ -2219,40 +2250,45 @@ def _get_feature_files(game: str, feature_type: str, prefer_optimized: bool = Tr
         # Return all files sorted by name
         return sorted(features_dir.glob("*"))
     
-    # Prioritize by quality level
+    # Get all files and prioritize by quality indicators in filename
+    all_files = sorted(features_dir.glob("*"))
     quality_files = []
     
-    # Priority 1: Optimized + Validated
-    optimized_validated = sorted(features_dir.glob("*_optimized_validated_*.csv"))
-    if optimized_validated:
-        quality_files.extend(optimized_validated)
+    # Priority 1: Optimized + Validated (OPTIMIZED_VALID or optimized_validated)
+    for f in all_files:
+        fname_upper = f.name.upper()
+        if ("OPTIMIZED" in fname_upper and "VALID" in fname_upper) or ("_OPTIMIZED_VALID_" in fname_upper):
+            quality_files.append(f)
     
-    # Priority 2: Optimized
-    optimized = sorted(features_dir.glob("*_optimized_*.csv"))
-    # Exclude ones already in optimized_validated
-    optimized = [f for f in optimized if f not in quality_files]
-    if optimized:
-        quality_files.extend(optimized)
+    # Priority 2: Optimized only
+    for f in all_files:
+        if f in quality_files:
+            continue
+        fname_upper = f.name.upper()
+        if "OPTIMIZED" in fname_upper:
+            quality_files.append(f)
     
-    # Priority 3: Validated
-    validated = sorted(features_dir.glob("*_validated_*.csv"))
-    # Exclude ones already in previous lists
-    validated = [f for f in validated if f not in quality_files]
-    if validated:
-        quality_files.extend(validated)
+    # Priority 3: Validated only  
+    for f in all_files:
+        if f in quality_files:
+            continue
+        fname_upper = f.name.upper()
+        if "VALID" in fname_upper:
+            quality_files.append(f)
     
-    # Priority 4: Regular features
-    regular = sorted(features_dir.glob("*_features_*.csv"))
-    # Exclude ones already in previous lists
-    regular = [f for f in regular if f not in quality_files]
-    if regular:
-        quality_files.extend(regular)
+    # Priority 4: Regular features (not already included)
+    for f in all_files:
+        if f in quality_files:
+            continue
+        quality_files.append(f)
     
-    # If no CSV files, fall back to all files
-    if not quality_files:
-        quality_files = sorted(features_dir.glob("*"))
+    # Log which files were selected and their priority
+    if quality_files:
+        app_log(f"Feature file selection for {feature_type}:", "info")
+        for idx, f in enumerate(quality_files[:3], 1):  # Show top 3
+            app_log(f"  {idx}. {f.name}", "info")
     
-    return quality_files
+    return quality_files if quality_files else all_files
 
 
 def _estimate_total_samples(data_sources: Dict[str, List[Path]]) -> int:

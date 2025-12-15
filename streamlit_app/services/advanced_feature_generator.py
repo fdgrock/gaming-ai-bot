@@ -2401,15 +2401,29 @@ class AdvancedFeatureGenerator:
         if not config.get('enabled', False):
             return validation_results
         
+        # Ensure features_data is numeric
+        try:
+            # Convert to float to ensure numeric operations work
+            if features_data.dtype == object or not np.issubdtype(features_data.dtype, np.number):
+                app_log("Warning: features_data contains non-numeric types, attempting conversion", "warning")
+                features_data = features_data.astype(float)
+        except (ValueError, TypeError) as e:
+            validation_results['issues_found'].append(f'Cannot convert features to numeric: {e}')
+            validation_results['passed'] = False
+            return validation_results
+        
         # Check for NaN/Inf
         if config.get('check_nan', True):
             validation_results['checks_run'].append('NaN/Inf check')
-            nan_count = np.isnan(features_data).sum()
-            inf_count = np.isinf(features_data).sum()
-            
-            if nan_count > 0 or inf_count > 0:
-                validation_results['issues_found'].append(f'Found {nan_count} NaN and {inf_count} Inf values')
-                validation_results['passed'] = False
+            try:
+                nan_count = np.isnan(features_data).sum()
+                inf_count = np.isinf(features_data).sum()
+                
+                if nan_count > 0 or inf_count > 0:
+                    validation_results['issues_found'].append(f'Found {nan_count} NaN and {inf_count} Inf values')
+                    validation_results['passed'] = False
+            except TypeError as e:
+                validation_results['warnings'].append(f'Could not check NaN/Inf: {e}')
         
         # Check for constant features
         if config.get('check_constant', True):
@@ -2417,11 +2431,14 @@ class AdvancedFeatureGenerator:
             variance_threshold = config.get('variance_threshold', 0.01)
             
             if len(features_data.shape) == 2:
-                variances = np.var(features_data, axis=0)
-                constant_count = (variances < variance_threshold).sum()
-                
-                if constant_count > 0:
-                    validation_results['warnings'].append(f'Found {constant_count} near-constant features')
+                try:
+                    variances = np.var(features_data, axis=0)
+                    constant_count = (variances < variance_threshold).sum()
+                    
+                    if constant_count > 0:
+                        validation_results['warnings'].append(f'Found {constant_count} near-constant features')
+                except Exception as e:
+                    validation_results['warnings'].append(f'Could not check variance: {e}')
         
         # Check for high correlation
         if config.get('check_correlation', True) and len(features_data.shape) == 2:
