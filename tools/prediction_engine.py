@@ -485,11 +485,22 @@ class ProbabilityGenerator:
                     raise ImportError("TensorFlow/Keras not available for neural network models")
                 
                 # Run inference to get class probabilities
-                class_probs = model.predict(features, verbose=0)
+                predictions = model.predict(features, verbose=0)
                 
-                # Handle output shape
-                if class_probs.ndim > 1:
-                    class_probs = class_probs[0]  # Take first sample
+                # Handle multi-output models (returns list of arrays, one per position)
+                if isinstance(predictions, list):
+                    logger.info(f"Multi-output {model_type} model detected, {len(predictions)} outputs")
+                    # For multi-output models, we need to aggregate predictions across all positions
+                    # Average the probabilities across all 7 positions
+                    class_probs = np.mean(predictions, axis=0)
+                    if class_probs.ndim > 1:
+                        class_probs = class_probs[0]
+                else:
+                    # Single output model
+                    class_probs = predictions
+                    # Handle output shape
+                    if class_probs.ndim > 1:
+                        class_probs = class_probs[0]  # Take first sample
                 
                 logger.info(f"Neural network {model_type} output {len(class_probs)} class probabilities")
                 logger.info(f"Class probs sample: {class_probs[:5]}...")
@@ -512,9 +523,17 @@ class ProbabilityGenerator:
                 # Run inference
                 predictions = model.predict(features, verbose=0)
                 
-                # Handle output shape
-                if predictions.ndim > 1:
-                    predictions = predictions[0]  # Take first sample
+                # Handle multi-output models (returns list of arrays)
+                if isinstance(predictions, list):
+                    logger.info(f"Multi-output Transformer model detected, {len(predictions)} outputs")
+                    # Average across all positions
+                    predictions = np.mean(predictions, axis=0)
+                    if predictions.ndim > 1:
+                        predictions = predictions[0]
+                else:
+                    # Handle output shape for single output
+                    if predictions.ndim > 1:
+                        predictions = predictions[0]  # Take first sample
                 
                 # Check if output is class probabilities or number probabilities
                 if len(predictions) == 33:
@@ -587,75 +606,172 @@ class ProbabilityGenerator:
                 # Call the correct method based on model type
                 # Tree models return DataFrames, neural nets return numpy arrays
                 if model_type == "lstm":
-                    # LSTM model was trained on FLAT features (shape: 1133,), not sequences
-                    # Generate all individual draw features and flatten the last one
+                    # Load LSTM model metadata to determine correct input shape
+                    # Extract model type from model_name (e.g., "lstm_lotto_max_20251216_175357" -> "lstm")
+                    model_type_only = model_type.lower()
+                    registry_name = self.config["registry_name"]
+                    try:
+                        model_path = Path(self.registry.get_model_path(registry_name, model_type_only))
+                    except:
+                        # Fallback if registry method fails
+                        models_dir = Path("models") / registry_name / model_type_only
+                        model_files = sorted(list(models_dir.glob(f"{model_type_only}_{registry_name}_*.keras")))
+                        model_path = model_files[-1] if model_files else None
+                    
+                    if model_path and model_path.exists():
+                        metadata_path = model_path.parent / f"{model_path.stem}_metadata.json"
+                        if metadata_path.exists():
+                            import json
+                            with open(metadata_path, 'r') as f:
+                                metadata = json.load(f)
+                            # Get metadata - handle nested structure
+                            model_meta = metadata.get('lstm', metadata)
+                            input_shape = model_meta.get('input_shape', [1133])
+                            # Ensure input_shape is tuple for proper unpacking
+                            input_shape = tuple(input_shape) if isinstance(input_shape, list) else input_shape
+                            feature_count = model_meta.get('feature_count', 1133)
+                            logger.info(f"LSTM metadata: input_shape={input_shape}, feature_count={feature_count}")
+                        else:
+                            # Fallback to old hardcoded value
+                            input_shape = (1133,)
+                            feature_count = 1133
+                            logger.warning(f"No metadata found for LSTM, using fallback: {input_shape}")
+                    else:
+                        input_shape = (1133,)
+                        feature_count = 1133
+                        logger.warning(f"Model path not found, using LSTM fallback: {input_shape}")
+                    
+                    # Generate LSTM sequences
                     sequences, meta = self.feature_generator.generate_lstm_sequences(historical_data)
                     # sequences shape: (num_sequences, window_size, num_features)
-                    # We need a single flat vector of shape (1, 1133)
                     
                     # The model expects the flattened last sequence
                     last_sequence = sequences[-1]  # Shape: (window_size, num_features)
                     flat_features = last_sequence.flatten()  # Flatten: (window_size * num_features,)
                     
-                    # Pad or trim to match expected size (1133)
-                    expected_size = 1133
+                    # Reshape to match metadata input_shape
+                    expected_size = int(np.prod(input_shape))
                     if len(flat_features) < expected_size:
                         # Pad with zeros
                         padded = np.zeros(expected_size)
                         padded[:len(flat_features)] = flat_features
-                        features = padded.reshape(1, -1)
-                        logger.info(f"LSTM features padded from {len(flat_features)} to {expected_size}")
+                        features = padded.reshape(1, *input_shape)
+                        logger.info(f"LSTM features padded from {len(flat_features)} to {expected_size}, shape={features.shape}")
                     elif len(flat_features) > expected_size:
                         # Trim
-                        features = flat_features[:expected_size].reshape(1, -1)
-                        logger.info(f"LSTM features trimmed from {len(flat_features)} to {expected_size}")
+                        features = flat_features[:expected_size].reshape(1, *input_shape)
+                        logger.info(f"LSTM features trimmed from {len(flat_features)} to {expected_size}, shape={features.shape}")
                     else:
-                        features = flat_features.reshape(1, -1)
-                        logger.info(f"LSTM features match expected size: {expected_size}")
-                    
-                    logger.info(f"LSTM features final shape: {features.shape}")
+                        features = flat_features.reshape(1, *input_shape)
+                        logger.info(f"LSTM features match expected size: {expected_size}, shape={features.shape}")
                     
                 elif model_type == "cnn":
-                    # CNN expects (batch, 72, 1) shape - need sequence input, not embeddings
-                    # Use LSTM-like sequences since CNN expects temporal data
-                    features, _ = self.feature_generator.generate_lstm_sequences(historical_data)
-                    # features is (N, window_size, features) - take last sequence
-                    seq = features[-1]  # Shape: (window_size, num_features)
-                    window_size = seq.shape[0]
+                    # Load CNN model metadata to determine correct input shape
+                    model_type_only = model_type.lower()
+                    registry_name = self.config["registry_name"]
+                    try:
+                        model_path = Path(self.registry.get_model_path(registry_name, model_type_only))
+                    except:
+                        models_dir = Path("models") / registry_name / model_type_only
+                        model_files = sorted(list(models_dir.glob(f"{model_type_only}_{registry_name}_*.keras")))
+                        model_path = model_files[-1] if model_files else None
                     
-                    if window_size >= 72:
-                        # Take first 72 timesteps, average across features to get 1 channel
-                        features = np.mean(seq[:72, :], axis=1).reshape(1, 72, 1)
+                    if model_path and model_path.exists():
+                        metadata_path = model_path.parent / f"{model_path.stem}_metadata.json"
+                        if metadata_path.exists():
+                            import json
+                            with open(metadata_path, 'r') as f:
+                                metadata = json.load(f)
+                            model_meta = metadata.get('cnn', metadata)
+                            input_shape = model_meta.get('input_shape', [64, 1])
+                            # Ensure input_shape is tuple for proper unpacking
+                            input_shape = tuple(input_shape) if isinstance(input_shape, list) else input_shape
+                            data_source = model_meta.get('data_source', 'cnn')
+                            logger.info(f"CNN metadata: input_shape={input_shape}, data_source={data_source}")
+                        else:
+                            input_shape = (64, 1)
+                            data_source = 'cnn'
+                            logger.warning(f"No metadata found for CNN, using fallback")
                     else:
-                        # Pad if needed: expand to 72 timesteps
-                        padded = np.zeros((72, seq.shape[1]))
-                        padded[:seq.shape[0]] = seq
-                        # Average across features to get 1 channel
-                        features = np.mean(padded, axis=1).reshape(1, 72, 1)
-                    logger.info(f"CNN features shape: {features.shape}")
+                        input_shape = (64, 1)
+                        data_source = 'cnn'
+                        logger.warning(f"Model path not found, using CNN fallback")
+                    
+                    # Generate features based on data_source
+                    if data_source == 'cnn':
+                        # Load CNN embeddings
+                        cnn_features, _ = self.feature_generator.generate_cnn_embeddings(historical_data)
+                        # Take last embedding and reshape
+                        features = cnn_features[-1].reshape(1, *input_shape)
+                        logger.info(f"CNN features from embeddings, shape: {features.shape}")
+                    else:
+                        # Fallback to sequence-based features
+                        sequences, _ = self.feature_generator.generate_lstm_sequences(historical_data)
+                        seq = sequences[-1]
+                        flat_features = seq.flatten()
+                        expected_size = int(np.prod(input_shape))
+                        if len(flat_features) < expected_size:
+                            padded = np.zeros(expected_size)
+                            padded[:len(flat_features)] = flat_features
+                            features = padded.reshape(1, *input_shape)
+                        else:
+                            features = flat_features[:expected_size].reshape(1, *input_shape)
+                        logger.info(f"CNN features from sequences, shape: {features.shape}")
                     
                 elif model_type == "transformer":
-                    # Transformer expects (batch, 28, 1) - sequence format with 28 timesteps
-                    # Generate LSTM sequences and reshape to match transformer input
-                    sequences, _ = self.feature_generator.generate_lstm_sequences(historical_data)
-                    # sequences shape: (num_sequences, window_size, num_features)
-                    # Take last sequence and average features to get 1 channel
-                    last_seq = sequences[-1]  # Shape: (window_size, num_features)
+                    # Load Transformer model metadata to determine correct input shape
+                    model_type_only = model_type.lower()
+                    registry_name = self.config["registry_name"]
+                    try:
+                        model_path = Path(self.registry.get_model_path(registry_name, model_type_only))
+                    except:
+                        models_dir = Path("models") / registry_name / model_type_only
+                        model_files = sorted(list(models_dir.glob(f"{model_type_only}_{registry_name}_*.keras")))
+                        model_path = model_files[-1] if model_files else None
                     
-                    # Average across features to get 1 channel per timestep
-                    averaged = np.mean(last_seq, axis=1)  # Shape: (window_size,)
-                    
-                    # Ensure we have exactly 28 timesteps
-                    if len(averaged) >= 28:
-                        # Take first 28 timesteps
-                        features = averaged[:28].reshape(1, 28, 1)
+                    if model_path and model_path.exists():
+                        metadata_path = model_path.parent / f"{model_path.stem}_metadata.json"
+                        if metadata_path.exists():
+                            import json
+                            with open(metadata_path, 'r') as f:
+                                metadata = json.load(f)
+                            model_meta = metadata.get('transformer', metadata)
+                            input_shape = model_meta.get('input_shape', [8, 1])
+                            # Ensure input_shape is tuple for proper unpacking
+                            input_shape = tuple(input_shape) if isinstance(input_shape, list) else input_shape
+                            data_source = model_meta.get('data_source', 'raw_csv')
+                            logger.info(f"Transformer metadata: input_shape={input_shape}, data_source={data_source}")
+                        else:
+                            input_shape = (8, 1)
+                            data_source = 'raw_csv'
+                            logger.warning(f"No metadata found for Transformer, using fallback")
                     else:
-                        # Pad to 28 timesteps
-                        padded = np.zeros(28)
-                        padded[:len(averaged)] = averaged
-                        features = padded.reshape(1, 28, 1)
+                        input_shape = (8, 1)
+                        data_source = 'raw_csv'
+                        logger.warning(f"Model path not found, using Transformer fallback")
                     
-                    logger.info(f"Transformer features shape: {features.shape}")
+                    # Generate features based on data_source
+                    if data_source == 'raw_csv':
+                        # Use raw CSV features
+                        sequences, _ = self.feature_generator.generate_lstm_sequences(historical_data)
+                        last_seq = sequences[-1]
+                        flat_features = last_seq.flatten()
+                        expected_size = int(np.prod(input_shape))
+                        if len(flat_features) < expected_size:
+                            padded = np.zeros(expected_size)
+                            padded[:len(flat_features)] = flat_features
+                            features = padded.reshape(1, *input_shape)
+                        else:
+                            features = flat_features[:expected_size].reshape(1, *input_shape)
+                        logger.info(f"Transformer features from raw_csv, shape: {features.shape}")
+                    else:
+                        # Fallback
+                        sequences, _ = self.feature_generator.generate_lstm_sequences(historical_data)
+                        last_seq = sequences[-1]
+                        flat_features = last_seq.flatten()
+                        expected_size = int(np.prod(input_shape))
+                        features = flat_features[:expected_size].reshape(1, *input_shape)
+                        logger.info(f"Transformer features fallback, shape: {features.shape}")
                     
                 elif model_type == "xgboost":
                     features_df, _ = self.feature_generator.generate_xgboost_features(historical_data)
@@ -687,6 +803,10 @@ class ProbabilityGenerator:
             
             if features is None or len(features) == 0:
                 raise ValueError(f"Feature generation returned empty result for {model_name}")
+            
+            # Ensure features is a numpy array (not list)
+            if not isinstance(features, np.ndarray):
+                features = np.array(features)
             
             # Ensure proper shape
             # For tree models: 2D (1, n_features)

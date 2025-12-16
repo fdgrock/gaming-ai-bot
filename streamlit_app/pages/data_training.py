@@ -2243,15 +2243,42 @@ def _get_feature_files(game: str, feature_type: str, prefer_optimized: bool = Tr
     """
     game_folder = _sanitize_game_name(game)
     features_dir = get_data_dir() / "features" / feature_type / game_folder
+    
+    app_log(f"🔍 Looking for {feature_type} features in: {features_dir}", "info")
+    
     if not features_dir.exists():
+        app_log(f"⚠️ Directory does not exist: {features_dir}", "warning")
         return []
     
-    if not prefer_optimized:
-        # Return all files sorted by name
-        return sorted(features_dir.glob("*"))
+    # Define valid extensions per feature type
+    valid_extensions = {
+        "lstm": [".npz"],
+        "cnn": [".npz"],
+        "transformer": [".npz"],
+        "xgboost": [".csv"],
+        "catboost": [".csv"],
+        "lightgbm": [".csv"]
+    }
     
-    # Get all files and prioritize by quality indicators in filename
-    all_files = sorted(features_dir.glob("*"))
+    file_extensions = valid_extensions.get(feature_type, [".csv", ".npz"])
+    
+    app_log(f"  Valid extensions for {feature_type}: {file_extensions}", "info")
+    
+    if not prefer_optimized:
+        # Return all data files (exclude metadata) sorted by name
+        all_files = [f for f in features_dir.glob("*") if f.suffix in file_extensions]
+        app_log(f"  Found {len(all_files)} files (no optimization preference)", "info")
+        return sorted(all_files)
+    
+    # Get all data files and prioritize by quality indicators in filename
+    all_files = [f for f in features_dir.glob("*") if f.suffix in file_extensions]
+    all_files = sorted(all_files)
+    
+    app_log(f"  Found {len(all_files)} total {feature_type} files with valid extensions", "info")
+    if all_files:
+        for f in all_files:
+            app_log(f"    - {f.name}", "info")
+    
     quality_files = []
     
     # Priority 1: Optimized + Validated (OPTIMIZED_VALID or optimized_validated)
@@ -2391,12 +2418,13 @@ def _render_model_training():
     # because flattened neural features are already large (1125+, 1408+, etc.)
     # Adding raw_csv creates dimension explosion (1125+8=1133, etc.)
     # This mismatches with schema which expects only flattened neural features
+    # EXCEPTION: CNN can use raw_csv as fallback if no CNN embeddings exist yet
     model_data_sources = {
         "XGBoost": ["xgboost"],  # Use ONLY engineered XGBoost features (85), not raw_csv
         "CatBoost": ["catboost"],  # Use ONLY engineered CatBoost features (85), not raw_csv
         "LightGBM": ["lightgbm"],  # Use ONLY engineered LightGBM features (85), not raw_csv
         "LSTM": ["lstm"],  # Use ONLY LSTM flattened sequences (1125), not raw_csv
-        "CNN": ["cnn"],  # Use ONLY CNN embeddings (1408+), not raw_csv
+        "CNN": ["raw_csv", "cnn"],  # Prefer CNN embeddings (1408+), fallback to raw_csv if none exist
         "Transformer": ["transformer"],  # Use ONLY Transformer embeddings (512), not raw_csv
         "Ensemble": ["xgboost", "catboost", "lightgbm", "lstm", "cnn"]  # All engineered features, no raw_csv
     }
@@ -2666,6 +2694,13 @@ def _render_model_training():
     # Get preference for optimized features from session state
     prefer_optimized = st.session_state.get("train_prefer_optimized", True)
     
+    st.write(f"🔍 **Building data sources for {selected_model}...**")
+    st.write(f"  - use_raw_csv={use_raw_csv}")
+    st.write(f"  - use_lstm={use_lstm}")  
+    st.write(f"  - use_cnn={use_cnn}")
+    st.write(f"  - use_transformer={use_transformer}")
+    st.write(f"  - use_xgboost={use_xgboost_feat}")
+    
     # Build data sources dict
     data_sources = {
         "raw_csv": [] if not use_raw_csv else _get_raw_csv_files(selected_game),
@@ -2676,6 +2711,29 @@ def _render_model_training():
         "catboost": [] if not use_catboost_feat else _get_feature_files(selected_game, "catboost", prefer_optimized),
         "lightgbm": [] if not use_lightgbm_feat else _get_feature_files(selected_game, "lightgbm", prefer_optimized)
     }
+    
+    st.write(f"📊 **Data sources found:**")
+    for source, files in data_sources.items():
+        if files:
+            st.write(f"  - {source}: {len(files)} files")
+        else:
+            st.write(f"  - {source}: 0 files (empty)")
+    
+    # CRITICAL FIX: For CNN model, use CNN embeddings if available, otherwise fall back to raw_csv
+    # Never use BOTH together (causes dimension mismatch)
+    # IMPORTANT: We always need raw_csv for TARGET extraction, but for CNN we don't use it for FEATURES
+    if selected_model == "CNN":
+        st.write("🔧 **CNN Model Detected - Applying data source logic:**")
+        if data_sources["cnn"]:
+            # CNN embeddings exist - keep raw_csv for targets but mark it specially
+            st.write(f"  ✅ Found {len(data_sources['cnn'])} CNN embedding file(s)")
+            st.write(f"  ✅ Keeping {len(data_sources['raw_csv'])} raw_csv files for TARGET extraction only")
+            st.write("  ✅ Will use CNN embeddings for FEATURES, raw_csv for TARGETS")
+        elif data_sources["raw_csv"]:
+            # No CNN embeddings - use raw_csv for both features and targets
+            st.write("  ℹ️ No CNN embeddings found - using raw_csv for both features and targets")
+        else:
+            app_log("⚠️  No CNN embeddings or raw_csv data found!", "warning")
     
     total_files = sum(len(files) for files in data_sources.values())
     total_samples = _estimate_total_samples(data_sources)

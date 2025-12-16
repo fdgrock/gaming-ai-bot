@@ -1202,3 +1202,689 @@ Traceback (most recent call last):
     raise RuntimeError(error_msg)
 RuntimeError: Failed to generate model probabilities: Failed to generate model probabilities for xgboost_lotto_max_20251214_201305: Could not load/run model xgboost_lotto_max_20251214_201305: Model not found in registry: lotto_max - xgboost
 
+2025-12-15 18:20:49 - lottery_ai - ERROR - logger.py:138 - ❌ Model training error: Found input variables with inconsistent numbers of samples: [239, 1]
+2025-12-15 20:26:25 - lottery_ai - ERROR - logger.py:138 - ❌ Model training error: Found input variables with inconsistent numbers of samples: [239, 1]
+2025-12-15 22:25:03 - lottery_ai - ERROR - logger.py:138 - ❌ Shape mismatch at position 1: y_test=(239,), y_pred=(7,)
+2025-12-15 22:25:03 - lottery_ai - ERROR - logger.py:138 - ❌ Model training error: Shape mismatch: y_test has 239 samples, y_pred has 7
+2025-12-16 00:30:25 - lottery_ai - ERROR - logger.py:138 - ❌ Model training error: Found input variables with inconsistent numbers of samples: [239, 7]
+2025-12-16 11:59:02 - lottery_ai - ERROR - logger.py:138 - ❌ ERROR: Shape mismatch! y_test=(239, 7), y_pred=(1, 239, 7)
+2025-12-16 11:59:02 - lottery_ai - ERROR - logger.py:138 - ❌ Model training error: Prediction shape (1, 239, 7) doesn't match target shape (239, 7)
+2025-12-16 14:03:57 - lottery_ai - ERROR - logger.py:138 - Error loading CNN embeddings: 'NoneType' object has no attribute 'extend'
+2025-12-16 14:03:57 - lottery_ai - ERROR - logger.py:138 - ❌ Model training error: No training data loaded from any source
+2025-12-16 14:05:02 - lottery_ai - ERROR - logger.py:138 - Error loading CNN embeddings: 'NoneType' object has no attribute 'extend'
+2025-12-16 14:05:02 - lottery_ai - ERROR - logger.py:138 - ❌ Model training error: No training data loaded from any source
+2025-12-16 14:12:57 - lottery_ai - ERROR - logger.py:138 - Error loading CNN embeddings: 'NoneType' object has no attribute 'extend'
+2025-12-16 14:12:57 - lottery_ai - ERROR - logger.py:138 - ❌ Model training error: No training data loaded from any source
+2025-12-16 14:13:53 - lottery_ai - ERROR - logger.py:138 - Error loading CNN embeddings: 'NoneType' object has no attribute 'extend'
+2025-12-16 14:13:53 - lottery_ai - ERROR - logger.py:138 - ❌ Model training error: No training data loaded from any source
+2025-12-16 14:15:41 - lottery_ai - ERROR - logger.py:138 - Error loading CNN embeddings: 'NoneType' object has no attribute 'extend'
+2025-12-16 14:15:41 - lottery_ai - ERROR - logger.py:138 - ❌ Model training error: No training data loaded from any source
+2025-12-16 14:16:53 - lottery_ai - ERROR - logger.py:138 - Error loading CNN embeddings: 'NoneType' object has no attribute 'extend'
+2025-12-16 14:16:53 - lottery_ai - ERROR - logger.py:138 - ❌ Model training error: No training data loaded from any source
+2025-12-16 14:18:46 - lottery_ai - ERROR - logger.py:138 - Error loading CNN embeddings: 'NoneType' object has no attribute 'extend'
+2025-12-16 14:18:46 - lottery_ai - ERROR - logger.py:138 - ❌ Model training error: No training data loaded from any source
+2025-12-16 14:20:19 - lottery_ai - ERROR - logger.py:138 - Error loading CNN embeddings: 'NoneType' object has no attribute 'extend'
+2025-12-16 14:20:19 - lottery_ai - ERROR - logger.py:138 - ❌ Model training error: No training data loaded from any source
+2025-12-16 14:26:52 - lottery_ai - ERROR - logger.py:138 - Error loading CNN embeddings: 'NoneType' object has no attribute 'extend'
+2025-12-16 14:26:52 - lottery_ai - ERROR - logger.py:138 - ❌ Model training error: No training data loaded from any source
+2025-12-16 14:27:08 - lottery_ai - ERROR - logger.py:138 - Error loading CNN embeddings: 'NoneType' object has no attribute 'extend'
+2025-12-16 14:27:08 - lottery_ai - ERROR - logger.py:138 - ❌ Model training error: No training data loaded from any source
+2025-12-16 14:31:44 - lottery_ai - ERROR - logger.py:138 - ❌ Error loading CNN embeddings: 'NoneType' object has no attribute 'extend'
+2025-12-16 14:31:44 - lottery_ai - ERROR - logger.py:138 - Traceback: Traceback (most recent call last):
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\streamlit_app\services\advanced_model_training.py", line 886, in _load_cnn_embeddings
+    self.feature_names.extend([f"cnn_{i}" for i in range(combined.shape[1])])
+    ^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'NoneType' object has no attribute 'extend'
+
+2025-12-16 14:31:44 - lottery_ai - ERROR - logger.py:138 - ❌ Model training error: No training data loaded from any source
+2025-12-16 14:34:23 - lottery_ai - ERROR - logger.py:138 - ❌ Error loading CNN embeddings: 'NoneType' object has no attribute 'extend'
+2025-12-16 14:34:23 - lottery_ai - ERROR - logger.py:138 - Traceback: Traceback (most recent call last):
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\streamlit_app\services\advanced_model_training.py", line 886, in _load_cnn_embeddings
+    self.feature_names.extend([f"cnn_{i}" for i in range(combined.shape[1])])
+    ^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'NoneType' object has no attribute 'extend'
+
+2025-12-16 14:34:23 - lottery_ai - ERROR - logger.py:138 - ❌ Model training error: No training data loaded from any source
+2025-12-16 14:35:16 - lottery_ai - ERROR - logger.py:138 - ❌ Error loading CNN embeddings: 'NoneType' object has no attribute 'extend'
+2025-12-16 14:35:16 - lottery_ai - ERROR - logger.py:138 - Traceback: Traceback (most recent call last):
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\streamlit_app\services\advanced_model_training.py", line 886, in _load_cnn_embeddings
+    self.feature_names.extend([f"cnn_{i}" for i in range(combined.shape[1])])
+    ^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'NoneType' object has no attribute 'extend'
+
+2025-12-16 14:35:16 - lottery_ai - ERROR - logger.py:138 - ❌ Model training error: No training data loaded from any source
+2025-12-16 14:37:50 - lottery_ai - ERROR - logger.py:138 - ❌ Error loading CNN embeddings: 'NoneType' object has no attribute 'extend'
+2025-12-16 14:37:50 - lottery_ai - ERROR - logger.py:138 - Traceback: Traceback (most recent call last):
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\streamlit_app\services\advanced_model_training.py", line 886, in _load_cnn_embeddings
+    self.feature_names.extend([f"cnn_{i}" for i in range(combined.shape[1])])
+    ^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'NoneType' object has no attribute 'extend'
+
+2025-12-16 14:37:50 - lottery_ai - ERROR - logger.py:138 - ❌ Model training error: No training data loaded from any source
+2025-12-16 14:39:08 - lottery_ai - ERROR - logger.py:138 - ❌ Error loading CNN embeddings: 'NoneType' object has no attribute 'extend'
+2025-12-16 14:39:08 - lottery_ai - ERROR - logger.py:138 - Traceback: Traceback (most recent call last):
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\streamlit_app\services\advanced_model_training.py", line 886, in _load_cnn_embeddings
+    self.feature_names.extend([f"cnn_{i}" for i in range(combined.shape[1])])
+    ^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'NoneType' object has no attribute 'extend'
+
+2025-12-16 14:39:08 - lottery_ai - ERROR - logger.py:138 - ❌ Model training error: No training data loaded from any source
+2025-12-16 14:42:32 - lottery_ai - ERROR - logger.py:138 - ❌ Error loading CNN embeddings: 'NoneType' object has no attribute 'extend'
+2025-12-16 14:42:32 - lottery_ai - ERROR - logger.py:138 - Traceback: Traceback (most recent call last):
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\streamlit_app\services\advanced_model_training.py", line 886, in _load_cnn_embeddings
+    self.feature_names.extend([f"cnn_{i}" for i in range(combined.shape[1])])
+    ^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'NoneType' object has no attribute 'extend'
+
+2025-12-16 14:42:32 - lottery_ai - ERROR - logger.py:138 - ❌ Model training error: No training data loaded from any source
+2025-12-16 14:45:03 - lottery_ai - ERROR - logger.py:138 - ❌ Model training error: For a model with multiple outputs, when providing the `metrics` argument as a list, it should have as many entries as the model has outputs. Received:
+metrics=['accuracy']
+of length 1 whereas the model has 7 outputs.
+2025-12-16 15:49:13 - lottery_ai - ERROR - logger.py:138 - ❌ Model training error: For a model with multiple outputs, when providing the `metrics` argument as a list, it should have as many entries as the model has outputs. Received:
+metrics=['accuracy']
+of length 1 whereas the model has 7 outputs.
+2025-12-16 15:52:59 - lottery_ai - ERROR - logger.py:138 - ❌ Model training error: 'row_level_accuracy'
+2025-12-16 16:03:39 - lottery_ai - ERROR - logger.py:138 - ❌ Model training error: 'row_level_accuracy'
+2025-12-16 17:25:07 - lottery_ai - ERROR - logger.py:138 - Prediction error: Traceback (most recent call last):
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\tools\prediction_engine.py", line 488, in _load_and_run_model
+    class_probs = model.predict(features, verbose=0)
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\venv\Lib\site-packages\keras\src\utils\traceback_utils.py", line 122, in error_handler
+    raise e.with_traceback(filtered_tb) from None
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\venv\Lib\site-packages\keras\src\layers\input_spec.py", line 245, in assert_input_compatibility
+    raise ValueError(
+    ...<4 lines>...
+    )
+ValueError: Input 0 of layer "functional" is incompatible with the layer: expected shape=(None, 64, 1), found shape=(1, 72)
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\tools\prediction_engine.py", line 701, in generate_model_probabilities
+    raw_output = self._load_and_run_model(model_name, features)
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\tools\prediction_engine.py", line 541, in _load_and_run_model
+    raise RuntimeError(f"Could not load/run model {model_name}: {str(e)}")
+RuntimeError: Could not load/run model cnn_lotto_max_20251216_154720: Input 0 of layer "functional" is incompatible with the layer: expected shape=(None, 64, 1), found shape=(1, 72)
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\tools\prediction_engine.py", line 1025, in predict_single_model
+    model_probs = self.prob_gen.generate_model_probabilities(
+        model_name,
+        seed=current_seed
+    )
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\tools\prediction_engine.py", line 726, in generate_model_probabilities
+    raise RuntimeError(f"Failed to generate model probabilities for {model_name}: {str(e)}")
+RuntimeError: Failed to generate model probabilities for cnn_lotto_max_20251216_154720: Could not load/run model cnn_lotto_max_20251216_154720: Input 0 of layer "functional" is incompatible with the layer: expected shape=(None, 64, 1), found shape=(1, 72)
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\streamlit_app\pages\predictions.py", line 1577, in _render_prediction_generator
+    result_list = engine.predict_single_model(
+        model_name=selected_model_name,
+    ...<2 lines>...
+        seed=random_seed
+    )
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\tools\prediction_engine.py", line 1039, in predict_single_model
+    raise RuntimeError(error_msg)
+RuntimeError: Failed to generate model probabilities: Failed to generate model probabilities for cnn_lotto_max_20251216_154720: Could not load/run model cnn_lotto_max_20251216_154720: Input 0 of layer "functional" is incompatible with the layer: expected shape=(None, 64, 1), found shape=(1, 72)
+
+2025-12-16 17:25:40 - lottery_ai - ERROR - logger.py:138 - Prediction error: Traceback (most recent call last):
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\tools\prediction_engine.py", line 488, in _load_and_run_model
+    class_probs = model.predict(features, verbose=0)
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\venv\Lib\site-packages\keras\src\utils\traceback_utils.py", line 122, in error_handler
+    raise e.with_traceback(filtered_tb) from None
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\venv\Lib\site-packages\keras\src\layers\input_spec.py", line 245, in assert_input_compatibility
+    raise ValueError(
+    ...<4 lines>...
+    )
+ValueError: Input 0 of layer "functional" is incompatible with the layer: expected shape=(None, 200), found shape=(1, 1133)
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\tools\prediction_engine.py", line 701, in generate_model_probabilities
+    raw_output = self._load_and_run_model(model_name, features)
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\tools\prediction_engine.py", line 541, in _load_and_run_model
+    raise RuntimeError(f"Could not load/run model {model_name}: {str(e)}")
+RuntimeError: Could not load/run model lstm_lotto_max_20251216_160029: Input 0 of layer "functional" is incompatible with the layer: expected shape=(None, 200), found shape=(1, 1133)
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\tools\prediction_engine.py", line 1025, in predict_single_model
+    model_probs = self.prob_gen.generate_model_probabilities(
+        model_name,
+        seed=current_seed
+    )
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\tools\prediction_engine.py", line 726, in generate_model_probabilities
+    raise RuntimeError(f"Failed to generate model probabilities for {model_name}: {str(e)}")
+RuntimeError: Failed to generate model probabilities for lstm_lotto_max_20251216_160029: Could not load/run model lstm_lotto_max_20251216_160029: Input 0 of layer "functional" is incompatible with the layer: expected shape=(None, 200), found shape=(1, 1133)
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\streamlit_app\pages\predictions.py", line 1577, in _render_prediction_generator
+    result_list = engine.predict_single_model(
+        model_name=selected_model_name,
+    ...<2 lines>...
+        seed=random_seed
+    )
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\tools\prediction_engine.py", line 1039, in predict_single_model
+    raise RuntimeError(error_msg)
+RuntimeError: Failed to generate model probabilities: Failed to generate model probabilities for lstm_lotto_max_20251216_160029: Could not load/run model lstm_lotto_max_20251216_160029: Input 0 of layer "functional" is incompatible with the layer: expected shape=(None, 200), found shape=(1, 1133)
+
+2025-12-16 17:26:01 - lottery_ai - ERROR - logger.py:138 - Prediction error: Traceback (most recent call last):
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\tools\prediction_engine.py", line 513, in _load_and_run_model
+    predictions = model.predict(features, verbose=0)
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\venv\Lib\site-packages\keras\src\utils\traceback_utils.py", line 122, in error_handler
+    raise e.with_traceback(filtered_tb) from None
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\venv\Lib\site-packages\keras\src\layers\input_spec.py", line 245, in assert_input_compatibility
+    raise ValueError(
+    ...<4 lines>...
+    )
+ValueError: Input 0 of layer "functional" is incompatible with the layer: expected shape=(None, 8, 1), found shape=(1, 28)
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\tools\prediction_engine.py", line 701, in generate_model_probabilities
+    raw_output = self._load_and_run_model(model_name, features)
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\tools\prediction_engine.py", line 541, in _load_and_run_model
+    raise RuntimeError(f"Could not load/run model {model_name}: {str(e)}")
+RuntimeError: Could not load/run model transformer_lotto_max_20251216_165704: Input 0 of layer "functional" is incompatible with the layer: expected shape=(None, 8, 1), found shape=(1, 28)
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\tools\prediction_engine.py", line 1025, in predict_single_model
+    model_probs = self.prob_gen.generate_model_probabilities(
+        model_name,
+        seed=current_seed
+    )
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\tools\prediction_engine.py", line 726, in generate_model_probabilities
+    raise RuntimeError(f"Failed to generate model probabilities for {model_name}: {str(e)}")
+RuntimeError: Failed to generate model probabilities for transformer_lotto_max_20251216_165704: Could not load/run model transformer_lotto_max_20251216_165704: Input 0 of layer "functional" is incompatible with the layer: expected shape=(None, 8, 1), found shape=(1, 28)
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\streamlit_app\pages\predictions.py", line 1577, in _render_prediction_generator
+    result_list = engine.predict_single_model(
+        model_name=selected_model_name,
+    ...<2 lines>...
+        seed=random_seed
+    )
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\tools\prediction_engine.py", line 1039, in predict_single_model
+    raise RuntimeError(error_msg)
+RuntimeError: Failed to generate model probabilities: Failed to generate model probabilities for transformer_lotto_max_20251216_165704: Could not load/run model transformer_lotto_max_20251216_165704: Input 0 of layer "functional" is incompatible with the layer: expected shape=(None, 8, 1), found shape=(1, 28)
+
+2025-12-16 17:27:12 - lottery_ai - ERROR - logger.py:138 - Prediction error: Traceback (most recent call last):
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\tools\prediction_engine.py", line 488, in _load_and_run_model
+    class_probs = model.predict(features, verbose=0)
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\venv\Lib\site-packages\keras\src\utils\traceback_utils.py", line 122, in error_handler
+    raise e.with_traceback(filtered_tb) from None
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\venv\Lib\site-packages\keras\src\layers\input_spec.py", line 245, in assert_input_compatibility
+    raise ValueError(
+    ...<4 lines>...
+    )
+ValueError: Input 0 of layer "functional" is incompatible with the layer: expected shape=(None, 200), found shape=(1, 1133)
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\tools\prediction_engine.py", line 701, in generate_model_probabilities
+    raw_output = self._load_and_run_model(model_name, features)
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\tools\prediction_engine.py", line 541, in _load_and_run_model
+    raise RuntimeError(f"Could not load/run model {model_name}: {str(e)}")
+RuntimeError: Could not load/run model lstm_lotto_max_20251216_160029: Input 0 of layer "functional" is incompatible with the layer: expected shape=(None, 200), found shape=(1, 1133)
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\tools\prediction_engine.py", line 1025, in predict_single_model
+    model_probs = self.prob_gen.generate_model_probabilities(
+        model_name,
+        seed=current_seed
+    )
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\tools\prediction_engine.py", line 726, in generate_model_probabilities
+    raise RuntimeError(f"Failed to generate model probabilities for {model_name}: {str(e)}")
+RuntimeError: Failed to generate model probabilities for lstm_lotto_max_20251216_160029: Could not load/run model lstm_lotto_max_20251216_160029: Input 0 of layer "functional" is incompatible with the layer: expected shape=(None, 200), found shape=(1, 1133)
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\streamlit_app\pages\predictions.py", line 1577, in _render_prediction_generator
+    result_list = engine.predict_single_model(
+        model_name=selected_model_name,
+    ...<2 lines>...
+        seed=random_seed
+    )
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\tools\prediction_engine.py", line 1039, in predict_single_model
+    raise RuntimeError(error_msg)
+RuntimeError: Failed to generate model probabilities: Failed to generate model probabilities for lstm_lotto_max_20251216_160029: Could not load/run model lstm_lotto_max_20251216_160029: Input 0 of layer "functional" is incompatible with the layer: expected shape=(None, 200), found shape=(1, 1133)
+
+2025-12-16 17:27:43 - lottery_ai - ERROR - logger.py:138 - Prediction error: Traceback (most recent call last):
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\tools\prediction_engine.py", line 488, in _load_and_run_model
+    class_probs = model.predict(features, verbose=0)
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\venv\Lib\site-packages\keras\src\utils\traceback_utils.py", line 122, in error_handler
+    raise e.with_traceback(filtered_tb) from None
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\venv\Lib\site-packages\keras\src\layers\input_spec.py", line 245, in assert_input_compatibility
+    raise ValueError(
+    ...<4 lines>...
+    )
+ValueError: Input 0 of layer "functional" is incompatible with the layer: expected shape=(None, 64, 1), found shape=(1, 72)
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\tools\prediction_engine.py", line 701, in generate_model_probabilities
+    raw_output = self._load_and_run_model(model_name, features)
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\tools\prediction_engine.py", line 541, in _load_and_run_model
+    raise RuntimeError(f"Could not load/run model {model_name}: {str(e)}")
+RuntimeError: Could not load/run model cnn_lotto_max_20251216_154720: Input 0 of layer "functional" is incompatible with the layer: expected shape=(None, 64, 1), found shape=(1, 72)
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\tools\prediction_engine.py", line 1025, in predict_single_model
+    model_probs = self.prob_gen.generate_model_probabilities(
+        model_name,
+        seed=current_seed
+    )
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\tools\prediction_engine.py", line 726, in generate_model_probabilities
+    raise RuntimeError(f"Failed to generate model probabilities for {model_name}: {str(e)}")
+RuntimeError: Failed to generate model probabilities for cnn_lotto_max_20251216_154720: Could not load/run model cnn_lotto_max_20251216_154720: Input 0 of layer "functional" is incompatible with the layer: expected shape=(None, 64, 1), found shape=(1, 72)
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\streamlit_app\pages\predictions.py", line 1577, in _render_prediction_generator
+    result_list = engine.predict_single_model(
+        model_name=selected_model_name,
+    ...<2 lines>...
+        seed=random_seed
+    )
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\tools\prediction_engine.py", line 1039, in predict_single_model
+    raise RuntimeError(error_msg)
+RuntimeError: Failed to generate model probabilities: Failed to generate model probabilities for cnn_lotto_max_20251216_154720: Could not load/run model cnn_lotto_max_20251216_154720: Input 0 of layer "functional" is incompatible with the layer: expected shape=(None, 64, 1), found shape=(1, 72)
+
+2025-12-16 17:55:03 - lottery_ai - ERROR - logger.py:138 - Prediction error: Traceback (most recent call last):
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\tools\prediction_engine.py", line 488, in _load_and_run_model
+    class_probs = model.predict(features, verbose=0)
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\venv\Lib\site-packages\keras\src\utils\traceback_utils.py", line 122, in error_handler
+    raise e.with_traceback(filtered_tb) from None
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\venv\Lib\site-packages\keras\src\layers\input_spec.py", line 245, in assert_input_compatibility
+    raise ValueError(
+    ...<4 lines>...
+    )
+ValueError: Input 0 of layer "functional" is incompatible with the layer: expected shape=(None, 200), found shape=(1, 1133)
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\tools\prediction_engine.py", line 701, in generate_model_probabilities
+    raw_output = self._load_and_run_model(model_name, features)
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\tools\prediction_engine.py", line 541, in _load_and_run_model
+    raise RuntimeError(f"Could not load/run model {model_name}: {str(e)}")
+RuntimeError: Could not load/run model lstm_lotto_max_20251216_175357: Input 0 of layer "functional" is incompatible with the layer: expected shape=(None, 200), found shape=(1, 1133)
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\tools\prediction_engine.py", line 1025, in predict_single_model
+    model_probs = self.prob_gen.generate_model_probabilities(
+        model_name,
+        seed=current_seed
+    )
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\tools\prediction_engine.py", line 726, in generate_model_probabilities
+    raise RuntimeError(f"Failed to generate model probabilities for {model_name}: {str(e)}")
+RuntimeError: Failed to generate model probabilities for lstm_lotto_max_20251216_175357: Could not load/run model lstm_lotto_max_20251216_175357: Input 0 of layer "functional" is incompatible with the layer: expected shape=(None, 200), found shape=(1, 1133)
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\streamlit_app\pages\predictions.py", line 1598, in _render_prediction_generator
+    result_list = engine.predict_single_model(
+        model_name=selected_model_name,
+    ...<2 lines>...
+        seed=random_seed
+    )
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\tools\prediction_engine.py", line 1039, in predict_single_model
+    raise RuntimeError(error_msg)
+RuntimeError: Failed to generate model probabilities: Failed to generate model probabilities for lstm_lotto_max_20251216_175357: Could not load/run model lstm_lotto_max_20251216_175357: Input 0 of layer "functional" is incompatible with the layer: expected shape=(None, 200), found shape=(1, 1133)
+
+2025-12-16 17:59:22 - lottery_ai - ERROR - logger.py:138 - Prediction error: Traceback (most recent call last):
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\tools\prediction_engine.py", line 488, in _load_and_run_model
+    class_probs = model.predict(features, verbose=0)
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\venv\Lib\site-packages\keras\src\utils\traceback_utils.py", line 122, in error_handler
+    raise e.with_traceback(filtered_tb) from None
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\venv\Lib\site-packages\keras\src\layers\input_spec.py", line 245, in assert_input_compatibility
+    raise ValueError(
+    ...<4 lines>...
+    )
+ValueError: Input 0 of layer "functional" is incompatible with the layer: expected shape=(None, 200), found shape=(1, 1133)
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\tools\prediction_engine.py", line 701, in generate_model_probabilities
+    raw_output = self._load_and_run_model(model_name, features)
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\tools\prediction_engine.py", line 541, in _load_and_run_model
+    raise RuntimeError(f"Could not load/run model {model_name}: {str(e)}")
+RuntimeError: Could not load/run model lstm_lotto_max_20251216_175357: Input 0 of layer "functional" is incompatible with the layer: expected shape=(None, 200), found shape=(1, 1133)
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\tools\prediction_engine.py", line 1025, in predict_single_model
+    model_probs = self.prob_gen.generate_model_probabilities(
+        model_name,
+        seed=current_seed
+    )
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\tools\prediction_engine.py", line 726, in generate_model_probabilities
+    raise RuntimeError(f"Failed to generate model probabilities for {model_name}: {str(e)}")
+RuntimeError: Failed to generate model probabilities for lstm_lotto_max_20251216_175357: Could not load/run model lstm_lotto_max_20251216_175357: Input 0 of layer "functional" is incompatible with the layer: expected shape=(None, 200), found shape=(1, 1133)
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\streamlit_app\pages\predictions.py", line 1598, in _render_prediction_generator
+    result_list = engine.predict_single_model(
+        model_name=selected_model_name,
+    ...<2 lines>...
+        seed=random_seed
+    )
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\tools\prediction_engine.py", line 1039, in predict_single_model
+    raise RuntimeError(error_msg)
+RuntimeError: Failed to generate model probabilities: Failed to generate model probabilities for lstm_lotto_max_20251216_175357: Could not load/run model lstm_lotto_max_20251216_175357: Input 0 of layer "functional" is incompatible with the layer: expected shape=(None, 200), found shape=(1, 1133)
+
+2025-12-16 18:00:19 - lottery_ai - ERROR - logger.py:138 - Prediction error: Traceback (most recent call last):
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\tools\prediction_engine.py", line 488, in _load_and_run_model
+    class_probs = model.predict(features, verbose=0)
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\venv\Lib\site-packages\keras\src\utils\traceback_utils.py", line 122, in error_handler
+    raise e.with_traceback(filtered_tb) from None
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\venv\Lib\site-packages\keras\src\layers\input_spec.py", line 245, in assert_input_compatibility
+    raise ValueError(
+    ...<4 lines>...
+    )
+ValueError: Input 0 of layer "functional" is incompatible with the layer: expected shape=(None, 200), found shape=(1, 1133)
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\tools\prediction_engine.py", line 701, in generate_model_probabilities
+    raw_output = self._load_and_run_model(model_name, features)
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\tools\prediction_engine.py", line 541, in _load_and_run_model
+    raise RuntimeError(f"Could not load/run model {model_name}: {str(e)}")
+RuntimeError: Could not load/run model lstm_lotto_max_20251216_175357: Input 0 of layer "functional" is incompatible with the layer: expected shape=(None, 200), found shape=(1, 1133)
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\tools\prediction_engine.py", line 1025, in predict_single_model
+    model_probs = self.prob_gen.generate_model_probabilities(
+        model_name,
+        seed=current_seed
+    )
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\tools\prediction_engine.py", line 726, in generate_model_probabilities
+    raise RuntimeError(f"Failed to generate model probabilities for {model_name}: {str(e)}")
+RuntimeError: Failed to generate model probabilities for lstm_lotto_max_20251216_175357: Could not load/run model lstm_lotto_max_20251216_175357: Input 0 of layer "functional" is incompatible with the layer: expected shape=(None, 200), found shape=(1, 1133)
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\streamlit_app\pages\predictions.py", line 1598, in _render_prediction_generator
+    result_list = engine.predict_single_model(
+        model_name=selected_model_name,
+    ...<2 lines>...
+        seed=random_seed
+    )
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\tools\prediction_engine.py", line 1039, in predict_single_model
+    raise RuntimeError(error_msg)
+RuntimeError: Failed to generate model probabilities: Failed to generate model probabilities for lstm_lotto_max_20251216_175357: Could not load/run model lstm_lotto_max_20251216_175357: Input 0 of layer "functional" is incompatible with the layer: expected shape=(None, 200), found shape=(1, 1133)
+
+2025-12-16 18:02:03 - lottery_ai - ERROR - logger.py:138 - Prediction error: Traceback (most recent call last):
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\tools\prediction_engine.py", line 488, in _load_and_run_model
+    class_probs = model.predict(features, verbose=0)
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\venv\Lib\site-packages\keras\src\utils\traceback_utils.py", line 122, in error_handler
+    raise e.with_traceback(filtered_tb) from None
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\venv\Lib\site-packages\keras\src\layers\input_spec.py", line 245, in assert_input_compatibility
+    raise ValueError(
+    ...<4 lines>...
+    )
+ValueError: Input 0 of layer "functional" is incompatible with the layer: expected shape=(None, 200), found shape=(1, 1133)
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\tools\prediction_engine.py", line 701, in generate_model_probabilities
+    raw_output = self._load_and_run_model(model_name, features)
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\tools\prediction_engine.py", line 541, in _load_and_run_model
+    raise RuntimeError(f"Could not load/run model {model_name}: {str(e)}")
+RuntimeError: Could not load/run model lstm_lotto_max_20251216_175357: Input 0 of layer "functional" is incompatible with the layer: expected shape=(None, 200), found shape=(1, 1133)
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\tools\prediction_engine.py", line 1025, in predict_single_model
+    model_probs = self.prob_gen.generate_model_probabilities(
+        model_name,
+        seed=current_seed
+    )
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\tools\prediction_engine.py", line 726, in generate_model_probabilities
+    raise RuntimeError(f"Failed to generate model probabilities for {model_name}: {str(e)}")
+RuntimeError: Failed to generate model probabilities for lstm_lotto_max_20251216_175357: Could not load/run model lstm_lotto_max_20251216_175357: Input 0 of layer "functional" is incompatible with the layer: expected shape=(None, 200), found shape=(1, 1133)
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\streamlit_app\pages\predictions.py", line 1598, in _render_prediction_generator
+    result_list = engine.predict_single_model(
+        model_name=selected_model_name,
+    ...<2 lines>...
+        seed=random_seed
+    )
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\tools\prediction_engine.py", line 1039, in predict_single_model
+    raise RuntimeError(error_msg)
+RuntimeError: Failed to generate model probabilities: Failed to generate model probabilities for lstm_lotto_max_20251216_175357: Could not load/run model lstm_lotto_max_20251216_175357: Input 0 of layer "functional" is incompatible with the layer: expected shape=(None, 200), found shape=(1, 1133)
+
+2025-12-16 18:25:59 - lottery_ai - ERROR - logger.py:138 - Prediction error: Traceback (most recent call last):
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\tools\prediction_engine.py", line 591, in generate_model_probabilities
+    model_path = Path(self.model_registry.get(model_name, ""))
+                      ^^^^^^^^^^^^^^^^^^^
+AttributeError: 'ProbabilityGenerator' object has no attribute 'model_registry'
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\tools\prediction_engine.py", line 751, in generate_model_probabilities
+    raise ValueError(f"Could not generate features for model {model_name}: {str(e)}")
+ValueError: Could not generate features for model lstm_lotto_max_20251216_175357: 'ProbabilityGenerator' object has no attribute 'model_registry'
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\tools\prediction_engine.py", line 1090, in predict_single_model
+    model_probs = self.prob_gen.generate_model_probabilities(
+        model_name,
+        seed=current_seed
+    )
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\tools\prediction_engine.py", line 791, in generate_model_probabilities
+    raise RuntimeError(f"Failed to generate model probabilities for {model_name}: {str(e)}")
+RuntimeError: Failed to generate model probabilities for lstm_lotto_max_20251216_175357: Could not generate features for model lstm_lotto_max_20251216_175357: 'ProbabilityGenerator' object has no attribute 'model_registry'
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\streamlit_app\pages\predictions.py", line 1598, in _render_prediction_generator
+    result_list = engine.predict_single_model(
+        model_name=selected_model_name,
+    ...<2 lines>...
+        seed=random_seed
+    )
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\tools\prediction_engine.py", line 1104, in predict_single_model
+    raise RuntimeError(error_msg)
+RuntimeError: Failed to generate model probabilities: Failed to generate model probabilities for lstm_lotto_max_20251216_175357: Could not generate features for model lstm_lotto_max_20251216_175357: 'ProbabilityGenerator' object has no attribute 'model_registry'
+
+2025-12-16 18:29:11 - lottery_ai - ERROR - logger.py:138 - Prediction error: Traceback (most recent call last):
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\tools\prediction_engine.py", line 491, in _load_and_run_model
+    if class_probs.ndim > 1:
+       ^^^^^^^^^^^^^^^^
+AttributeError: 'list' object has no attribute 'ndim'
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\tools\prediction_engine.py", line 792, in generate_model_probabilities
+    raw_output = self._load_and_run_model(model_name, features)
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\tools\prediction_engine.py", line 541, in _load_and_run_model
+    raise RuntimeError(f"Could not load/run model {model_name}: {str(e)}")
+RuntimeError: Could not load/run model lstm_lotto_max_20251216_175357: 'list' object has no attribute 'ndim'
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\tools\prediction_engine.py", line 1116, in predict_single_model
+    model_probs = self.prob_gen.generate_model_probabilities(
+        model_name,
+        seed=current_seed
+    )
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\tools\prediction_engine.py", line 817, in generate_model_probabilities
+    raise RuntimeError(f"Failed to generate model probabilities for {model_name}: {str(e)}")
+RuntimeError: Failed to generate model probabilities for lstm_lotto_max_20251216_175357: Could not load/run model lstm_lotto_max_20251216_175357: 'list' object has no attribute 'ndim'
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\streamlit_app\pages\predictions.py", line 1598, in _render_prediction_generator
+    result_list = engine.predict_single_model(
+        model_name=selected_model_name,
+    ...<2 lines>...
+        seed=random_seed
+    )
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\tools\prediction_engine.py", line 1130, in predict_single_model
+    raise RuntimeError(error_msg)
+RuntimeError: Failed to generate model probabilities: Failed to generate model probabilities for lstm_lotto_max_20251216_175357: Could not load/run model lstm_lotto_max_20251216_175357: 'list' object has no attribute 'ndim'
+
+2025-12-16 18:31:14 - lottery_ai - ERROR - logger.py:138 - Prediction error: Traceback (most recent call last):
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\tools\prediction_engine.py", line 491, in _load_and_run_model
+    if class_probs.ndim > 1:
+       ^^^^^^^^^^^^^^^^
+AttributeError: 'list' object has no attribute 'ndim'
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\tools\prediction_engine.py", line 796, in generate_model_probabilities
+    raw_output = self._load_and_run_model(model_name, features)
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\tools\prediction_engine.py", line 541, in _load_and_run_model
+    raise RuntimeError(f"Could not load/run model {model_name}: {str(e)}")
+RuntimeError: Could not load/run model lstm_lotto_max_20251216_175357: 'list' object has no attribute 'ndim'
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\tools\prediction_engine.py", line 1120, in predict_single_model
+    model_probs = self.prob_gen.generate_model_probabilities(
+        model_name,
+        seed=current_seed
+    )
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\tools\prediction_engine.py", line 821, in generate_model_probabilities
+    raise RuntimeError(f"Failed to generate model probabilities for {model_name}: {str(e)}")
+RuntimeError: Failed to generate model probabilities for lstm_lotto_max_20251216_175357: Could not load/run model lstm_lotto_max_20251216_175357: 'list' object has no attribute 'ndim'
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\streamlit_app\pages\predictions.py", line 1598, in _render_prediction_generator
+    result_list = engine.predict_single_model(
+        model_name=selected_model_name,
+    ...<2 lines>...
+        seed=random_seed
+    )
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\tools\prediction_engine.py", line 1134, in predict_single_model
+    raise RuntimeError(error_msg)
+RuntimeError: Failed to generate model probabilities: Failed to generate model probabilities for lstm_lotto_max_20251216_175357: Could not load/run model lstm_lotto_max_20251216_175357: 'list' object has no attribute 'ndim'
+
+2025-12-16 18:32:50 - lottery_ai - ERROR - logger.py:138 - Prediction error: Traceback (most recent call last):
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\tools\prediction_engine.py", line 491, in _load_and_run_model
+    if class_probs.ndim > 1:
+       ^^^^^^^^^^^^^^^^
+AttributeError: 'list' object has no attribute 'ndim'
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\tools\prediction_engine.py", line 802, in generate_model_probabilities
+    raw_output = self._load_and_run_model(model_name, features)
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\tools\prediction_engine.py", line 541, in _load_and_run_model
+    raise RuntimeError(f"Could not load/run model {model_name}: {str(e)}")
+RuntimeError: Could not load/run model lstm_lotto_max_20251216_175357: 'list' object has no attribute 'ndim'
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\tools\prediction_engine.py", line 1126, in predict_single_model
+    model_probs = self.prob_gen.generate_model_probabilities(
+        model_name,
+        seed=current_seed
+    )
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\tools\prediction_engine.py", line 827, in generate_model_probabilities
+    raise RuntimeError(f"Failed to generate model probabilities for {model_name}: {str(e)}")
+RuntimeError: Failed to generate model probabilities for lstm_lotto_max_20251216_175357: Could not load/run model lstm_lotto_max_20251216_175357: 'list' object has no attribute 'ndim'
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\streamlit_app\pages\predictions.py", line 1598, in _render_prediction_generator
+    result_list = engine.predict_single_model(
+        model_name=selected_model_name,
+    ...<2 lines>...
+        seed=random_seed
+    )
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\tools\prediction_engine.py", line 1140, in predict_single_model
+    raise RuntimeError(error_msg)
+RuntimeError: Failed to generate model probabilities: Failed to generate model probabilities for lstm_lotto_max_20251216_175357: Could not load/run model lstm_lotto_max_20251216_175357: 'list' object has no attribute 'ndim'
+
+2025-12-16 18:34:04 - lottery_ai - ERROR - logger.py:138 - Prediction error: Traceback (most recent call last):
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\tools\prediction_engine.py", line 491, in _load_and_run_model
+    if class_probs.ndim > 1:
+       ^^^^^^^^^^^^^^^^
+AttributeError: 'list' object has no attribute 'ndim'
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\tools\prediction_engine.py", line 802, in generate_model_probabilities
+    raw_output = self._load_and_run_model(model_name, features)
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\tools\prediction_engine.py", line 541, in _load_and_run_model
+    raise RuntimeError(f"Could not load/run model {model_name}: {str(e)}")
+RuntimeError: Could not load/run model lstm_lotto_max_20251216_175357: 'list' object has no attribute 'ndim'
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\tools\prediction_engine.py", line 1126, in predict_single_model
+    model_probs = self.prob_gen.generate_model_probabilities(
+        model_name,
+        seed=current_seed
+    )
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\tools\prediction_engine.py", line 827, in generate_model_probabilities
+    raise RuntimeError(f"Failed to generate model probabilities for {model_name}: {str(e)}")
+RuntimeError: Failed to generate model probabilities for lstm_lotto_max_20251216_175357: Could not load/run model lstm_lotto_max_20251216_175357: 'list' object has no attribute 'ndim'
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\streamlit_app\pages\predictions.py", line 1598, in _render_prediction_generator
+    result_list = engine.predict_single_model(
+        model_name=selected_model_name,
+    ...<2 lines>...
+        seed=random_seed
+    )
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\tools\prediction_engine.py", line 1140, in predict_single_model
+    raise RuntimeError(error_msg)
+RuntimeError: Failed to generate model probabilities: Failed to generate model probabilities for lstm_lotto_max_20251216_175357: Could not load/run model lstm_lotto_max_20251216_175357: 'list' object has no attribute 'ndim'
+

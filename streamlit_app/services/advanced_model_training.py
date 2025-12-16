@@ -541,6 +541,10 @@ class AdvancedModelTrainer:
             metadata: Dict with training info
         """
         app_log(f"Loading training data for {self.game}...", "info")
+        app_log(f"📥 Data sources provided:", "info")
+        for source_type, files in data_sources.items():
+            if files:
+                app_log(f"  - {source_type}: {len(files)} files", "info")
         
         # Auto-detect max_number if not provided
         if max_number is None:
@@ -593,12 +597,15 @@ class AdvancedModelTrainer:
         
         # Load CNN embeddings
         if "cnn" in data_sources and data_sources["cnn"]:
+            app_log(f"Loading CNN from {len(data_sources['cnn'])} files: {[f.name for f in data_sources['cnn']]}", "info")
             cnn_features, cnn_count = self._load_cnn_embeddings(data_sources["cnn"])
             if cnn_features is not None:
                 all_features.append(cnn_features)
                 all_metadata["sources"]["cnn"] = cnn_count
                 all_metadata["loaded_files"].extend([f.name for f in data_sources["cnn"]])
-                app_log(f"Loaded {cnn_count} CNN embeddings", "info")
+                app_log(f"✅ Loaded {cnn_count} CNN embeddings with {cnn_features.shape[1]} features", "info")
+            else:
+                app_log(f"⚠️ CNN loading returned None - no data loaded", "warning")
         
         # Load Transformer embeddings
         if "transformer" in data_sources and data_sources["transformer"]:
@@ -819,14 +826,18 @@ class AdvancedModelTrainer:
     
     def _load_cnn_embeddings(self, file_paths: List[Path]) -> Tuple[Optional[np.ndarray], int]:
         """Load CNN embeddings (multi-scale feature representations)."""
+        app_log(f"🔵 _load_cnn_embeddings called with {len(file_paths)} files", "info")
         try:
             all_embeddings = []
             feature_count = None
             
             for filepath in file_paths:
+                app_log(f"  Processing file: {filepath.name}", "info")
                 if filepath.suffix == ".npz":
                     try:
                         data = np.load(filepath)
+                        app_log(f"    Loaded .npz file, keys: {list(data.keys())}", "info")
+                        
                         # Try multiple possible keys for embeddings
                         embeddings = data.get("embeddings", None)
                         if embeddings is None:
@@ -835,11 +846,13 @@ class AdvancedModelTrainer:
                             embeddings = data.get("features", None)
                         
                         if embeddings is not None:
+                            app_log(f"    Found embeddings with shape: {embeddings.shape}", "info")
                             # Handle different embedding shapes
                             if len(embeddings.shape) > 2:
                                 # Multi-dimensional: (samples, dims...) - flatten to 2D
                                 num_samples = embeddings.shape[0]
                                 flattened = embeddings.reshape(num_samples, -1)
+                                app_log(f"    Flattened from {embeddings.shape} to {flattened.shape}", "info")
                             else:
                                 # Already 2D: (samples, features)
                                 flattened = embeddings
@@ -848,26 +861,43 @@ class AdvancedModelTrainer:
                             if feature_count is None:
                                 feature_count = flattened.shape[1]
                                 all_embeddings.append(flattened)
+                                app_log(f"    ✅ Added {flattened.shape[0]} samples with {feature_count} features", "info")
                             elif flattened.shape[1] == feature_count:
                                 all_embeddings.append(flattened)
+                                app_log(f"    ✅ Added {flattened.shape[0]} samples (feature count matches)", "info")
                             else:
                                 app_log(
-                                    f"Skipping CNN file {filepath.name}: feature mismatch ({flattened.shape[1]} vs {feature_count})",
+                                    f"⚠️ Skipping CNN file {filepath.name}: feature mismatch ({flattened.shape[1]} vs {feature_count})",
                                     "warning"
                                 )
+                        else:
+                            app_log(f"    ⚠️ No embeddings found in file (tried keys: embeddings, X, features)", "warning")
                     except Exception as file_error:
-                        app_log(f"Error processing CNN file {filepath.name}: {file_error}", "warning")
+                        app_log(f"❌ Error processing CNN file {filepath.name}: {file_error}", "error")
+                        import traceback
+                        app_log(f"Traceback: {traceback.format_exc()}", "error")
                         continue
+                else:
+                    app_log(f"    ⚠️ Skipping non-.npz file: {filepath.suffix}", "warning")
             
             if all_embeddings:
                 combined = np.vstack(all_embeddings)
                 total_samples = combined.shape[0]
-                self.feature_names.extend([f"cnn_{i}" for i in range(combined.shape[1])])
+                # Initialize feature_names if None, otherwise extend
+                if self.feature_names is None:
+                    self.feature_names = [f"cnn_{i}" for i in range(combined.shape[1])]
+                else:
+                    self.feature_names.extend([f"cnn_{i}" for i in range(combined.shape[1])])
+                app_log(f"🎉 CNN loading complete: {total_samples} samples, {combined.shape[1]} features", "info")
                 return combined, total_samples
+            else:
+                app_log(f"⚠️ No CNN embeddings loaded from any file", "warning")
             
             return None, 0
         except Exception as e:
-            app_log(f"Error loading CNN embeddings: {e}", "error")
+            app_log(f"❌ Error loading CNN embeddings: {e}", "error")
+            import traceback
+            app_log(f"Traceback: {traceback.format_exc()}", "error")
             return None, 0
 
     def _load_transformer_embeddings(self, file_paths: List[Path]) -> Tuple[Optional[np.ndarray], int]:
@@ -1464,10 +1494,12 @@ class AdvancedModelTrainer:
                 app_log(f"  Position {i+1} accuracy: {pos_acc:.4f}", "info")
             
             overall_accuracy = np.mean(position_accuracies)
-            set_accuracy = np.mean([np.array_equal(y_test[i], y_pred[i]) for i in range(len(y_test))])
+            correct_sets = sum(1 for i in range(len(y_test)) if np.array_equal(y_test[i, :], y_pred[i, :]))
+            set_accuracy = correct_sets / len(y_test)
             app_log(f"  Average position accuracy: {overall_accuracy:.4f}", "info")
-            app_log(f"  Complete set accuracy: {set_accuracy:.4f}", "info")
+            app_log(f"  Complete set accuracy: {set_accuracy:.4f} ({correct_sets}/{len(y_test)} perfect)", "info")
             
+            # Skip probability-based metrics for multi-output (not straightforward)
             # Skip probability-based metrics for multi-output (not straightforward)
             model.is_calibrated_ = False
         else:
@@ -1709,8 +1741,8 @@ class AdvancedModelTrainer:
                     epsilon=1e-7,
                     clipvalue=1.0
                 ),
-                loss="sparse_categorical_crossentropy",
-                metrics=["accuracy"]
+                loss=["sparse_categorical_crossentropy"] * output_info['n_outputs'],
+                metrics=[["accuracy"]] * output_info['n_outputs']
             )
         else:
             # Single-output: Original architecture
@@ -1786,11 +1818,23 @@ class AdvancedModelTrainer:
             # Calculate overall accuracy (average across positions)
             overall_accuracy = np.mean(position_accuracies)
             
-            # Calculate complete set accuracy (all positions correct)
-            set_accuracy = np.mean([np.array_equal(y_test[i], y_pred[i]) for i in range(len(y_test))])
+            # Calculate complete set accuracy (all 7 positions correct in same row)
+            # FIXED: Compare entire rows properly
+            correct_sets = 0
+            for i in range(len(y_test)):
+                if np.array_equal(y_test[i, :], y_pred[i, :]):
+                    correct_sets += 1
+            set_accuracy = correct_sets / len(y_test)
+            
+            # Debug: Show some example predictions vs actual
+            if correct_sets == 0:
+                app_log(f"  No perfect sets. Showing sample predictions:", "info")
+                for i in range(min(3, len(y_test))):
+                    matches = sum(1 for j in range(len(y_test[i])) if y_test[i, j] == y_pred[i, j])
+                    app_log(f"    Sample {i+1}: {matches}/7 positions correct | Actual: {y_test[i]} | Predicted: {y_pred[i]}", "info")
             
             app_log(f"Average Position Accuracy: {overall_accuracy:.4f}", "info")
-            app_log(f"Complete Set Accuracy: {set_accuracy:.4f}", "info")
+            app_log(f"Complete Set Accuracy: {set_accuracy:.4f} ({correct_sets}/{len(y_test)} perfect predictions)", "info")
             
             metrics = {
                 "accuracy": overall_accuracy,
@@ -1799,6 +1843,8 @@ class AdvancedModelTrainer:
                 "train_size": len(X_train),
                 "test_size": len(X_test),
                 "feature_count": X.shape[1],
+                "data_source": "raw_csv",  # LSTM trained on raw CSV features
+                "input_shape": list(X_train.shape[1:]),  # (features,) for reshaping during prediction
                 "model_type": "LSTM",
                 "output_type": "multi-output",
                 "n_outputs": output_info['n_outputs'],
@@ -1844,6 +1890,8 @@ class AdvancedModelTrainer:
                 "train_size": len(X_train),
                 "test_size": len(X_test),
                 "feature_count": X.shape[1],
+                "data_source": "raw_csv",  # LSTM trained on raw CSV features
+                "input_shape": list(X_train.shape[1:]),  # (features,) for reshaping during prediction
                 "unique_classes": len(np.unique(y)),
                 "model_type": "LSTM",
                 "timestamp": datetime.now().isoformat(),
@@ -1856,7 +1904,11 @@ class AdvancedModelTrainer:
                 "is_calibrated": False  # Note: Keras models need different calibration
             }
         
-        app_log(f"Advanced LSTM training complete - Accuracy: {metrics['accuracy']:.4f} | Row Accuracy: {metrics['row_level_accuracy']:.4f} | Parameters: {model.count_params():,}", "info")
+        # Log final metrics (different for multi-output vs single-output)
+        if is_multi_output:
+            app_log(f"Advanced LSTM training complete - Avg Accuracy: {metrics['accuracy']:.4f} | Set Accuracy: {metrics.get('set_accuracy', 0):.4f} | Parameters: {model.count_params():,}", "info")
+        else:
+            app_log(f"Advanced LSTM training complete - Accuracy: {metrics['accuracy']:.4f} | Row Accuracy: {metrics['row_level_accuracy']:.4f} | Parameters: {model.count_params():,}", "info")
         
         # Store scaler for later use in predictions
         setattr(model, 'scaler_', self.scaler)
@@ -1994,7 +2046,7 @@ class AdvancedModelTrainer:
         
         # CatBoost hyperparameters optimized for accuracy
         catboost_params = {
-            "iterations": config.get("epochs", 2000),
+            "iterations": config.get("epochs", 800),
             "learning_rate": config.get("learning_rate", 0.03),
             "depth": 10,
             "l2_leaf_reg": 3.0,
@@ -2052,31 +2104,66 @@ class AdvancedModelTrainer:
                     message = f"🔄 Epoch {i}/{model.tree_count_}"
                     progress_callback(progress, message, {'epoch': i, 'total_epochs': model.tree_count_})
         except Exception as e:
-            app_log(f"CatBoost training with eval_set failed, falling back: {e}", "warning")
+            app_log(f"CatBoost training with eval_set failed: {e}, trying fallback...", "warning")
             try:
+                # Fallback without eval_set
                 model.fit(X_train, y_train, verbose=False)
-            except:
-                model.fit(X_train, y_train, verbose=False)
+                app_log("✅ Fallback training succeeded", "info")
+            except Exception as e2:
+                app_log(f"❌ CatBoost training failed completely: {e2}", "error")
+                import traceback
+                app_log(f"Traceback: {traceback.format_exc()}", "error")
+                raise RuntimeError(f"CatBoost training failed: {e2}") from e2
         
         if progress_callback:
             progress_callback(0.7, "Evaluating model...")
         
         # Model evaluation (handle both single and multi-output)
-        y_pred = model.predict(X_test)
-        
-        # Calculate accuracy differently for single vs multi-output
         if is_multi_output:
-            # Multi-output: calculate per-position accuracy
+            # Multi-output: MultiOutputClassifier.predict() returns (n_samples, n_outputs)
+            y_pred = model.predict(X_test)
+            
+            app_log(f"  Raw y_pred type: {type(y_pred)}", "info")
+            
+            # Convert to numpy array properly
+            if isinstance(y_pred, list):
+                # List of arrays - stack them as columns
+                app_log(f"  Converting list of {len(y_pred)} arrays to 2D array", "info")
+                y_pred = np.column_stack(y_pred)
+            elif not isinstance(y_pred, np.ndarray):
+                y_pred = np.array(y_pred)
+            
+            # Remove extra dimensions if any
+            if y_pred.ndim == 3:
+                app_log(f"  Squeezing 3D array {y_pred.shape} to 2D", "info")
+                y_pred = np.squeeze(y_pred, axis=0)
+            
+            if y_pred.ndim == 1:
+                y_pred = y_pred.reshape(-1, 1)
+            
+            app_log(f"  After conversion - y_test shape: {y_test.shape}, y_pred shape: {y_pred.shape}", "info")
+            
+            # Verify shapes match
+            if y_pred.shape != y_test.shape:
+                app_log(f"❌ ERROR: Shape mismatch! y_test={y_test.shape}, y_pred={y_pred.shape}", "error")
+                raise ValueError(f"Prediction shape {y_pred.shape} doesn't match target shape {y_test.shape}")
+            
+            # Calculate per-position accuracy
             position_accuracies = []
             for i in range(y_test.shape[1]):
-                pos_acc = accuracy_score(y_test[:, i], y_pred[:, i])
+                # Extract predictions for this position
+                y_test_pos = y_test[:, i]
+                y_pred_pos = y_pred[:, i]
+                
+                pos_acc = accuracy_score(y_test_pos, y_pred_pos)
                 position_accuracies.append(pos_acc)
                 app_log(f"  Position {i+1} accuracy: {pos_acc:.4f}", "info")
             
             overall_accuracy = np.mean(position_accuracies)
-            set_accuracy = np.mean([np.array_equal(y_test[i], y_pred[i]) for i in range(len(y_test))])
+            correct_sets = sum(1 for i in range(len(y_test)) if np.array_equal(y_test[i, :], y_pred[i, :]))
+            set_accuracy = correct_sets / len(y_test)
             app_log(f"  Average position accuracy: {overall_accuracy:.4f}", "info")
-            app_log(f"  Complete set accuracy: {set_accuracy:.4f}", "info")
+            app_log(f"  Complete set accuracy: {set_accuracy:.4f} ({correct_sets}/{len(y_test)} perfect)", "info")
             
             # Build multi-output metrics
             metrics = {
@@ -2094,6 +2181,8 @@ class AdvancedModelTrainer:
             }
         else:
             # Single-output evaluation
+            y_pred = model.predict(X_test)
+            
             from sklearn.metrics import classification_report
             class_report = classification_report(y_test, y_pred, output_dict=True, zero_division=0)
             
@@ -2619,7 +2708,7 @@ class AdvancedModelTrainer:
         num_epochs = config.get("epochs", 150)
         history = model.fit(
             X_train, y_train_list,
-            validation_data=(X_test, y_test),
+            validation_data=(X_test, y_test_list),
             epochs=num_epochs,
             batch_size=config.get("batch_size", 32),
             callbacks=[
@@ -2663,10 +2752,18 @@ class AdvancedModelTrainer:
             overall_accuracy = np.mean(position_accuracies)
             
             # Calculate complete set accuracy (all positions correct)
-            set_accuracy = np.mean([np.array_equal(y_test[i], y_pred[i]) for i in range(len(y_test))])
+            correct_sets = sum(1 for i in range(len(y_test)) if np.array_equal(y_test[i, :], y_pred[i, :]))
+            set_accuracy = correct_sets / len(y_test)
+            
+            # Debug: Show some example predictions vs actual
+            if correct_sets == 0:
+                app_log(f"  No perfect sets. Showing sample predictions:", "info")
+                for i in range(min(3, len(y_test))):
+                    matches = sum(1 for j in range(len(y_test[i])) if y_test[i, j] == y_pred[i, j])
+                    app_log(f"    Sample {i+1}: {matches}/7 positions correct | Actual: {y_test[i]} | Predicted: {y_pred[i]}", "info")
             
             app_log(f"Average Position Accuracy: {overall_accuracy:.4f}", "info")
-            app_log(f"Complete Set Accuracy: {set_accuracy:.4f}", "info")
+            app_log(f"Complete Set Accuracy: {set_accuracy:.4f} ({correct_sets}/{len(y_test)} perfect)", "info")
             
             metrics = {
                 "accuracy": overall_accuracy,
@@ -2675,6 +2772,8 @@ class AdvancedModelTrainer:
                 "train_size": len(X_train),
                 "test_size": len(X_test),
                 "feature_count": X.shape[1],
+                "data_source": "raw_csv",  # Transformer trained on raw CSV features
+                "input_shape": list(X_train.shape[1:]),  # (8, 1) for reshaping during prediction
                 "model_type": "Transformer",
                 "output_type": "multi-output",
                 "n_outputs": output_info['n_outputs'],
@@ -2699,6 +2798,8 @@ class AdvancedModelTrainer:
                 "train_size": len(X_train),
                 "test_size": len(X_test),
                 "feature_count": X.shape[1],
+                "data_source": "raw_csv",  # Transformer trained on raw CSV features
+                "input_shape": list(X_train.shape[1:]),  # (8, 1) for reshaping during prediction
                 "unique_classes": len(np.unique(y)),
                 "model_type": "Transformer",
                 "timestamp": datetime.now().isoformat(),
@@ -2710,7 +2811,11 @@ class AdvancedModelTrainer:
                 "is_calibrated": False
             }
         
-        app_log(f"Advanced Transformer training complete - Accuracy: {metrics['accuracy']:.4f} | Row Accuracy: {metrics['row_level_accuracy']:.4f} | Parameters: {model.count_params():,}", "info")
+        # Log final metrics (different for multi-output vs single-output)
+        if is_multi_output:
+            app_log(f"Advanced Transformer training complete - Avg Accuracy: {metrics['accuracy']:.4f} | Set Accuracy: {metrics.get('set_accuracy', 0):.4f} | Parameters: {model.count_params():,}", "info")
+        else:
+            app_log(f"Advanced Transformer training complete - Accuracy: {metrics['accuracy']:.4f} | Row Accuracy: {metrics['row_level_accuracy']:.4f} | Parameters: {model.count_params():,}", "info")
         
         # Store scaler for later use in predictions
         setattr(model, 'scaler_', self.scaler)
@@ -2871,7 +2976,7 @@ class AdvancedModelTrainer:
         if is_multi_output:
             model.compile(
                 optimizer=keras.optimizers.Adam(
-                    learning_rate=config.get("learning_rate", 0.001),
+                    learning_rate=config.get("learning_rate", 0.0005),  # Reduced from 0.001 for better convergence
                     beta_1=0.9,
                     beta_2=0.999,
                     epsilon=1e-7
@@ -2882,7 +2987,7 @@ class AdvancedModelTrainer:
         else:
             model.compile(
                 optimizer=keras.optimizers.Adam(
-                    learning_rate=config.get("learning_rate", 0.001),
+                    learning_rate=config.get("learning_rate", 0.0005),  # Reduced from 0.001 for better convergence
                     beta_1=0.9,
                     beta_2=0.999,
                     epsilon=1e-7
@@ -2905,7 +3010,7 @@ class AdvancedModelTrainer:
             y_test_list = y_test
         
         # Train model (Phase 1 Optimization: Better batch size and early stopping)
-        num_epochs = config.get("epochs", 200)  # Increased from 100 to 200
+        num_epochs = config.get("epochs", 250)  # Increased from 200 to 250 for more training time
         batch_size = config.get("batch_size", 16)  # Reduced from 32 to 16 for better gradient flow
         
         history = model.fit(
@@ -2917,14 +3022,14 @@ class AdvancedModelTrainer:
                 TrainingProgressCallback(progress_callback, num_epochs),
                 callbacks.EarlyStopping(
                     monitor="val_loss",
-                    patience=50,  # Increased from 20 to 50 for longer training
+                    patience=80,  # Increased from 50 to 80 - allow more time to improve
                     restore_best_weights=True,
                     verbose=0
                 ),
                 callbacks.ReduceLROnPlateau(
                     monitor="val_loss",
                     factor=0.5,
-                    patience=5,
+                    patience=8,  # Increased from 5 to 8 for more stable learning
                     min_lr=1e-6,
                     verbose=0
                 )
@@ -2956,11 +3061,23 @@ class AdvancedModelTrainer:
             # Calculate overall accuracy (average across positions)
             overall_accuracy = np.mean(position_accuracies)
             
-            # Calculate complete set accuracy (all positions correct)
-            set_accuracy = np.mean([np.array_equal(y_test[i], y_pred[i]) for i in range(len(y_test))])
+            # Calculate complete set accuracy (all 7 positions correct in same row)
+            # FIXED: Compare entire rows properly
+            correct_sets = 0
+            for i in range(len(y_test)):
+                if np.array_equal(y_test[i, :], y_pred[i, :]):
+                    correct_sets += 1
+            set_accuracy = correct_sets / len(y_test)
+            
+            # Debug: Show some example predictions vs actual
+            if correct_sets == 0:
+                app_log(f"  No perfect sets. Showing sample predictions:", "info")
+                for i in range(min(3, len(y_test))):
+                    matches = sum(1 for j in range(len(y_test[i])) if y_test[i, j] == y_pred[i, j])
+                    app_log(f"    Sample {i+1}: {matches}/7 positions correct | Actual: {y_test[i]} | Predicted: {y_pred[i]}", "info")
             
             app_log(f"Average Position Accuracy: {overall_accuracy:.4f}", "info")
-            app_log(f"Complete Set Accuracy: {set_accuracy:.4f}", "info")
+            app_log(f"Complete Set Accuracy: {set_accuracy:.4f} ({correct_sets}/{len(y_test)} perfect predictions)", "info")
             
             metrics = {
                 "accuracy": overall_accuracy,
@@ -2969,6 +3086,8 @@ class AdvancedModelTrainer:
                 "train_size": len(X_train),
                 "test_size": len(X_test),
                 "feature_count": X.shape[1],
+                "data_source": "cnn",  # CNN trained on CNN embeddings
+                "input_shape": list(X_train.shape[1:]),  # (64, 1) for reshaping during prediction
                 "model_type": "CNN",
                 "output_type": "multi-output",
                 "n_outputs": output_info['n_outputs'],
@@ -3024,6 +3143,8 @@ class AdvancedModelTrainer:
                     "train_size": len(X_train),
                     "test_size": len(X_test),
                     "feature_count": X.shape[1],
+                    "data_source": "cnn",  # CNN trained on CNN embeddings
+                    "input_shape": list(X_train.shape[1:]),  # (64, 1) for reshaping during prediction
                     "unique_classes": len(np.unique(y)),
                     "model_type": "CNN",
                     "timestamp": datetime.now().isoformat(),

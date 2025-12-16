@@ -32,10 +32,12 @@ from sklearn.multioutput import MultiOutputClassifier
 # ML Prediction Engine imports
 try:
     from tools.prediction_engine import PredictionEngine, SamplingStrategy
+    from streamlit_app.services.seed_manager import SeedManager
 except ImportError:
     # Fallback if import fails
     PredictionEngine = None
     SamplingStrategy = None
+    SeedManager = None
 
 # Multi-output detection helper
 def _is_multi_output_model(model) -> bool:
@@ -173,18 +175,18 @@ def get_ensemble_models(game: str) -> Dict[str, str]:
     return {}
 
 
-def _get_model_feature_count(models_dir: Path, model_type: str, game_folder: str) -> Optional[int]:
+def _get_model_metadata(models_dir: Path, model_type: str, game_folder: str) -> Optional[dict]:
     """
-    Get the expected feature count for a model from its metadata.
-    This ensures predictions use the same feature dimension as training.
+    Get the full metadata for a model including data_source and input_shape.
+    This ensures predictions use the same features and reshaping as training.
     
     Args:
         models_dir: Path to models directory
-        model_type: Model type (lowercase, e.g., 'xgboost', 'catboost', 'transformer')
+        model_type: Model type (lowercase, e.g., 'xgboost', 'catboost', 'transformer', 'cnn', 'lstm')
         game_folder: Game folder name (e.g., 'lotto_6_49')
     
     Returns:
-        Feature count from metadata, or None if not found
+        Metadata dict with feature_count, data_source, input_shape, or None if not found
     """
     try:
         model_type_dir = models_dir / model_type
@@ -192,9 +194,9 @@ def _get_model_feature_count(models_dir: Path, model_type: str, game_folder: str
             return None
         
         # Get the latest model
-        # For deep learning models (transformer, cnn), look for .keras files
+        # For deep learning models (transformer, cnn, lstm), look for .keras files
         # For others (catboost, xgboost, lightgbm), look for .joblib files
-        if model_type in ["transformer", "cnn"]:
+        if model_type in ["transformer", "cnn", "lstm"]:
             model_files = sorted(list(model_type_dir.glob(f"{model_type}_{game_folder}_*.keras")))
         else:
             model_files = sorted(list(model_type_dir.glob(f"{model_type}_{game_folder}_*.joblib")))
@@ -211,9 +213,30 @@ def _get_model_feature_count(models_dir: Path, model_type: str, game_folder: str
             
             # Handle nested metadata structure
             if model_type in metadata:
-                return metadata[model_type].get('feature_count')
-            elif 'feature_count' in metadata:
-                return metadata.get('feature_count')
+                return metadata[model_type]
+            else:
+                return metadata
+    
+    except Exception as e:
+        return None
+
+def _get_model_feature_count(models_dir: Path, model_type: str, game_folder: str) -> Optional[int]:
+    """
+    Get the expected feature count for a model from its metadata.
+    This ensures predictions use the same feature dimension as training.
+    
+    Args:
+        models_dir: Path to models directory
+        model_type: Model type (lowercase, e.g., 'xgboost', 'catboost', 'transformer')
+        game_folder: Game folder name (e.g., 'lotto_6_49')
+    
+    Returns:
+        Feature count from metadata, or None if not found
+    """
+    try:
+        metadata = _get_model_metadata(models_dir, model_type, game_folder)
+        if metadata:
+            return metadata.get('feature_count')
     
     except Exception as e:
         app_logger.warning(f"Could not get feature count for {model_type}: {e}")
@@ -461,14 +484,35 @@ def _render_ml_predictions() -> None:
         )
     
     with col2:
-        random_seed = st.number_input(
-            "Random Seed",
-            min_value=0,
-            max_value=2**31 - 1,
-            value=42,
-            help="Use the same seed for reproducible predictions",
-            key="ml_seed"
-        )
+        # Initialize seed manager
+        if SeedManager:
+            if 'seed_manager' not in st.session_state:
+                st.session_state.seed_manager = SeedManager()
+            
+            # Show next seed info for current model
+            if prediction_mode == "Single Model" and selected_model:
+                # Extract model type from model name (e.g., "xgboost_lotto_6_49_..." -> "xgboost")
+                model_type = selected_model.lower().split('_')[0]
+                if model_type in SeedManager.SEED_RANGES:
+                    next_seed = st.session_state.seed_manager.peek_next_seed(model_type)
+                    seed_info = st.session_state.seed_manager.get_seed_info(model_type)
+                    st.info(
+                        f"🎲 **Auto-Seed for {model_type.upper()}**: {next_seed}\n\n"
+                        f"Range: {seed_info['range_start']}-{seed_info['range_end']} | "
+                        f"Used: {seed_info['seeds_used']}/{seed_info['total_capacity']}"
+                    )
+                else:
+                    st.warning(f"Unknown model type: {model_type}")
+            elif prediction_mode == "Ensemble Voting":
+                next_seed = st.session_state.seed_manager.peek_next_seed("ensemble")
+                seed_info = st.session_state.seed_manager.get_seed_info("ensemble")
+                st.info(
+                    f"🎲 **Auto-Seed for ENSEMBLE**: {next_seed}\n\n"
+                    f"Range: {seed_info['range_start']}-{seed_info['range_end']} | "
+                    f"Used: {seed_info['seeds_used']}/{seed_info['total_capacity']}"
+                )
+        else:
+            st.info("🎲 Automatic seed management not available")
     
     with col3:
         use_bias_correction = st.checkbox(
@@ -493,15 +537,37 @@ def _render_ml_predictions() -> None:
         )
     
     with col2:
+        # Seed management controls
+        if SeedManager and 'seed_manager' in st.session_state:
+            st.write("**Seed Management**")
+            seed_col1, seed_col2 = st.columns(2)
+            
+            with seed_col1:
+                if st.button("🔄 Reset Current Model", help="Reset seed counter for current model type", key="reset_current_seed"):
+                    if prediction_mode == "Single Model" and selected_model:
+                        model_type = selected_model.lower().split('_')[0]
+                        if model_type in SeedManager.SEED_RANGES:
+                            st.session_state.seed_manager.reset_model_seeds(model_type)
+                            st.success(f"✅ Reset {model_type.upper()} seeds to start")
+                            st.rerun()
+                    elif prediction_mode == "Ensemble Voting":
+                        st.session_state.seed_manager.reset_model_seeds("ensemble")
+                        st.success("✅ Reset ENSEMBLE seeds to start")
+                        st.rerun()
+            
+            with seed_col2:
+                if st.button("🔄 Reset All Seeds", help="Reset ALL model seed counters", key="reset_all_seeds"):
+                    st.session_state.seed_manager.reset_all_seeds()
+                    st.success("✅ Reset ALL model seeds to start")
+                    st.rerun()
+    
+    with col3:
         save_seed_with_predictions = st.checkbox(
             "Save Seed with Predictions",
             value=True,
             help="Store random seed with predictions for exact reproducibility",
             key="ml_save_seed"
         )
-    
-    with col3:
-        st.empty()  # Placeholder for alignment
     
     # Generate button
     col1, col2, col3 = st.columns([1, 2, 1])
@@ -529,16 +595,26 @@ def _render_ml_predictions() -> None:
                         st.error("Selected model not found")
                         return
                     
+                    # Extract model type for seed management
+                    model_type = selected_model.lower().split('_')[0]
+                    
                     # Log which model is being used
                     st.write(f"📊 **Model Selected**: `{selected_model}`")
-                    st.write(f"🔍 **Selected Model Object**: {model_data}")
+                    st.write(f"🔍 **Model Type**: `{model_type.upper()}`")
                     
                     # Get health score for bias correction
                     health_score = model_data.get("health_score", 0.75)
                     
                     for i in range(num_predictions):
-                        # Use seed with offset for each prediction
-                        current_seed = random_seed + i if random_seed else None
+                        # Get automatic seed from seed manager
+                        if SeedManager and 'seed_manager' in st.session_state:
+                            if model_type in SeedManager.SEED_RANGES:
+                                current_seed = st.session_state.seed_manager.get_next_seed(model_type)
+                            else:
+                                current_seed = None
+                                st.warning(f"⚠️ Unknown model type '{model_type}', using random seed")
+                        else:
+                            current_seed = None
                         
                         st.write(f"**Generating Prediction {i+1}/{num_predictions}** - Model: `{selected_model}`, Seed: {current_seed}")
                         
@@ -572,9 +648,16 @@ def _render_ml_predictions() -> None:
                         model_name = model_data.get("model_name")
                         model_weights[model_name] = model_data.get("health_score", 0.75)
                     
+                    st.write(f"📊 **Ensemble Mode**: {len(model_weights)} models")
+                    
                     for i in range(num_predictions):
-                        # Use seed with offset for each prediction
-                        current_seed = random_seed + i if random_seed else None
+                        # Get automatic seed for ensemble
+                        if SeedManager and 'seed_manager' in st.session_state:
+                            current_seed = st.session_state.seed_manager.get_next_seed("ensemble")
+                        else:
+                            current_seed = None
+                        
+                        st.write(f"**Generating Ensemble Prediction {i+1}/{num_predictions}** - Seed: {current_seed}")
                         
                         result_list = engine.predict_ensemble(
                             model_weights=model_weights,
@@ -779,6 +862,33 @@ def _render_ml_predictions() -> None:
                     Correction strength varies by divergence magnitude
                     ```
                     """)
+                
+                # Seed Status Display
+                if SeedManager and 'seed_manager' in st.session_state:
+                    st.markdown("---")
+                    st.markdown("#### 🎲 Seed Manager Status")
+                    
+                    # Get all seed info
+                    all_info = st.session_state.seed_manager.get_all_seed_info()
+                    
+                    # Display in columns
+                    seed_cols = st.columns(4)
+                    for idx, (model_type, info) in enumerate(all_info.items()):
+                        with seed_cols[idx % 4]:
+                            with st.container(border=True):
+                                st.markdown(f"**{model_type.upper()}**")
+                                st.metric(
+                                    "Current Seed",
+                                    info['current_seed'],
+                                    delta=None
+                                )
+                                st.progress(info['usage_percentage'] / 100)
+                                st.caption(f"{info['seeds_used']}/{info['total_capacity']} used ({info['usage_percentage']:.1f}%)")
+                    
+                    # Show export state option
+                    with st.expander("🔧 Advanced Seed Management"):
+                        st.code(st.session_state.seed_manager.export_state(), language="text")
+                        st.caption("This shows the current state of all seed counters across all model types.")
             
             except Exception as e:
                 st.error(f"❌ Error generating predictions: {e}")
@@ -1264,27 +1374,88 @@ def _render_prediction_generator() -> None:
     
     st.divider()
     
-    # Add missing variables for prediction generation
-    random_seed = st.number_input(
-        "Random Seed (for reproducibility)",
-        min_value=0,
-        max_value=999999,
-        value=42,
-        help="Use same seed to get identical predictions",
-        key="pred_random_seed"
-    )
+    # Automatic Seed Management
+    st.markdown("#### 🎲 Seed Management")
     
-    save_seed_with_predictions = st.checkbox(
-        "Save Seed with Predictions",
-        value=False,
-        help="Store seed with predictions for exact reproducibility",
-        key="pred_save_seed"
-    )
+    col1, col2, col3 = st.columns(3)
+    
+    with col1:
+        # Initialize seed manager
+        if SeedManager:
+            if 'seed_manager' not in st.session_state:
+                st.session_state.seed_manager = SeedManager()
+            
+            # Determine model type for seed
+            if normalized_model_type == "Hybrid Ensemble":
+                display_model_type = "ensemble"
+                seed_display_name = "ENSEMBLE"
+            else:
+                display_model_type = normalized_model_type.lower().replace(" ", "_")
+                seed_display_name = display_model_type.upper()
+            
+            # Show next seed
+            if display_model_type in SeedManager.SEED_RANGES:
+                next_seed = st.session_state.seed_manager.peek_next_seed(display_model_type)
+                seed_info = st.session_state.seed_manager.get_seed_info(display_model_type)
+                st.info(
+                    f"**Next Seed ({seed_display_name})**: {next_seed}\n\n"
+                    f"Range: {seed_info['range_start']}-{seed_info['range_end']} | "
+                    f"Used: {seed_info['seeds_used']}/{seed_info['total_capacity']}"
+                )
+            else:
+                st.warning(f"Model type '{normalized_model_type}' not in seed ranges. Using random seed.")
+                next_seed = None
+        else:
+            st.info("Automatic seed management not available")
+            next_seed = 42
+    
+    with col2:
+        save_seed_with_predictions = st.checkbox(
+            "Save Seed with Predictions",
+            value=True,
+            help="Store seed with predictions for exact reproducibility",
+            key="pred_save_seed"
+        )
+    
+    with col3:
+        # Seed reset controls
+        if SeedManager and 'seed_manager' in st.session_state:
+            if st.button("🔄 Reset Seeds", help="Reset current model type seeds", key="reset_pred_seeds"):
+                if normalized_model_type == "Hybrid Ensemble":
+                    st.session_state.seed_manager.reset_model_seeds("ensemble")
+                    st.success("✅ Reset ENSEMBLE seeds")
+                else:
+                    model_type_key = normalized_model_type.lower().replace(" ", "_")
+                    if model_type_key in SeedManager.SEED_RANGES:
+                        st.session_state.seed_manager.reset_model_seeds(model_type_key)
+                        st.success(f"✅ Reset {model_type_key.upper()} seeds")
+                st.rerun()
     
     st.divider()
     
+    # Store the next seed for use in prediction generation
+    if 'pred_current_seed' not in st.session_state or st.session_state.get('pred_seed_needs_update', True):
+        st.session_state.pred_current_seed = next_seed
+        st.session_state.pred_seed_needs_update = False
+    
     # Generate predictions button
     if st.button("🎲 Generate Predictions", use_container_width=True, key="gen_pred_btn"):
+        # Get automatic seed
+        if SeedManager and 'seed_manager' in st.session_state:
+            if normalized_model_type == "Hybrid Ensemble":
+                random_seed = st.session_state.seed_manager.get_next_seed("ensemble")
+            else:
+                model_type_key = normalized_model_type.lower().replace(" ", "_")
+                if model_type_key in SeedManager.SEED_RANGES:
+                    random_seed = st.session_state.seed_manager.get_next_seed(model_type_key)
+                else:
+                    random_seed = None
+        else:
+            random_seed = 42
+        
+        # Mark that seed needs update for next display
+        st.session_state.pred_seed_needs_update = True
+        
         # Use the normalized_model_type defined earlier on the page
         
         # Validate model selection
@@ -3844,8 +4015,86 @@ def _generate_single_model_predictions(game: str, count: int, mode: str, model_t
         # Models were trained on model-specific feature sets with different dimensions
         data_dir = Path(get_data_dir())
         
+        # Get model metadata to determine correct data source and input shape
+        models_dir = Path(get_models_dir())
+        model_metadata = _get_model_metadata(models_dir, model_type_lower, game_folder)
+        
+        # Initialize variables for metadata-driven loading
+        metadata_input_shape = None
+        metadata_data_source = None
+        metadata_feature_count = None
+        
+        # For neural networks (CNN, LSTM, Transformer), use metadata to load correct features
+        if model_type_lower in ["cnn", "lstm", "transformer"]:
+            app_logger.info(f"🔍 Neural network detected: {model_type_lower}, checking metadata...")
+            app_logger.info(f"🔍 model_metadata = {model_metadata}")
+            if model_metadata:
+                metadata_data_source = model_metadata.get('data_source', model_type_lower)
+                metadata_feature_count = model_metadata.get('feature_count')
+                metadata_input_shape = model_metadata.get('input_shape')
+                app_logger.info(f"✅ Loading {model_type_lower.upper()} features: data_source={metadata_data_source}, feature_count={metadata_feature_count}, input_shape={metadata_input_shape}")
+            else:
+                # Fallback for old models without metadata
+                app_logger.warning(f"No metadata found for {model_type_lower}, using defaults")
+                metadata_data_source = "cnn" if model_type_lower == "cnn" else "raw_csv"
+                metadata_feature_count = None
+                metadata_input_shape = None
+            
+            # Load features based on data_source from training
+            if metadata_data_source == "cnn":
+                # CNN embeddings: (N, 64)
+                feature_files = sorted(list(data_dir.glob(f"features/cnn/{game_folder}/*.npz")))
+                if feature_files:
+                    try:
+                        loaded_npz = np.load(feature_files[-1])
+                        if 'embeddings' in loaded_npz:
+                            features_array = loaded_npz['embeddings']
+                            training_features = pd.DataFrame(features_array)
+                            feature_dim = metadata_feature_count or features_array.shape[1]
+                            app_logger.info(f"Loaded CNN embeddings from {feature_files[-1].name} with shape {features_array.shape}")
+                        else:
+                            app_logger.warning(f"NPZ file missing 'embeddings' key, using random fallback")
+                            training_features = None
+                            feature_dim = metadata_feature_count or 64
+                    except Exception as e:
+                        app_logger.warning(f"Could not load CNN embeddings: {e}, using random features")
+                        training_features = None
+                        feature_dim = metadata_feature_count or 64
+                else:
+                    app_logger.warning(f"No CNN embeddings found, using random fallback")
+                    training_features = None
+                    feature_dim = metadata_feature_count or 64
+            
+            elif metadata_data_source == "raw_csv":
+                # Raw CSV features for LSTM/Transformer
+                feature_files = sorted(list(data_dir.glob(f"features/{model_type_lower}/{game_folder}/*.csv")))
+                if not feature_files:
+                    # Try generic raw_csv folder
+                    feature_files = sorted(list(data_dir.glob(f"features/raw_csv/{game_folder}/*.csv")))
+                
+                if feature_files:
+                    try:
+                        features_df = pd.read_csv(feature_files[-1])
+                        numeric_cols = features_df.select_dtypes(include=[np.number]).columns
+                        training_features = features_df[numeric_cols]
+                        feature_dim = metadata_feature_count or len(numeric_cols)
+                        app_logger.info(f"Loaded raw CSV features from {feature_files[-1].name} with shape {training_features.shape}")
+                    except Exception as e:
+                        app_logger.warning(f"Could not load raw CSV features: {e}, using random features")
+                        training_features = None
+                        feature_dim = metadata_feature_count or 8
+                else:
+                    app_logger.warning(f"No raw CSV features found, using random fallback")
+                    training_features = None
+                    feature_dim = metadata_feature_count or 8
+            else:
+                # Unknown data source, use random
+                app_logger.warning(f"Unknown data_source '{metadata_data_source}', using random fallback")
+                training_features = None
+                feature_dim = metadata_feature_count or 64
+        
         # For each model type, load appropriate feature files with correct dimensions
-        if model_type_lower == "cnn":
+        elif model_type_lower == "cnn":
             # CNN uses embeddings: (N, 64)
             feature_files = sorted(list(data_dir.glob(f"features/{model_type_lower}/{game_folder}/*.npz")))
             if feature_files:
@@ -4051,19 +4300,26 @@ def _generate_single_model_predictions(game: str, count: int, mode: str, model_t
                     noise = rng.normal(0, 0.05, size=feature_vector.shape)
                     random_input = feature_vector * (1 + noise)
                     
-                    # Reshape based on model type
-                    if model_type_lower == "lstm":
-                        # LSTM expects (N, 25, 45)
+                    # Reshape based on model type - use metadata input_shape if available
+                    if metadata_input_shape is not None:
+                        # Use exact input_shape from training metadata
+                        random_input = random_input.reshape(1, *metadata_input_shape)
+                    elif model_type_lower == "lstm":
+                        # LSTM fallback: (N, 25, 45)
                         random_input = random_input.reshape(1, 25, 45)
                     elif model_type_lower == "cnn":
-                        # CNN expects (N, 64) - will be reshaped to (1, 64, 1) later
+                        # CNN fallback: (N, 64) - will be reshaped to (1, 64, 1) later
                         random_input = random_input.reshape(1, -1)
                     else:
-                        # Transformer
+                        # Transformer fallback
                         random_input = random_input.reshape(1, -1)
                 else:
-                    # Fallback to random if no training data
-                    if model_type_lower == "lstm":
+                    # Fallback to random if no training data - use metadata input_shape if available
+                    if metadata_input_shape is not None:
+                        # Use exact input_shape from training metadata
+                        random_input = rng.randn(1, *metadata_input_shape)
+                        feature_vector = rng.randn(np.prod(metadata_input_shape))
+                    elif model_type_lower == "lstm":
                         random_input = rng.randn(1, 25, 45)
                         feature_vector = rng.randn(25 * 45)  # Flatten for noise generation
                     else:
@@ -4071,8 +4327,32 @@ def _generate_single_model_predictions(game: str, count: int, mode: str, model_t
                         feature_vector = rng.randn(feature_dim)  # Create feature vector for noise generation
                 
                 # Scale input (but handle each model type appropriately)
-                if model_type_lower == "lstm":
-                    # LSTM expects flattened input (1, 1133) - it's 25*45=1125 + 8 padding
+                # For neural networks, use metadata input_shape for correct reshaping
+                app_logger.info(f"🔍 Before reshape: model_type={model_type_lower}, metadata_input_shape={metadata_input_shape}, random_input.shape={random_input.shape}")
+                if model_type_lower in ["cnn", "lstm", "transformer"] and metadata_input_shape is not None:
+                    # Use metadata to reshape correctly
+                    app_logger.info(f"✅ Using metadata input_shape: {metadata_input_shape}")
+                    if len(random_input.shape) == 2 and random_input.shape[1] == np.prod(metadata_input_shape):
+                        # Flatten and reshape to match training input_shape
+                        random_input_scaled = random_input.reshape(1, *metadata_input_shape)
+                    elif random_input.shape[1:] == tuple(metadata_input_shape):
+                        # Already correct shape
+                        random_input_scaled = random_input
+                    else:
+                        # Try to reshape to match
+                        random_input_flat = random_input.flatten()
+                        if random_input_flat.shape[0] < np.prod(metadata_input_shape):
+                            # Pad if too small
+                            padding = np.zeros(np.prod(metadata_input_shape) - random_input_flat.shape[0])
+                            random_input_flat = np.concatenate([random_input_flat, padding])
+                        elif random_input_flat.shape[0] > np.prod(metadata_input_shape):
+                            # Truncate if too large
+                            random_input_flat = random_input_flat[:np.prod(metadata_input_shape)]
+                        random_input_scaled = random_input_flat.reshape(1, *metadata_input_shape)
+                    app_logger.info(f"✅ After reshape with metadata: random_input_scaled.shape={random_input_scaled.shape}")
+                elif model_type_lower == "lstm":
+                    # LSTM fallback (no metadata): expects flattened input (1, 1133) - it's 25*45=1125 + 8 padding
+                    app_logger.warning(f"⚠️ LSTM using fallback (no metadata)! This should not happen for newly trained models.")
                     lstm_flat = random_input.reshape(1, -1)  # Flatten to (1, 1125)
                     # Pad with 8 zeros to reach 1133 dimensions
                     if lstm_flat.shape[1] < 1133:
@@ -4081,27 +4361,22 @@ def _generate_single_model_predictions(game: str, count: int, mode: str, model_t
                     else:
                         random_input_scaled = lstm_flat[:, :1133]  # Truncate if needed
                 elif model_type_lower == "cnn":
-                    # CNN embeddings are already normalized in feature generation
-                    # Model expects 72 features, pad if necessary
+                    # CNN fallback (no metadata): pad/truncate to feature_dim and reshape
                     cnn_input = random_input.copy()
-                    if cnn_input.shape[1] < 72:
-                        # Pad with zeros to reach 72 dimensions
-                        padding = np.zeros((cnn_input.shape[0], 72 - cnn_input.shape[1]))
+                    if cnn_input.shape[1] < feature_dim:
+                        padding = np.zeros((cnn_input.shape[0], feature_dim - cnn_input.shape[1]))
                         cnn_input = np.hstack([cnn_input, padding])
-                    elif cnn_input.shape[1] > 72:
-                        # Truncate to 72 dimensions
-                        cnn_input = cnn_input[:, :72]
-                    # Reshape to (1, 72, 1) for model input
-                    random_input_scaled = cnn_input.reshape(1, 72, 1)
+                    elif cnn_input.shape[1] > feature_dim:
+                        cnn_input = cnn_input[:, :feature_dim]
+                    # Reshape to (1, feature_dim, 1) for model input
+                    random_input_scaled = cnn_input.reshape(1, feature_dim, 1)
                 elif model_type_lower == "transformer":
-                    # Transformer expects (1, feature_dim, 1) - need to pad features and reshape
-                    transformer_input = random_input.copy()  # Shape: (1, current_features)
+                    # Transformer fallback (no metadata): pad/truncate to feature_dim and reshape
+                    transformer_input = random_input.copy()
                     if transformer_input.shape[1] < feature_dim:
-                        # Pad with zeros to reach expected feature dimension
                         padding = np.zeros((transformer_input.shape[0], feature_dim - transformer_input.shape[1]))
                         transformer_input = np.hstack([transformer_input, padding])
                     elif transformer_input.shape[1] > feature_dim:
-                        # Truncate to expected feature dimension
                         transformer_input = transformer_input[:, :feature_dim]
                     # Reshape to (1, feature_dim, 1) for model input
                     random_input_scaled = transformer_input.reshape(1, feature_dim, 1)
@@ -4131,8 +4406,17 @@ def _generate_single_model_predictions(game: str, count: int, mode: str, model_t
                         attempt_noise = rng.normal(0, 0.02 + (attempt / 500), size=feature_vector.shape)
                         attempt_input = feature_vector * (1 + attempt_noise)
                         
-                        # Reshape based on model type
-                        if model_type_lower == "lstm":
+                        # Reshape based on model type - use metadata if available
+                        if metadata_input_shape is not None:
+                            # Use exact input_shape from training metadata
+                            attempt_input_flat = attempt_input.flatten()
+                            if attempt_input_flat.shape[0] < np.prod(metadata_input_shape):
+                                padding = np.zeros(np.prod(metadata_input_shape) - attempt_input_flat.shape[0])
+                                attempt_input_flat = np.concatenate([attempt_input_flat, padding])
+                            elif attempt_input_flat.shape[0] > np.prod(metadata_input_shape):
+                                attempt_input_flat = attempt_input_flat[:np.prod(metadata_input_shape)]
+                            attempt_scaled = attempt_input_flat.reshape(1, *metadata_input_shape)
+                        elif model_type_lower == "lstm":
                             attempt_input = attempt_input.reshape(1, 25, 45)
                             lstm_flat = attempt_input.reshape(1, -1)  # Flatten to (1, 1125)
                             # Pad with 8 zeros to reach 1133
@@ -4143,14 +4427,14 @@ def _generate_single_model_predictions(game: str, count: int, mode: str, model_t
                                 attempt_scaled = lstm_flat[:, :1133]
                         elif model_type_lower == "cnn":
                             attempt_input = attempt_input.reshape(1, -1)
-                            # Pad CNN embeddings to 72 dimensions (model expects this)
-                            if attempt_input.shape[1] < 72:
-                                padding = np.zeros((attempt_input.shape[0], 72 - attempt_input.shape[1]))
+                            # Pad/truncate to feature_dim
+                            if attempt_input.shape[1] < feature_dim:
+                                padding = np.zeros((attempt_input.shape[0], feature_dim - attempt_input.shape[1]))
                                 attempt_input = np.hstack([attempt_input, padding])
-                            elif attempt_input.shape[1] > 72:
-                                attempt_input = attempt_input[:, :72]
+                            elif attempt_input.shape[1] > feature_dim:
+                                attempt_input = attempt_input[:, :feature_dim]
                             # CNN embeddings are already normalized, no scaling needed
-                            attempt_scaled = attempt_input.reshape(1, 72, 1)
+                            attempt_scaled = attempt_input.reshape(1, feature_dim, 1)
                         elif model_type_lower == "transformer":
                             # Transformer expects (1, feature_dim, 1) - need to pad and reshape
                             attempt_input = attempt_input.reshape(1, -1)
@@ -4634,8 +4918,18 @@ def _normalize_model_predictions(pred_probs: np.ndarray, method: str = 'minmax')
                 random_input = rng.randn(1, feature_dim)
                 random_input_scaled = active_scaler.transform(random_input)
                 
-                # Reshape for LSTM/CNN (sequence format)
-                random_input_scaled = random_input_scaled.reshape(1, feature_dim, 1)
+                # Reshape based on metadata if available, otherwise use default
+                if metadata_input_shape is not None:
+                    random_input_flat = random_input_scaled.flatten()
+                    if random_input_flat.shape[0] < np.prod(metadata_input_shape):
+                        padding = np.zeros(np.prod(metadata_input_shape) - random_input_flat.shape[0])
+                        random_input_flat = np.concatenate([random_input_flat, padding])
+                    elif random_input_flat.shape[0] > np.prod(metadata_input_shape):
+                        random_input_flat = random_input_flat[:np.prod(metadata_input_shape)]
+                    random_input_scaled = random_input_flat.reshape(1, *metadata_input_shape)
+                else:
+                    # Fallback: reshape for LSTM/CNN (sequence format)
+                    random_input_scaled = random_input_scaled.reshape(1, feature_dim, 1)
                 
                 # Get prediction
                 pred_probs = model.predict(random_input_scaled, verbose=0)
@@ -5313,9 +5607,17 @@ def _generate_ensemble_predictions(game: str, count: int, models_dict: Dict[str,
                         continue  # Skip single-output path
                     
                     if model_type in ["Transformer", "LSTM", "CNN"]:
-                        # Reshape for deep learning models
-                        if model_type == "LSTM":
-                            # LSTM expects flattened input (1, 1133) not reshaped
+                        # Reshape for deep learning models - use metadata if available
+                        if metadata_input_shape is not None:
+                            input_flat = random_input_scaled.flatten()
+                            if input_flat.shape[0] < np.prod(metadata_input_shape):
+                                padding = np.zeros(np.prod(metadata_input_shape) - input_flat.shape[0])
+                                input_flat = np.concatenate([input_flat, padding])
+                            elif input_flat.shape[0] > np.prod(metadata_input_shape):
+                                input_flat = input_flat[:np.prod(metadata_input_shape)]
+                            input_seq = input_flat.reshape(1, *metadata_input_shape)
+                        elif model_type == "LSTM":
+                            # LSTM fallback: expects flattened input (1, 1133)
                             lstm_flat = random_input_scaled  # Already correct shape
                             # Pad with 8 zeros to reach 1133 if needed
                             if lstm_flat.shape[1] < 1133:
@@ -5324,10 +5626,10 @@ def _generate_ensemble_predictions(game: str, count: int, models_dict: Dict[str,
                             else:
                                 input_seq = lstm_flat[:, :1133]
                         elif model_type == "CNN":
-                            # CNN expects (1, 72, 1)
+                            # CNN fallback: expects (1, feature_dim, 1)
                             input_seq = random_input_scaled.reshape(1, feature_dim, 1)
                         else:
-                            # Transformer expects (1, 20)
+                            # Transformer fallback: expects (1, feature_dim)
                             input_seq = random_input_scaled
                         pred_probs = model.predict(input_seq, verbose=0)[0]
                     elif model_type in ["XGBoost", "CatBoost", "LightGBM"]:
