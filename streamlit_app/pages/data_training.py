@@ -4215,7 +4215,7 @@ def _render_model_retraining():
                     # Load original model metadata
                     model_type_lower = selected_model_type.lower()
                     game_folder = _sanitize_game_name(selected_game)
-                    models_dir = get_models_dir() / game_folder / model_type_lower
+                    models_dir = _get_models_dir() / game_folder / model_type_lower
                     
                     original_metadata_file = None
                     if models_dir.exists():
@@ -4594,6 +4594,9 @@ def _retrain_model_with_monitoring(
         with status_container:
             st.info("💾 **Phase 7/7:** Saving retrained model...")
         
+        # Calculate final accuracy before saving
+        final_accuracy = accuracy_history[-1] if accuracy_history else original_accuracy
+        
         # Generate new model name
         if config.get("save_as_new_version", True):
             suffix = config.get("version_suffix", "retrained")
@@ -4603,9 +4606,37 @@ def _retrain_model_with_monitoring(
         else:
             new_model_path = model_path
         
-        # In real implementation, save the actual retrained model
-        st.success(f"✅ Model saved: `{new_model_path.name}`")
-        app_log(f"Retrained model saved: {new_model_path}", "info")
+        # Save the actual retrained model
+        try:
+            if model_path.suffix == '.joblib':
+                # Save tree-based model
+                joblib.dump(model, new_model_path)
+            elif model_path.suffix in ['.keras', '.h5']:
+                # Save neural network model
+                model.save(new_model_path)
+            
+            # Also save metadata if it exists
+            original_metadata_path = model_path.parent / f"{model_path.stem}_metadata.json"
+            if original_metadata_path.exists():
+                new_metadata_path = model_path.parent / f"{new_model_path.stem}_metadata.json"
+                import json
+                with open(original_metadata_path, 'r') as f:
+                    metadata = json.load(f)
+                # Update metadata with retraining info
+                model_key = model_type.lower()
+                if model_key in metadata:
+                    metadata[model_key]['retrained'] = True
+                    metadata[model_key]['retrain_timestamp'] = timestamp
+                    metadata[model_key]['retrain_accuracy'] = float(final_accuracy)
+                    metadata[model_key]['original_model'] = model_name
+                with open(new_metadata_path, 'w') as f:
+                    json.dump(metadata, f, indent=2)
+            
+            st.success(f"✅ Model saved: `{new_model_path.name}`")
+            app_log(f"Retrained model saved: {new_model_path}", "info")
+        except Exception as save_error:
+            st.error(f"❌ Error saving model: {save_error}")
+            app_log(f"Failed to save retrained model: {save_error}", "error")
         
         st.divider()
         
@@ -4615,7 +4646,7 @@ def _retrain_model_with_monitoring(
         
         st.markdown("#### 📊 Before/After Comparison")
         
-        final_accuracy = accuracy_history[-1]
+        # final_accuracy already calculated above
         accuracy_delta = final_accuracy - original_accuracy
         
         comparison_col1, comparison_col2, comparison_col3 = st.columns(3)

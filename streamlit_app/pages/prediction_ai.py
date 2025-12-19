@@ -522,8 +522,19 @@ class SuperIntelligentAIAnalyzer:
                         if is_neural:
                             # Neural networks output raw logits or probabilities
                             predictions = model.predict(X_latest, verbose=0)
-                            if len(predictions.shape) > 1 and predictions.shape[1] > 1:
-                                # Multi-class output - use softmax
+                            
+                            # Handle multi-output models (7 positions return list of arrays)
+                            if isinstance(predictions, list):
+                                analysis["inference_logs"].append(
+                                    f"🔢 Multi-output model detected: {len(predictions)} position outputs"
+                                )
+                                # Average probabilities across all 7 positions
+                                predictions = np.mean(predictions, axis=0)
+                                if predictions.ndim > 1:
+                                    predictions = predictions[0]
+                                probabilities = predictions
+                            elif len(predictions.shape) > 1 and predictions.shape[1] > 1:
+                                # Single-output multi-class model
                                 probabilities = predictions[0]
                             else:
                                 # Single output - create uniform distribution
