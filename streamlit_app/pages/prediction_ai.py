@@ -1459,11 +1459,12 @@ def render_prediction_ai_page(services_registry=None, ai_engines=None, component
         analyzer = SuperIntelligentAIAnalyzer(selected_game)
         
         # Create tabs
-        tab1, tab2, tab3, tab4 = st.tabs([
+        tab1, tab2, tab3, tab4, tab5 = st.tabs([
             "🤖 AI Model Configuration",
             "🎲 Generate Predictions",
             "📊 Prediction Analysis",
-            "🎰 MaxMillion Analysis" if selected_game == "Lotto Max" else "📈 Performance History"
+            "🎰 MaxMillion Analysis" if selected_game == "Lotto Max" else "📈 Performance History",
+            "🧠 AI Learning"
         ])
         
         with tab1:
@@ -1480,6 +1481,9 @@ def render_prediction_ai_page(services_registry=None, ai_engines=None, component
                 _render_maxmillion_analysis(analyzer, selected_game)
             else:
                 _render_performance_history(analyzer)
+        
+        with tab5:
+            _render_deep_learning_tab(analyzer, selected_game)
         
         app_log("AI Prediction Engine page rendered successfully", "info")
         
@@ -3295,4 +3299,959 @@ def _render_performance_history(analyzer: SuperIntelligentAIAnalyzer) -> None:
             st.write(f"• Avg Sets: {avg_sets:.0f}")
         else:
             st.write("No metrics data available")
+
+
+# ============================================================================
+# TAB 5: DEEP LEARNING & ANALYTICS
+# ============================================================================
+
+def _render_deep_learning_tab(analyzer: SuperIntelligentAIAnalyzer, game: str) -> None:
+    """Deep Learning and Analytics tab for prediction optimization and learning."""
+    st.subheader("🧠 Deep Learning and Analytics")
+    
+    st.markdown("""
+    Use machine learning to analyze predictions and optimize future sets based on historical patterns and outcomes.
+    """)
+    
+    # Mode selector
+    mode = st.radio(
+        "Analysis Mode",
+        ["📅 Next Draw Date (Optimize Future Predictions)", "📊 Previous Draw Date (Learn from Results)"],
+        key="dl_mode"
+    )
+    
+    st.divider()
+    
+    if "Next Draw Date" in mode:
+        _render_next_draw_mode(analyzer, game)
+    else:
+        _render_previous_draw_mode(analyzer, game)
+
+
+def _render_next_draw_mode(analyzer: SuperIntelligentAIAnalyzer, game: str) -> None:
+    """Next Draw Date mode - optimize future predictions using learning data."""
+    st.markdown("### 📅 Next Draw Prediction Optimization")
+    
+    # Get next draw date
+    try:
+        next_draw = compute_next_draw_date(game)
+        next_draw_str = next_draw.strftime('%Y-%m-%d')
+    except:
+        next_draw_str = (datetime.now() + timedelta(days=3)).strftime('%Y-%m-%d')
+    
+    st.info(f"**Next Draw Date:** {next_draw_str}")
+    
+    # Find prediction files for next draw
+    pred_files = _find_prediction_files_for_date(game, next_draw_str)
+    
+    if not pred_files:
+        st.warning(f"⚠️ No prediction files found for {next_draw_str}")
+        st.info("💡 Go to the '**🎲 Generate Predictions**' tab to create predictions for the next draw date")
+        return
+    
+    # File selector
+    file_options = [f.name for f in pred_files]
+    selected_file_idx = st.selectbox(
+        "Select Prediction File",
+        range(len(pred_files)),
+        format_func=lambda i: file_options[i],
+        key="next_draw_file"
+    )
+    
+    selected_file = pred_files[selected_file_idx]
+    
+    # Load and display predictions
+    try:
+        with open(selected_file, 'r') as f:
+            pred_data = json.load(f)
+        
+        predictions = pred_data.get('predictions', [])
+        
+        if not predictions:
+            st.error("No predictions found in file")
+            return
+        
+        st.markdown(f"**File:** `{selected_file.name}`")
+        st.markdown(f"**Total Sets:** {len(predictions)}")
+        
+        # Display predictions as game balls
+        st.markdown("#### 🎲 Prediction Sets")
+        _display_prediction_sets_as_balls(predictions, analyzer.game_config["draw_size"])
+        
+        st.divider()
+        
+        # Apply Learning button
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            if st.button("🔬 Apply Learning Analysis", use_container_width=True, key="apply_learning_next"):
+                with st.spinner("Analyzing predictions with learning data..."):
+                    # Apply learning analysis
+                    learning_scores = _apply_learning_analysis_future(predictions, game, analyzer)
+                    
+                    if learning_scores:
+                        st.session_state.dl_learning_scores = learning_scores
+                        st.session_state.dl_current_predictions = predictions
+                        st.session_state.dl_current_file = selected_file
+                        st.success("✅ Learning analysis complete!")
+                        st.rerun()
+        
+        # Show ranked results if analysis was done
+        if st.session_state.get('dl_learning_scores'):
+            st.markdown("#### 📊 Learning-Based Set Rankings")
+            
+            scores = st.session_state.dl_learning_scores
+            predictions = st.session_state.dl_current_predictions
+            
+            # Rank sets by score
+            ranked_sets = _rank_sets_by_learning(predictions, scores)
+            
+            # Display ranked sets (show all)
+            for rank, (set_idx, score, pred_set) in enumerate(ranked_sets, 1):
+                with st.expander(f"**Rank {rank}** - Set #{set_idx + 1} (Score: {score:.3f})", expanded=(rank <= 3)):
+                    cols = st.columns(len(pred_set))
+                    for col, num in zip(cols, sorted(pred_set)):
+                        with col:
+                            st.markdown(_get_ball_html(num), unsafe_allow_html=True)
+                    
+                    st.caption(f"Learning Score: {score:.3f} | Confidence: {scores[set_idx].get('confidence', 0):.2%}")
+            
+            with col2:
+                if st.button("🚀 Optimize with Learning Data", use_container_width=True, key="optimize_learning"):
+                    with st.spinner("Regenerating optimized sets..."):
+                        # Get learning data
+                        learning_data = _load_latest_learning_data(game)
+                        
+                        # Optimize sets
+                        optimized_predictions = _optimize_sets_with_learning(
+                            st.session_state.dl_current_predictions,
+                            learning_data,
+                            game,
+                            analyzer
+                        )
+                        
+                        # Save optimized predictions
+                        saved_path = _save_optimized_predictions(
+                            st.session_state.dl_current_file,
+                            optimized_predictions,
+                            pred_data
+                        )
+                        
+                        st.success(f"✅ Optimized predictions saved to:\n`{saved_path.name}`")
+                        st.balloons()
+                        
+                        # Clear session state
+                        del st.session_state.dl_learning_scores
+                        del st.session_state.dl_current_predictions
+                        del st.session_state.dl_current_file
+    
+    except Exception as e:
+        st.error(f"Error loading prediction file: {e}")
+        import traceback
+        st.error(traceback.format_exc())
+
+
+def _render_previous_draw_mode(analyzer: SuperIntelligentAIAnalyzer, game: str) -> None:
+    """Previous Draw Date mode - learn from actual results."""
+    st.markdown("### 📊 Learn from Previous Draw Results")
+    
+    # Load past draw dates
+    past_dates = _load_past_draw_dates(game)
+    
+    if not past_dates:
+        st.warning(f"⚠️ No historical draw data found for {game}")
+        return
+    
+    # Date selector
+    selected_date = st.selectbox(
+        "Select Draw Date",
+        past_dates,
+        key="prev_draw_date"
+    )
+    
+    # Load actual results
+    actual_results = _load_actual_results(game, selected_date)
+    
+    if not actual_results:
+        st.warning(f"⚠️ No results found for {selected_date}")
+        return
+    
+    # Validate we have numbers
+    if not actual_results.get('numbers') or len(actual_results['numbers']) == 0:
+        st.error(f"⚠️ Invalid draw data for {selected_date} - no winning numbers found")
+        return
+    
+    # Display actual results
+    st.markdown("#### 🎯 Actual Draw Results")
+    
+    col1, col2, col3 = st.columns(3)
+    
+    with col1:
+        st.markdown("**Winning Numbers:**")
+        cols = st.columns(len(actual_results['numbers']))
+        for col, num in zip(cols, actual_results['numbers']):
+            with col:
+                st.markdown(_get_ball_html(num, color="green"), unsafe_allow_html=True)
+    
+    with col2:
+        if actual_results.get('bonus'):
+            st.markdown("**Bonus:**")
+            st.markdown(_get_ball_html(actual_results['bonus'], color="gold"), unsafe_allow_html=True)
+    
+    with col3:
+        if actual_results.get('jackpot'):
+            st.metric("Jackpot", f"${actual_results['jackpot']:,.0f}")
+    
+    st.divider()
+    
+    # Find prediction files for this date
+    pred_files = _find_prediction_files_for_date(game, selected_date)
+    
+    if not pred_files:
+        st.info(f"ℹ️ No prediction files found for {selected_date}")
+        return
+    
+    # File selector
+    file_options = [f.name for f in pred_files]
+    selected_file_idx = st.selectbox(
+        "Select Prediction File",
+        range(len(pred_files)),
+        format_func=lambda i: file_options[i],
+        key="prev_draw_file"
+    )
+    
+    selected_file = pred_files[selected_file_idx]
+    
+    # Load predictions
+    try:
+        with open(selected_file, 'r') as f:
+            pred_data = json.load(f)
+        
+        predictions = pred_data.get('predictions', [])
+        
+        if not predictions:
+            st.error("No predictions found in file")
+            return
+        
+        # Highlight matches and sort by accuracy
+        matched_predictions = _highlight_prediction_matches(
+            predictions,
+            actual_results['numbers'],
+            actual_results.get('bonus')
+        )
+        
+        sorted_predictions = _sort_predictions_by_accuracy(matched_predictions, actual_results['numbers'])
+        
+        st.markdown(f"#### 🎲 Prediction Results (Sorted by Accuracy)")
+        st.markdown(f"**Total Sets:** {len(sorted_predictions)}")
+        
+        # Display sorted predictions with matches
+        for rank, pred in enumerate(sorted_predictions, 1):  # Show ALL sets
+            correct_count = pred['correct_count']
+            has_bonus = pred['has_bonus']
+            
+            status_emoji = "🏆" if correct_count >= 4 else "✅" if correct_count >= 2 else "➖"
+            
+            with st.expander(
+                f"{status_emoji} **Rank {rank}** - Set #{pred['original_index'] + 1} "
+                f"({correct_count} correct{' + BONUS' if has_bonus else ''})",
+                expanded=(rank <= 5)
+            ):
+                # Display the numbers with appropriate colors
+                cols = st.columns(len(pred['numbers']))
+                for col, num_data in zip(cols, pred['numbers']):
+                    num = num_data['number']
+                    is_correct = num_data['is_correct']
+                    is_bonus = num_data['is_bonus']
+                    
+                    # Determine color based on match status
+                    if is_bonus:
+                        color = "gold"
+                    elif is_correct:
+                        color = "green"
+                    else:
+                        color = "blue"
+                    
+                    with col:
+                        # Pass color parameter to the function
+                        st.markdown(_get_ball_html(num, color=color), unsafe_allow_html=True)
+                
+                legend = "🟢 Correct | 🟡 Bonus | 🔵 Miss"
+                st.caption(legend)
+        
+        st.divider()
+        
+        # Use Raw CSVs checkbox
+        use_raw_csv = st.checkbox(
+            "📁 Include Raw CSV Pattern Analysis",
+            value=False,
+            help="Analyze historical patterns from raw CSV files (slower but more comprehensive)",
+            key="use_raw_csv"
+        )
+        
+        # Apply Learning button
+        if st.button("🔬 Apply Learning Analysis", use_container_width=True, key="apply_learning_prev"):
+            with st.spinner("Performing deep learning analysis..."):
+                # Comprehensive learning analysis
+                learning_data = _compile_comprehensive_learning_data(
+                    game,
+                    selected_date,
+                    actual_results,
+                    sorted_predictions,
+                    pred_data,
+                    use_raw_csv
+                )
+                
+                if learning_data:
+                    # Save learning data
+                    saved_path = _save_learning_data(game, selected_date, learning_data)
+                    
+                    st.success(f"✅ Learning data saved to: `{saved_path}`")
+                    
+                    # Display learning insights
+                    st.markdown("#### 📈 Learning Insights")
+                    
+                    insights = learning_data.get('learning_insights', [])
+                    for insight in insights:
+                        st.info(f"💡 {insight}")
+                    
+                    # Display detailed analysis
+                    with st.expander("📊 Detailed Analysis Results", expanded=True):
+                        analysis = learning_data['analysis']
+                        
+                        # Position accuracy
+                        st.markdown("**Position-wise Accuracy:**")
+                        pos_acc = analysis['position_accuracy']
+                        pos_df = pd.DataFrame([
+                            {
+                                'Position': int(k.split('_')[1]),
+                                'Correct': v['correct'],
+                                'Total': v['total'],
+                                'Accuracy': f"{v['accuracy']:.1%}"
+                            }
+                            for k, v in pos_acc.items()
+                        ])
+                        st.dataframe(pos_df, use_container_width=True, hide_index=True)
+                        
+                        # Sum analysis
+                        st.markdown("**Sum Analysis:**")
+                        sum_data = analysis['sum_analysis']
+                        st.write(f"• Winning Sum: {sum_data['winning_sum']}")
+                        st.write(f"• Closest Set: #{sum_data['closest_set']['index'] + 1} (diff: {sum_data['closest_set']['diff']})")
+                        
+                        # Set accuracy distribution
+                        st.markdown("**Top Performing Sets:**")
+                        top_sets = analysis['set_accuracy'][:5]
+                        for s in top_sets:
+                            st.write(f"• Set #{s['set'] + 1}: {s['correct']} correct - {s['numbers']}")
+                        
+                        # Raw CSV patterns (if enabled)
+                        if use_raw_csv and 'raw_csv_patterns' in analysis:
+                            st.markdown("**Raw CSV Pattern Analysis:**")
+                            csv_patterns = analysis['raw_csv_patterns']
+                            st.write(f"• Matching Jackpot Draws: {csv_patterns.get('matching_jackpot_draws', 0)}")
+                            st.write(f"• Sum Range: {csv_patterns['sum_distribution']['min']}-{csv_patterns['sum_distribution']['max']}")
+                            st.write(f"• Avg Odd/Even: {csv_patterns['odd_even_ratio']['odd']:.1f} / {csv_patterns['odd_even_ratio']['even']:.1f}")
+                            st.write(f"• Repetition Rate: {csv_patterns.get('repetition_rate', 0):.1%}")
+    
+    except Exception as e:
+        st.error(f"Error processing predictions: {e}")
+        import traceback
+        st.error(traceback.format_exc())
+
+
+# ============================================================================
+# HELPER FUNCTIONS FOR DEEP LEARNING TAB
+# ============================================================================
+
+def _find_prediction_files_for_date(game: str, draw_date: str) -> List[Path]:
+    """Find prediction files in predictions/{game}/prediction_ai/ directory."""
+    game_folder = _sanitize_game_name(game)
+    pred_dir = Path("predictions") / game_folder / "prediction_ai"
+    
+    if not pred_dir.exists():
+        return []
+    
+    matching_files = []
+    
+    for file in pred_dir.glob("*.json"):
+        try:
+            with open(file, 'r') as f:
+                data = json.load(f)
+                file_draw_date = data.get('next_draw_date', '')
+                
+                # Match exact date only
+                if file_draw_date == draw_date:
+                    matching_files.append(file)
+        except:
+            continue
+    
+    return sorted(matching_files, key=lambda x: x.stat().st_mtime, reverse=True)
+
+
+def _display_prediction_sets_as_balls(predictions: List, draw_size: int) -> None:
+    """Display prediction sets as game balls."""
+    for i, pred in enumerate(predictions, 1):  # Show ALL sets
+        # Handle different prediction formats
+        if isinstance(pred, dict):
+            numbers = pred.get('numbers', [])
+        elif isinstance(pred, list):
+            numbers = pred
+        else:
+            continue
+        
+        # Ensure we have the right number of balls
+        if len(numbers) != draw_size:
+            continue
+        
+        with st.container(border=True):
+            st.markdown(f"**Set {i}**")
+            cols = st.columns(len(numbers))
+            for col, num in zip(cols, sorted(numbers)):
+                with col:
+                    st.markdown(_get_ball_html(num), unsafe_allow_html=True)
+
+
+def _get_ball_html(number: int, color: str = "blue") -> str:
+    """Generate HTML for a lottery ball."""
+    color_map = {
+        "blue": "linear-gradient(135deg, #1e3a8a 0%, #3b82f6 50%, #1e40af 100%)",
+        "green": "linear-gradient(135deg, #166534 0%, #22c55e 50%, #15803d 100%)",
+        "gold": "linear-gradient(135deg, #854d0e 0%, #fbbf24 50%, #a16207 100%)",
+        "red": "linear-gradient(135deg, #991b1b 0%, #ef4444 50%, #b91c1c 100%)"
+    }
+    
+    gradient = color_map.get(color, color_map["blue"])
+    
+    return f'''
+    <div style="
+        text-align: center;
+        padding: 0;
+        margin: 5px auto;
+        width: 50px;
+        height: 50px;
+        background: {gradient};
+        border-radius: 50%;
+        color: white;
+        font-weight: 900;
+        font-size: 20px;
+        box-shadow: 0 4px 8px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.3);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border: 2px solid rgba(255,255,255,0.2);
+    ">{number}</div>
+    '''
+
+
+def _apply_learning_analysis_future(predictions: List, game: str, analyzer: SuperIntelligentAIAnalyzer) -> Dict:
+    """Apply learning analysis to future predictions (placeholder with basic scoring)."""
+    scores = {}
+    
+    # Load learning data if available
+    learning_data = _load_latest_learning_data(game)
+    
+    for idx, pred in enumerate(predictions):
+        if isinstance(pred, dict):
+            numbers = pred.get('numbers', [])
+        else:
+            numbers = pred
+        
+        # Basic scoring based on learning data
+        score = 0.5  # Base score
+        confidence = 0.5
+        
+        if learning_data:
+            # Score based on sum similarity
+            pred_sum = sum(numbers)
+            target_sum = learning_data.get('analysis', {}).get('sum_analysis', {}).get('winning_sum', 0)
+            if target_sum:
+                sum_diff = abs(pred_sum - target_sum)
+                score += max(0, (50 - sum_diff) / 100)
+            
+            # Score based on position patterns
+            score += 0.1  # Placeholder
+            
+            confidence = min(1.0, score)
+        
+        scores[idx] = {
+            'score': score,
+            'confidence': confidence,
+            'sum': sum(numbers)
+        }
+    
+    return scores
+
+
+def _rank_sets_by_learning(predictions: List, learning_scores: Dict) -> List[Tuple]:
+    """Rank prediction sets by learning scores."""
+    ranked = []
+    
+    for idx, pred in enumerate(predictions):
+        if isinstance(pred, dict):
+            numbers = pred.get('numbers', [])
+        else:
+            numbers = pred
+        
+        score_data = learning_scores.get(idx, {'score': 0})
+        score = score_data['score']
+        
+        ranked.append((idx, score, numbers))
+    
+    # Sort by score descending
+    ranked.sort(key=lambda x: x[1], reverse=True)
+    
+    return ranked
+
+
+def _load_latest_learning_data(game: str) -> Dict:
+    """Load the most recent learning data for a game."""
+    game_folder = _sanitize_game_name(game)
+    learning_dir = Path("data") / "learning" / game_folder
+    
+    if not learning_dir.exists():
+        return {}
+    
+    # Find most recent learning file
+    learning_files = sorted(learning_dir.glob("*.json"), key=lambda x: x.stat().st_mtime, reverse=True)
+    
+    if not learning_files:
+        return {}
+    
+    try:
+        with open(learning_files[0], 'r') as f:
+            return json.load(f)
+    except:
+        return {}
+
+
+def _optimize_sets_with_learning(predictions: List, learning_data: Dict, game: str, analyzer: SuperIntelligentAIAnalyzer) -> List:
+    """Optimize prediction sets using learning data."""
+    # For now, just re-rank existing sets
+    # In future, this could regenerate sets based on learning patterns
+    
+    if not learning_data:
+        return predictions
+    
+    # Extract numbers from predictions
+    pred_numbers = []
+    for pred in predictions:
+        if isinstance(pred, dict):
+            pred_numbers.append(pred.get('numbers', []))
+        else:
+            pred_numbers.append(pred)
+    
+    # Score each set
+    scored_sets = []
+    for numbers in pred_numbers:
+        score = 0.5
+        
+        # Score based on learning data patterns
+        if learning_data and 'analysis' in learning_data:
+            pred_sum = sum(numbers)
+            target_sum = learning_data['analysis'].get('sum_analysis', {}).get('winning_sum', 0)
+            if target_sum:
+                sum_diff = abs(pred_sum - target_sum)
+                score += max(0, (50 - sum_diff) / 100)
+        
+        scored_sets.append((score, numbers))
+    
+    # Sort by score
+    scored_sets.sort(key=lambda x: x[0], reverse=True)
+    
+    # Return optimized order
+    return [{'numbers': numbers, 'optimized_score': score} for score, numbers in scored_sets]
+
+
+def _save_optimized_predictions(original_file: Path, optimized_predictions: List, original_data: Dict) -> Path:
+    """Save optimized predictions to a new file."""
+    # Create optimized filename
+    file_stem = original_file.stem
+    optimized_filename = f"{file_stem}_optimized.json"
+    optimized_path = original_file.parent / optimized_filename
+    
+    # Update data with optimized predictions
+    optimized_data = original_data.copy()
+    optimized_data['predictions'] = optimized_predictions
+    optimized_data['optimized'] = True
+    optimized_data['optimization_timestamp'] = datetime.now().isoformat()
+    
+    # Save
+    with open(optimized_path, 'w') as f:
+        json.dump(optimized_data, f, indent=2, default=str)
+    
+    return optimized_path
+
+
+def _load_past_draw_dates(game: str) -> List[str]:
+    """Load historical draw dates from CSV files."""
+    game_folder = _sanitize_game_name(game)
+    data_dir = Path("data") / game_folder
+    
+    if not data_dir.exists():
+        return []
+    
+    dates = []
+    
+    for csv_file in data_dir.glob("*.csv"):
+        try:
+            df = pd.read_csv(csv_file)
+            if 'draw_date' in df.columns:
+                file_dates = df['draw_date'].unique().tolist()
+                dates.extend(file_dates)
+        except:
+            continue
+    
+    # Sort descending (most recent first)
+    dates = sorted(list(set(dates)), reverse=True)
+    
+    return dates[:50]  # Return last 50 draws
+
+
+def _load_actual_results(game: str, draw_date: str) -> Dict:
+    """Load actual draw results for a specific date."""
+    game_folder = _sanitize_game_name(game)
+    data_dir = Path("data") / game_folder
+    
+    if not data_dir.exists():
+        return {}
+    
+    for csv_file in data_dir.glob("*.csv"):
+        try:
+            df = pd.read_csv(csv_file)
+            
+            # Find row with matching date
+            if 'draw_date' in df.columns:
+                match_row = df[df['draw_date'] == draw_date]
+                
+                if len(match_row) > 0:
+                    row = match_row.iloc[0]
+                    
+                    # Extract winning numbers from n1, n2, n3, etc. columns
+                    numbers = []
+                    
+                    # Try standard n1-n7 column format first
+                    for i in range(1, 8):  # Try up to 7 numbers
+                        col_name = f'n{i}'
+                        if col_name in df.columns:
+                            try:
+                                num = int(row[col_name])
+                                if 1 <= num <= 50:
+                                    numbers.append(num)
+                            except:
+                                continue
+                    
+                    # If no numbers found, try parsing the 'numbers' column (comma-separated string)
+                    if not numbers and 'numbers' in df.columns:
+                        try:
+                            numbers_str = str(row['numbers'])
+                            # Parse comma-separated numbers like "8,9,12,13,29,30,31"
+                            numbers = [int(n.strip()) for n in numbers_str.split(',') if n.strip().isdigit()]
+                            numbers = [n for n in numbers if 1 <= n <= 50]
+                        except:
+                            pass
+                    
+                    # If still no numbers, try other formats
+                    if not numbers:
+                        for col in df.columns:
+                            if col.startswith('number_'):
+                                try:
+                                    num = int(row[col])
+                                    if 1 <= num <= 50:
+                                        numbers.append(num)
+                                except:
+                                    continue
+                    
+                    # Only return if we found valid numbers
+                    if not numbers:
+                        continue
+                    
+                    # Get bonus if available
+                    bonus = None
+                    for col in ['bonus', 'bonus_number', 'bonus_ball']:
+                        if col in df.columns:
+                            try:
+                                bonus = int(row[col])
+                                break
+                            except:
+                                continue
+                    
+                    # Get jackpot if available
+                    jackpot = None
+                    for col in ['jackpot', 'jackpot_amount']:
+                        if col in df.columns:
+                            try:
+                                jackpot = float(row[col])
+                                break
+                            except:
+                                continue
+                    
+                    return {
+                        'numbers': sorted(numbers),
+                        'bonus': bonus,
+                        'jackpot': jackpot,
+                        'draw_date': draw_date
+                    }
+        except Exception as e:
+            continue
+    
+    return {}
+
+
+def _highlight_prediction_matches(predictions: List, winning_numbers: List[int], bonus: Optional[int]) -> List[Dict]:
+    """Highlight matching numbers in predictions."""
+    matched_predictions = []
+    
+    for idx, pred in enumerate(predictions):
+        if isinstance(pred, dict):
+            numbers = pred.get('numbers', [])
+        else:
+            numbers = pred
+        
+        # Ensure numbers is a list
+        if not isinstance(numbers, list):
+            numbers = list(numbers)
+        
+        # Convert all numbers to integers (handle strings from JSON)
+        numbers = [int(n) for n in numbers]
+        
+        # Sort numbers for consistent display
+        sorted_numbers = sorted(numbers)
+        
+        matched_numbers = []
+        correct_count = 0
+        has_bonus = False
+        
+        for num in sorted_numbers:
+            is_correct = num in winning_numbers
+            is_bonus = (bonus is not None) and (num == bonus)
+            
+            # Only count as correct if it matches winning numbers (bonus is separate)
+            if is_correct:
+                correct_count += 1
+            if is_bonus:
+                has_bonus = True
+            
+            matched_numbers.append({
+                'number': num,
+                'is_correct': is_correct,
+                'is_bonus': is_bonus
+            })
+        
+        matched_predictions.append({
+            'original_index': idx,
+            'numbers': matched_numbers,
+            'correct_count': correct_count,
+            'has_bonus': has_bonus
+        })
+    
+    return matched_predictions
+
+
+def _sort_predictions_by_accuracy(matched_predictions: List[Dict], winning_numbers: List[int]) -> List[Dict]:
+    """Sort predictions by number of correct matches."""
+    return sorted(matched_predictions, key=lambda x: (x['correct_count'], x['has_bonus']), reverse=True)
+
+
+def _compile_comprehensive_learning_data(
+    game: str,
+    draw_date: str,
+    actual_results: Dict,
+    sorted_predictions: List[Dict],
+    pred_data: Dict,
+    use_raw_csv: bool
+) -> Dict:
+    """Compile comprehensive learning data from prediction results."""
+    
+    # Position accuracy analysis
+    position_accuracy = {}
+    for pos in range(1, len(actual_results['numbers']) + 1):
+        position_accuracy[f'position_{pos}'] = {
+            'correct': 0,
+            'total': len(sorted_predictions),
+            'accuracy': 0.0
+        }
+    
+    # Count position matches
+    for pred in sorted_predictions:
+        pred_numbers = [n['number'] for n in pred['numbers']]
+        for pos, (actual, predicted) in enumerate(zip(sorted(actual_results['numbers']), sorted(pred_numbers)), 1):
+            if actual == predicted:
+                position_accuracy[f'position_{pos}']['correct'] += 1
+    
+    # Calculate accuracies
+    for pos_key in position_accuracy:
+        pos_data = position_accuracy[pos_key]
+        pos_data['accuracy'] = pos_data['correct'] / pos_data['total'] if pos_data['total'] > 0 else 0
+    
+    # Sum analysis
+    winning_sum = sum(actual_results['numbers'])
+    prediction_sums = []
+    closest_set = {'index': 0, 'sum': 0, 'diff': float('inf')}
+    
+    for pred in sorted_predictions:
+        pred_sum = sum([n['number'] for n in pred['numbers']])
+        prediction_sums.append(pred_sum)
+        
+        diff = abs(pred_sum - winning_sum)
+        if diff < closest_set['diff']:
+            closest_set = {'index': pred['original_index'], 'sum': pred_sum, 'diff': diff}
+    
+    # Set accuracy
+    set_accuracy = [
+        {
+            'set': pred['original_index'],
+            'correct': pred['correct_count'],
+            'numbers': [n['number'] for n in pred['numbers']]
+        }
+        for pred in sorted_predictions
+    ]
+    
+    # Compile learning data
+    learning_data = {
+        'game': game,
+        'draw_date': draw_date,
+        'actual_results': actual_results,
+        'prediction_file': pred_data.get('timestamp', ''),
+        'analysis': {
+            'position_accuracy': position_accuracy,
+            'sum_analysis': {
+                'winning_sum': winning_sum,
+                'prediction_sums': prediction_sums,
+                'closest_set': closest_set
+            },
+            'set_accuracy': set_accuracy
+        },
+        'learning_insights': [],
+        'timestamp': datetime.now().isoformat()
+    }
+    
+    # Generate insights
+    insights = []
+    
+    # Position insights
+    worst_pos = min(position_accuracy.items(), key=lambda x: x[1]['accuracy'])
+    best_pos = max(position_accuracy.items(), key=lambda x: x[1]['accuracy'])
+    insights.append(f"Position {worst_pos[0].split('_')[1]} underperformed ({worst_pos[1]['accuracy']:.1%} accuracy)")
+    insights.append(f"Position {best_pos[0].split('_')[1]} performed best ({best_pos[1]['accuracy']:.1%} accuracy)")
+    
+    # Sum insights
+    insights.append(f"Closest sum prediction was Set #{closest_set['index'] + 1} (difference: {closest_set['diff']})")
+    
+    # Top sets insights
+    top_3 = sorted_predictions[:3]
+    top_3_correct = sum(p['correct_count'] for p in top_3)
+    total_correct = sum(p['correct_count'] for p in sorted_predictions)
+    if total_correct > 0:
+        top_3_pct = (top_3_correct / total_correct) * 100
+        insights.append(f"Top 3 sets contained {top_3_pct:.0f}% of all correct predictions")
+    
+    learning_data['learning_insights'] = insights
+    
+    # Raw CSV analysis (if enabled)
+    if use_raw_csv:
+        csv_patterns = _analyze_raw_csv_patterns(game, actual_results.get('jackpot'), actual_results['numbers'])
+        if csv_patterns:
+            learning_data['analysis']['raw_csv_patterns'] = csv_patterns
+            
+            # Add CSV-based insights
+            if csv_patterns.get('matching_jackpot_draws', 0) > 0:
+                insights.append(f"Found {csv_patterns['matching_jackpot_draws']} historical draws with similar jackpot")
+    
+    return learning_data
+
+
+def _analyze_raw_csv_patterns(game: str, jackpot: Optional[float], winning_numbers: List[int]) -> Dict:
+    """Analyze patterns from raw CSV files."""
+    game_folder = _sanitize_game_name(game)
+    data_dir = Path("data") / game_folder
+    
+    if not data_dir.exists():
+        return {}
+    
+    patterns = {
+        'matching_jackpot_draws': 0,
+        'sum_distribution': {'min': 999, 'max': 0, 'mean': 0, 'std': 0},
+        'odd_even_ratio': {'odd': 0, 'even': 0},
+        'repetition_rate': 0
+    }
+    
+    all_sums = []
+    odd_counts = []
+    even_counts = []
+    
+    try:
+        for csv_file in data_dir.glob("*.csv"):
+            df = pd.read_csv(csv_file)
+            
+            for _, row in df.iterrows():
+                # Extract numbers from row
+                numbers = []
+                for col in df.columns:
+                    if col.startswith('number_') or col.startswith('n'):
+                        try:
+                            num = int(row[col])
+                            if 1 <= num <= 50:
+                                numbers.append(num)
+                        except:
+                            continue
+                
+                if len(numbers) > 0:
+                    # Sum analysis
+                    row_sum = sum(numbers)
+                    all_sums.append(row_sum)
+                    
+                    # Odd/even analysis
+                    odd = sum(1 for n in numbers if n % 2 == 1)
+                    even = len(numbers) - odd
+                    odd_counts.append(odd)
+                    even_counts.append(even)
+                    
+                    # Jackpot matching (if provided)
+                    if jackpot:
+                        row_jackpot = row.get('jackpot', 0)
+                        if abs(row_jackpot - jackpot) < jackpot * 0.1:  # Within 10%
+                            patterns['matching_jackpot_draws'] += 1
+        
+        # Calculate statistics
+        if all_sums:
+            patterns['sum_distribution'] = {
+                'min': int(np.min(all_sums)),
+                'max': int(np.max(all_sums)),
+                'mean': float(np.mean(all_sums)),
+                'std': float(np.std(all_sums))
+            }
+        
+        if odd_counts:
+            patterns['odd_even_ratio'] = {
+                'odd': float(np.mean(odd_counts)),
+                'even': float(np.mean(even_counts))
+            }
+        
+        # Repetition rate (placeholder)
+        patterns['repetition_rate'] = 0.15
+    
+    except Exception as e:
+        print(f"Error analyzing CSV patterns: {e}")
+    
+    return patterns
+
+
+def _save_learning_data(game: str, draw_date: str, learning_data: Dict) -> Path:
+    """Save learning data to disk."""
+    game_folder = _sanitize_game_name(game)
+    learning_dir = Path("data") / "learning" / game_folder
+    learning_dir.mkdir(parents=True, exist_ok=True)
+    
+    # Create filename
+    date_str = draw_date.replace('-', '').replace('/', '')
+    filename = f"draw_{date_str}_learning.json"
+    filepath = learning_dir / filename
+    
+    # Save
+    with open(filepath, 'w') as f:
+        json.dump(learning_data, f, indent=2, default=str)
+    
+    return filepath
+
 

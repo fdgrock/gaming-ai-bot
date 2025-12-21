@@ -1889,3 +1889,19 @@ Traceback (most recent call last):
 RuntimeError: Failed to generate model probabilities: Failed to generate model probabilities for lstm_lotto_max_20251216_175357: Could not load/run model lstm_lotto_max_20251216_175357: 'list' object has no attribute 'ndim'
 
 2025-12-16 18:53:05 - lottery_ai - ERROR - logger.py:138 - Failed to save retrained model: cannot access local variable 'final_accuracy' where it is not associated with a value
+2025-12-21 17:29:39 - lottery_ai - ERROR - logger.py:138 - Error in prediction_ai page: The `spec` argument to `st.columns` must be either a positive integer (number of columns) or a list of positive numbers (width ratios of the columns). See [documentation](https://docs.streamlit.io/develop/api-reference/layout/st.columns) for more information.
+2025-12-21 17:29:39 - lottery_ai - ERROR - logger.py:138 - Traceback: Traceback (most recent call last):
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\streamlit_app\pages\prediction_ai.py", line 1486, in render_prediction_ai_page
+    _render_deep_learning_tab(analyzer, selected_game)
+    ~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\streamlit_app\pages\prediction_ai.py", line 3328, in _render_deep_learning_tab
+    _render_previous_draw_mode(analyzer, game)
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\streamlit_app\pages\prediction_ai.py", line 3485, in _render_previous_draw_mode
+    cols = st.columns(len(actual_results['numbers']))
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\venv\Lib\site-packages\streamlit\runtime\metrics_util.py", line 443, in wrapped_func
+    result = non_optional_func(*args, **kwargs)
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\venv\Lib\site-packages\streamlit\elements\layouts.py", line 509, in columns
+    raise StreamlitInvalidColumnSpecError()
+streamlit.errors.StreamlitInvalidColumnSpecError: The `spec` argument to `st.columns` must be either a positive integer (number of columns) or a list of positive numbers (width ratios of the columns). See [documentation](https://docs.streamlit.io/develop/api-reference/layout/st.columns) for more information.
+

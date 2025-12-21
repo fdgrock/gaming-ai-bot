@@ -26959,3 +26959,84 @@ RuntimeError: Failed to generate model probabilities: Failed to generate model p
 2025-12-20 17:14:03 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
 2025-12-20 17:14:33 - lottery_ai - INFO - logger.py:138 - Incremental Learning page rendered for Lotto Max
 2025-12-21 16:21:32 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
+2025-12-21 16:24:35 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
+2025-12-21 16:24:42 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
+2025-12-21 16:27:14 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
+2025-12-21 17:27:36 - lottery_ai - INFO - logger.py:138 - Dashboard rendered successfully
+2025-12-21 17:28:14 - lottery_ai - INFO - logger.py:138 - Dashboard rendered successfully
+2025-12-21 17:28:21 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
+2025-12-21 17:28:57 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
+2025-12-21 17:29:28 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
+2025-12-21 17:29:39 - lottery_ai - ERROR - logger.py:138 - Error in prediction_ai page: The `spec` argument to `st.columns` must be either a positive integer (number of columns) or a list of positive numbers (width ratios of the columns). See [documentation](https://docs.streamlit.io/develop/api-reference/layout/st.columns) for more information.
+2025-12-21 17:29:39 - lottery_ai - ERROR - logger.py:138 - Traceback: Traceback (most recent call last):
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\streamlit_app\pages\prediction_ai.py", line 1486, in render_prediction_ai_page
+    _render_deep_learning_tab(analyzer, selected_game)
+    ~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\streamlit_app\pages\prediction_ai.py", line 3328, in _render_deep_learning_tab
+    _render_previous_draw_mode(analyzer, game)
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\streamlit_app\pages\prediction_ai.py", line 3485, in _render_previous_draw_mode
+    cols = st.columns(len(actual_results['numbers']))
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\venv\Lib\site-packages\streamlit\runtime\metrics_util.py", line 443, in wrapped_func
+    result = non_optional_func(*args, **kwargs)
+  File "C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\venv\Lib\site-packages\streamlit\elements\layouts.py", line 509, in columns
+    raise StreamlitInvalidColumnSpecError()
+streamlit.errors.StreamlitInvalidColumnSpecError: The `spec` argument to `st.columns` must be either a positive integer (number of columns) or a list of positive numbers (width ratios of the columns). See [documentation](https://docs.streamlit.io/develop/api-reference/layout/st.columns) for more information.
+
+2025-12-21 17:31:55 - lottery_ai - INFO - logger.py:138 - Dashboard rendered successfully
+2025-12-21 17:32:11 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
+2025-12-21 17:32:23 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
+2025-12-21 17:32:36 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
+2025-12-21 17:33:46 - lottery_ai - INFO - logger.py:138 - Dashboard rendered successfully
+2025-12-21 17:33:54 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
+2025-12-21 17:34:03 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
+2025-12-21 17:38:11 - lottery_ai - INFO - logger.py:138 - Dashboard rendered successfully
+2025-12-21 17:38:20 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
+2025-12-21 17:38:32 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
+2025-12-21 17:40:57 - lottery_ai - INFO - logger.py:138 - Dashboard rendered successfully
+2025-12-21 17:41:10 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
+2025-12-21 17:41:20 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
+2025-12-21 17:44:28 - lottery_ai - INFO - logger.py:138 - Dashboard rendered successfully
+2025-12-21 17:44:38 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
+2025-12-21 17:44:47 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
+2025-12-21 17:45:13 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
+2025-12-21 17:45:19 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
+2025-12-21 17:45:21 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
+2025-12-21 17:45:36 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
+2025-12-21 17:47:29 - lottery_ai - INFO - logger.py:138 - Dashboard rendered successfully
+2025-12-21 17:47:38 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
+2025-12-21 17:47:48 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
+2025-12-21 17:49:04 - lottery_ai - INFO - logger.py:138 - Dashboard rendered successfully
+2025-12-21 17:49:16 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
+2025-12-21 17:49:28 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
+2025-12-21 17:52:09 - lottery_ai - INFO - logger.py:138 - Dashboard rendered successfully
+2025-12-21 17:52:19 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
+2025-12-21 17:52:37 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
+2025-12-21 17:54:25 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
+2025-12-21 17:54:53 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
+2025-12-21 17:55:54 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
+2025-12-21 17:57:01 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
+2025-12-21 17:57:49 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
+2025-12-21 17:58:17 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
+2025-12-21 17:59:44 - lottery_ai - INFO - logger.py:138 - Dashboard rendered successfully
+2025-12-21 17:59:55 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
+2025-12-21 18:00:17 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
+2025-12-21 18:01:13 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
+2025-12-21 18:02:02 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
+2025-12-21 18:03:58 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
+2025-12-21 18:04:11 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
+2025-12-21 18:07:50 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
+2025-12-21 18:08:03 - lottery_ai - INFO - logger.py:138 - Dashboard rendered successfully
+2025-12-21 18:08:16 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
+2025-12-21 18:11:35 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
+2025-12-21 18:11:50 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
+2025-12-21 18:14:01 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
+2025-12-21 18:14:16 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
+2025-12-21 18:14:40 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
+2025-12-21 18:14:57 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
+2025-12-21 18:15:10 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
+2025-12-21 18:15:16 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
+2025-12-21 18:15:38 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
+2025-12-21 18:15:50 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
+2025-12-21 18:16:07 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
+2025-12-21 18:16:13 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
