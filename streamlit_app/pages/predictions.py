@@ -710,7 +710,7 @@ def _render_ml_predictions() -> None:
                             "generated_at": datetime.now().isoformat(),
                             "parameters": {
                                 "num_predictions": num_predictions,
-                                "random_seed": random_seed,
+                                "seed_management": "automatic" if (SeedManager and 'seed_manager' in st.session_state) else "manual",
                                 "variability_factor": variability_factor,
                                 "bias_correction_enabled": use_bias_correction,
                                 "save_seed_with_predictions": save_seed_with_predictions
