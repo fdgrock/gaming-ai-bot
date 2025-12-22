@@ -3653,6 +3653,79 @@ def _render_previous_draw_mode(analyzer: SuperIntelligentAIAnalyzer, game: str) 
                             st.write(f"• Sum Range: {csv_patterns['sum_distribution']['min']}-{csv_patterns['sum_distribution']['max']}")
                             st.write(f"• Avg Odd/Even: {csv_patterns['odd_even_ratio']['odd']:.1f} / {csv_patterns['odd_even_ratio']['even']:.1f}")
                             st.write(f"• Repetition Rate: {csv_patterns.get('repetition_rate', 0):.1%}")
+                        
+                        # HIGH VALUE ANALYSIS DISPLAYS
+                        st.divider()
+                        
+                        # Number Frequency Analysis
+                        st.markdown("**🎯 Number Frequency Analysis:**")
+                        num_freq = analysis.get('number_frequency', {})
+                        if num_freq.get('correctly_predicted'):
+                            col1, col2 = st.columns(2)
+                            with col1:
+                                st.markdown("*Top Correctly Predicted:*")
+                                for item in num_freq['correctly_predicted'][:5]:
+                                    st.write(f"  #{item['number']}: appeared {item['count']} times")
+                            with col2:
+                                st.markdown("*Most Missed (frequently predicted but wrong):*")
+                                for item in num_freq['missed_numbers'][:5]:
+                                    st.write(f"  #{item['number']}: predicted {item['count']} times, never won")
+                        
+                        # Consecutive Analysis
+                        st.markdown("**🔗 Consecutive Numbers Analysis:**")
+                        consec = analysis.get('consecutive_analysis', {})
+                        col1, col2, col3 = st.columns(3)
+                        with col1:
+                            st.metric("Consecutive Pairs (Winning)", consec.get('winning_consecutive_pairs', 0))
+                        with col2:
+                            st.metric("Consecutive Pairs (Predicted)", consec.get('total_consecutive_pairs', 0))
+                        with col3:
+                            st.metric("Avg Gap Between Numbers", f"{consec.get('average_gap', 0):.1f}")
+                        
+                        # Model Performance
+                        st.markdown("**🤖 Model Performance Breakdown:**")
+                        model_perf = analysis.get('model_performance', {})
+                        if model_perf.get('model_contributions'):
+                            model_df = pd.DataFrame(model_perf['model_contributions'])
+                            st.dataframe(model_df, use_container_width=True, hide_index=True)
+                        
+                        # Temporal Patterns
+                        st.markdown("**📅 Temporal Patterns:**")
+                        temporal = analysis.get('temporal_patterns', {})
+                        col1, col2, col3 = st.columns(3)
+                        with col1:
+                            st.write(f"Day: {temporal.get('day_of_week', 'N/A')}")
+                        with col2:
+                            st.write(f"Month: {temporal.get('month', 'N/A')}")
+                        with col3:
+                            st.write(f"Quarter: {temporal.get('quarter', 'N/A')}")
+                        
+                        # Diversity Metrics
+                        st.markdown("**🌈 Set Diversity Metrics:**")
+                        diversity = analysis.get('diversity_metrics', {})
+                        col1, col2, col3, col4 = st.columns(4)
+                        with col1:
+                            st.metric("Number Space Coverage", f"{diversity.get('number_space_coverage', 0):.1%}")
+                        with col2:
+                            st.metric("Unique Numbers", diversity.get('unique_numbers_count', 0))
+                        with col3:
+                            st.metric("Avg Set Overlap", f"{diversity.get('average_overlap', 0):.1f}")
+                        with col4:
+                            st.metric("Diversity Score", f"{diversity.get('diversity_score', 0):.2f}")
+                        
+                        # Probability Calibration
+                        st.markdown("**📊 Probability Calibration:**")
+                        prob_cal = analysis.get('probability_calibration', {})
+                        col1, col2, col3 = st.columns(3)
+                        with col1:
+                            st.metric("Predicted Confidence", f"{prob_cal.get('predicted_confidence', 0):.1%}")
+                        with col2:
+                            st.metric("Actual Accuracy", f"{prob_cal.get('actual_accuracy', 0):.1%}")
+                        with col3:
+                            calibration_diff = prob_cal.get('actual_accuracy', 0) - prob_cal.get('predicted_confidence', 0)
+                            st.metric("Calibration Error", f"{calibration_diff:.1%}", 
+                                     delta=f"{'Over' if calibration_diff < 0 else 'Under'}-confident")
+
     
     except Exception as e:
         st.error(f"Error processing predictions: {e}")
@@ -4107,6 +4180,24 @@ def _compile_comprehensive_learning_data(
         for pred in sorted_predictions
     ]
     
+    # HIGH VALUE ANALYSIS 1: Number Frequency Analysis
+    number_frequency = _analyze_number_frequency(sorted_predictions, actual_results['numbers'])
+    
+    # HIGH VALUE ANALYSIS 2: Consecutive Numbers Analysis
+    consecutive_analysis = _analyze_consecutive_patterns(sorted_predictions, actual_results['numbers'])
+    
+    # HIGH VALUE ANALYSIS 3: Model Performance Breakdown
+    model_performance = _analyze_model_performance(pred_data, sorted_predictions, actual_results['numbers'])
+    
+    # HIGH VALUE ANALYSIS 4: Temporal Patterns
+    temporal_patterns = _analyze_temporal_patterns(draw_date, sorted_predictions)
+    
+    # HIGH VALUE ANALYSIS 5: Set Diversity Metrics
+    diversity_metrics = _analyze_set_diversity(sorted_predictions)
+    
+    # HIGH VALUE ANALYSIS 6: Probability Calibration
+    probability_calibration = _analyze_probability_calibration(pred_data, sorted_predictions, actual_results['numbers'])
+    
     # Compile learning data
     learning_data = {
         'game': game,
@@ -4120,7 +4211,13 @@ def _compile_comprehensive_learning_data(
                 'prediction_sums': prediction_sums,
                 'closest_set': closest_set
             },
-            'set_accuracy': set_accuracy
+            'set_accuracy': set_accuracy,
+            'number_frequency': number_frequency,
+            'consecutive_analysis': consecutive_analysis,
+            'model_performance': model_performance,
+            'temporal_patterns': temporal_patterns,
+            'diversity_metrics': diversity_metrics,
+            'probability_calibration': probability_calibration
         },
         'learning_insights': [],
         'timestamp': datetime.now().isoformat()
@@ -4145,6 +4242,24 @@ def _compile_comprehensive_learning_data(
     if total_correct > 0:
         top_3_pct = (top_3_correct / total_correct) * 100
         insights.append(f"Top 3 sets contained {top_3_pct:.0f}% of all correct predictions")
+    
+    # Number frequency insights
+    if number_frequency['correctly_predicted']:
+        top_correct = number_frequency['correctly_predicted'][:3]
+        insights.append(f"Most predicted correct numbers: {', '.join([str(n['number']) for n in top_correct])}")
+    
+    # Consecutive analysis insights
+    if consecutive_analysis['total_consecutive_pairs'] > 0:
+        insights.append(f"Found {consecutive_analysis['total_consecutive_pairs']} consecutive number pairs across all sets")
+    
+    # Model performance insights
+    if model_performance['best_performing_model']:
+        best_model = model_performance['best_performing_model']
+        insights.append(f"Best model: {best_model['name']} ({best_model['contribution']:.1%} of correct predictions)")
+    
+    # Diversity insights
+    coverage = diversity_metrics['number_space_coverage']
+    insights.append(f"Prediction sets covered {coverage:.1%} of possible numbers (1-50)")
     
     learning_data['learning_insights'] = insights
     
@@ -4253,5 +4368,248 @@ def _save_learning_data(game: str, draw_date: str, learning_data: Dict) -> Path:
         json.dump(learning_data, f, indent=2, default=str)
     
     return filepath
+
+
+# ============================================================================
+# HIGH VALUE ANALYSIS FUNCTIONS
+# ============================================================================
+
+def _analyze_number_frequency(sorted_predictions: List[Dict], winning_numbers: List[int]) -> Dict:
+    """Analyze which numbers were predicted and how often they appeared correctly."""
+    predicted_numbers = {}  # {number: count}
+    correct_predictions = {}  # {number: count when correct}
+    
+    # Count all predicted numbers
+    for pred in sorted_predictions:
+        for num_data in pred['numbers']:
+            num = num_data['number']
+            predicted_numbers[num] = predicted_numbers.get(num, 0) + 1
+            
+            if num_data['is_correct']:
+                correct_predictions[num] = correct_predictions.get(num, 0) + 1
+    
+    # Identify correctly predicted numbers
+    correctly_predicted = [
+        {'number': num, 'count': correct_predictions.get(num, 0), 'predicted_count': predicted_numbers[num]}
+        for num in winning_numbers
+        if num in predicted_numbers
+    ]
+    correctly_predicted.sort(key=lambda x: x['count'], reverse=True)
+    
+    # Identify missed winning numbers
+    missed_winning = [
+        {'number': num}
+        for num in winning_numbers
+        if num not in predicted_numbers
+    ]
+    
+    # Identify frequently predicted but incorrect numbers
+    missed_numbers = [
+        {'number': num, 'count': count}
+        for num, count in predicted_numbers.items()
+        if num not in winning_numbers
+    ]
+    missed_numbers.sort(key=lambda x: x['count'], reverse=True)
+    
+    # Calculate hot/cold accuracy
+    hot_numbers = sorted(predicted_numbers.items(), key=lambda x: x[1], reverse=True)[:10]
+    hot_correct = sum(1 for num, _ in hot_numbers if num in winning_numbers)
+    
+    return {
+        'correctly_predicted': correctly_predicted,
+        'missed_winning_numbers': missed_winning,
+        'missed_numbers': missed_numbers[:10],  # Top 10 most predicted but wrong
+        'total_unique_predicted': len(predicted_numbers),
+        'hot_number_accuracy': hot_correct / len(hot_numbers) if hot_numbers else 0,
+        'number_distribution': {
+            'low_range': sum(1 for n in predicted_numbers.keys() if 1 <= n <= 16),
+            'mid_range': sum(1 for n in predicted_numbers.keys() if 17 <= n <= 33),
+            'high_range': sum(1 for n in predicted_numbers.keys() if 34 <= n <= 50)
+        }
+    }
+
+
+def _analyze_consecutive_patterns(sorted_predictions: List[Dict], winning_numbers: List[int]) -> Dict:
+    """Analyze consecutive number patterns and gaps."""
+    # Winning consecutive pairs
+    sorted_winning = sorted(winning_numbers)
+    winning_consecutive = sum(1 for i in range(len(sorted_winning) - 1) if sorted_winning[i+1] - sorted_winning[i] == 1)
+    
+    # Winning gaps
+    winning_gaps = [sorted_winning[i+1] - sorted_winning[i] for i in range(len(sorted_winning) - 1)]
+    
+    # Prediction consecutive pairs and gaps
+    total_consecutive = 0
+    all_gaps = []
+    
+    for pred in sorted_predictions:
+        pred_numbers = sorted([n['number'] for n in pred['numbers']])
+        consecutive = sum(1 for i in range(len(pred_numbers) - 1) if pred_numbers[i+1] - pred_numbers[i] == 1)
+        total_consecutive += consecutive
+        
+        gaps = [pred_numbers[i+1] - pred_numbers[i] for i in range(len(pred_numbers) - 1)]
+        all_gaps.extend(gaps)
+    
+    return {
+        'winning_consecutive_pairs': winning_consecutive,
+        'total_consecutive_pairs': total_consecutive,
+        'average_consecutive_per_set': total_consecutive / len(sorted_predictions) if sorted_predictions else 0,
+        'winning_average_gap': float(np.mean(winning_gaps)) if winning_gaps else 0,
+        'predicted_average_gap': float(np.mean(all_gaps)) if all_gaps else 0,
+        'average_gap': float(np.mean(all_gaps)) if all_gaps else 0,
+        'gap_similarity': 1 - abs((np.mean(all_gaps) - np.mean(winning_gaps)) / np.mean(winning_gaps)) if winning_gaps and all_gaps else 0
+    }
+
+
+def _analyze_model_performance(pred_data: Dict, sorted_predictions: List[Dict], winning_numbers: List[int]) -> Dict:
+    """Analyze which models contributed to correct predictions."""
+    # Get model info from prediction data
+    selected_models = pred_data.get('analysis', {}).get('selected_models', [])
+    
+    if not selected_models:
+        return {'model_contributions': [], 'best_performing_model': None}
+    
+    # Initialize model contribution tracker
+    model_stats = {model['name']: {'correct': 0, 'total': 0, 'type': model['type']} for model in selected_models}
+    
+    # Count correct predictions per position (approximation based on model types)
+    total_correct = sum(pred['correct_count'] for pred in sorted_predictions)
+    
+    # Estimate contributions based on model weights and accuracy
+    for model in selected_models:
+        model_name = model['name']
+        model_accuracy = model.get('accuracy', 0)
+        model_confidence = model.get('confidence', 0)
+        
+        # Weight contribution by accuracy and confidence
+        weight = model_accuracy * model_confidence
+        estimated_contribution = weight * total_correct / len(selected_models) if selected_models else 0
+        
+        model_stats[model_name]['correct'] = estimated_contribution
+        model_stats[model_name]['total'] = len(sorted_predictions) * 7  # Total predictions
+        model_stats[model_name]['contribution_rate'] = estimated_contribution / total_correct if total_correct > 0 else 0
+    
+    # Create contribution list
+    contributions = [
+        {
+            'Model': name,
+            'Type': stats['type'],
+            'Contribution': f"{stats['contribution_rate']:.1%}",
+            'Est. Correct': f"{stats['correct']:.1f}"
+        }
+        for name, stats in model_stats.items()
+    ]
+    contributions.sort(key=lambda x: float(x['Contribution'].strip('%')), reverse=True)
+    
+    best_model = None
+    if contributions:
+        best = contributions[0]
+        best_model = {
+            'name': best['Model'],
+            'contribution': float(best['Contribution'].strip('%')) / 100
+        }
+    
+    return {
+        'model_contributions': contributions,
+        'best_performing_model': best_model,
+        'model_diversity': len(selected_models)
+    }
+
+
+def _analyze_temporal_patterns(draw_date: str, sorted_predictions: List[Dict]) -> Dict:
+    """Analyze temporal patterns related to the draw date."""
+    try:
+        date_obj = datetime.strptime(draw_date, '%Y-%m-%d')
+    except:
+        return {}
+    
+    day_of_week = date_obj.strftime('%A')
+    month = date_obj.strftime('%B')
+    quarter = (date_obj.month - 1) // 3 + 1
+    week_of_year = date_obj.isocalendar()[1]
+    
+    return {
+        'day_of_week': day_of_week,
+        'month': month,
+        'quarter': f"Q{quarter}",
+        'week_of_year': week_of_year,
+        'is_weekend': day_of_week in ['Saturday', 'Sunday'],
+        'season': _get_season(date_obj.month)
+    }
+
+
+def _get_season(month: int) -> str:
+    """Get season from month."""
+    if month in [12, 1, 2]:
+        return 'Winter'
+    elif month in [3, 4, 5]:
+        return 'Spring'
+    elif month in [6, 7, 8]:
+        return 'Summer'
+    else:
+        return 'Fall'
+
+
+def _analyze_set_diversity(sorted_predictions: List[Dict]) -> Dict:
+    """Analyze diversity and coverage of prediction sets."""
+    # Collect all unique numbers
+    all_numbers = set()
+    set_numbers = []
+    
+    for pred in sorted_predictions:
+        pred_nums = {n['number'] for n in pred['numbers']}
+        all_numbers.update(pred_nums)
+        set_numbers.append(pred_nums)
+    
+    # Calculate overlap between sets
+    overlaps = []
+    for i in range(len(set_numbers)):
+        for j in range(i + 1, len(set_numbers)):
+            overlap = len(set_numbers[i] & set_numbers[j])
+            overlaps.append(overlap)
+    
+    # Calculate diversity score (0-1, higher = more diverse)
+    coverage = len(all_numbers) / 50  # 50 is max numbers in Lotto Max
+    avg_overlap = np.mean(overlaps) if overlaps else 0
+    max_possible_overlap = 7  # All numbers same
+    overlap_diversity = 1 - (avg_overlap / max_possible_overlap)
+    diversity_score = (coverage + overlap_diversity) / 2
+    
+    return {
+        'unique_numbers_count': len(all_numbers),
+        'number_space_coverage': coverage,
+        'average_overlap': avg_overlap,
+        'diversity_score': diversity_score,
+        'coverage_percentage': coverage
+    }
+
+
+def _analyze_probability_calibration(pred_data: Dict, sorted_predictions: List[Dict], winning_numbers: List[int]) -> Dict:
+    """Analyze how well predicted probabilities match actual outcomes."""
+    # Get predicted confidence from file
+    ensemble_confidence = pred_data.get('analysis', {}).get('ensemble_confidence', 0)
+    win_probability = pred_data.get('analysis', {}).get('win_probability', 0)
+    
+    # Calculate actual accuracy
+    total_numbers = len(sorted_predictions) * 7
+    total_correct = sum(pred['correct_count'] for pred in sorted_predictions)
+    actual_accuracy = total_correct / total_numbers if total_numbers > 0 else 0
+    
+    # Check if any set got all 7 correct
+    perfect_sets = sum(1 for pred in sorted_predictions if pred['correct_count'] == 7)
+    
+    # Calibration metrics
+    calibration_error = abs(ensemble_confidence - actual_accuracy)
+    is_overconfident = ensemble_confidence > actual_accuracy
+    
+    return {
+        'predicted_confidence': ensemble_confidence,
+        'predicted_win_probability': win_probability,
+        'actual_accuracy': actual_accuracy,
+        'calibration_error': calibration_error,
+        'is_overconfident': is_overconfident,
+        'perfect_predictions': perfect_sets,
+        'confidence_accuracy_ratio': actual_accuracy / ensemble_confidence if ensemble_confidence > 0 else 0
+    }
 
 
