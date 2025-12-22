@@ -1905,3 +1905,4 @@ RuntimeError: Failed to generate model probabilities: Failed to generate model p
     raise StreamlitInvalidColumnSpecError()
 streamlit.errors.StreamlitInvalidColumnSpecError: The `spec` argument to `st.columns` must be either a positive integer (number of columns) or a list of positive numbers (width ratios of the columns). See [documentation](https://docs.streamlit.io/develop/api-reference/layout/st.columns) for more information.
 
+2025-12-21 21:04:36 - lottery_ai - ERROR - logger.py:138 - Error saving predictions: keys must be str, int, float, bool or None, not int64

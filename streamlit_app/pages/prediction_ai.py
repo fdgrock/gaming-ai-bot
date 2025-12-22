@@ -1157,7 +1157,12 @@ understanding that lottery outcomes remain random and unpredictable.
         hot_count = int(draw_size / hot_cold_ratio)  # Weighted by hot/cold ratio
         warm_count = draw_size - hot_count
         
+        # Get per-model probabilities for attribution tracking
+        model_probabilities = model_analysis.get("model_probabilities", {})
+        
         # ===== GENERATE EACH SET WITH ADVANCED REASONING =====
+        predictions_with_attribution = []
+        
         for set_idx in range(num_sets):
             # Apply progressive temperature to ensemble probabilities for diversity
             # Early sets: use exact ensemble probs; Late sets: more uniform/diverse
@@ -1173,6 +1178,7 @@ understanding that lottery outcomes remain random and unpredictable.
             
             selected_numbers = None
             strategy_used = None
+            model_attribution = {}
             
             # ===== STRATEGY 1: GUMBEL-TOP-K WITH ENTROPY OPTIMIZATION =====
             try:
@@ -1240,17 +1246,43 @@ understanding that lottery outcomes remain random and unpredictable.
                         strategy_used = "Deterministic Top-K from Ensemble"
                         strategy_log["strategy_4_topk"] += 1
             
+            # ===== TRACK MODEL ATTRIBUTION FOR SELECTED NUMBERS =====
+            # Determine which models "voted" for each selected number based on their probabilities
+            for number in selected_numbers:
+                number_str = str(number)
+                model_attribution[number_str] = []  # Use string key for JSON compatibility
+                
+                # Check each model's probability for this number
+                for model_key, model_probs in model_probabilities.items():
+                    if isinstance(model_probs, dict):
+                        number_prob = float(model_probs.get(number_str, 0))
+                        # If model gave this number above-average probability, it "voted" for it
+                        avg_prob = 1.0 / max_number  # Uniform baseline
+                        if number_prob > avg_prob * 1.5:  # 50% above average = vote
+                            model_attribution[number_str].append({
+                                'model': model_key,
+                                'probability': float(number_prob),  # Ensure native Python float
+                                'confidence': float(number_prob / avg_prob)  # Relative confidence
+                            })
+            
             predictions.append(selected_numbers)
+            predictions_with_attribution.append({
+                'numbers': selected_numbers,
+                'model_attribution': model_attribution,
+                'strategy': strategy_used
+            })
+            
             strategy_log["details"].append({
                 "set_num": set_idx + 1,
                 "strategy": strategy_used,
-                "numbers": selected_numbers
+                "numbers": selected_numbers,
+                "model_votes": {str(num): len(model_attribution.get(str(num), [])) for num in selected_numbers}
             })
         
         # Generate comprehensive strategy report
         strategy_report = self._generate_strategy_report(strategy_log, distribution_method)
         
-        return predictions, strategy_report
+        return predictions, strategy_report, predictions_with_attribution
     
     def _generate_strategy_report(self, strategy_log: Dict[str, Any], distribution_method: str) -> str:
         """
@@ -1356,18 +1388,21 @@ understanding that lottery outcomes remain random and unpredictable.
     def save_predictions_advanced(self, predictions: List[List[int]], 
                                  model_analysis: Dict[str, Any],
                                  optimal_analysis: Dict[str, Any],
-                                 num_sets: int) -> str:
-        """Save advanced AI predictions with complete analysis metadata."""
+                                 num_sets: int,
+                                 predictions_with_attribution: List[Dict] = None) -> str:
+        """Save advanced AI predictions with complete analysis metadata and model attribution."""
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         filename = f"sia_predictions_{timestamp}_{num_sets}sets.json"
         filepath = self.predictions_dir / filename
         
+        # Store both simple predictions and detailed attribution
         data = {
             "timestamp": datetime.now().isoformat(),
             "game": self.game,
             "next_draw_date": str(compute_next_draw_date(self.game)),
             "algorithm": "Super Intelligent Algorithm (SIA)",
             "predictions": predictions,
+            "predictions_with_attribution": predictions_with_attribution if predictions_with_attribution else [],
             "analysis": {
                 "selected_models": [
                     {
@@ -2236,19 +2271,77 @@ def _render_prediction_generator(analyzer: SuperIntelligentAIAnalyzer) -> None:
     if st.button("🚀 Generate AI-Optimized Prediction Sets", use_container_width=True, key="gen_pred_btn", help="Generate precisely calculated sets for maximum winning probability"):
         with st.spinner(f"🤖 Generating {final_sets} AI-optimized prediction sets using deep learning..."):
             try:
-                # Generate predictions with advanced reasoning
-                predictions, strategy_report = analyzer.generate_prediction_sets_advanced(final_sets, optimal, analysis)
+                # Generate predictions with advanced reasoning and attribution tracking
+                predictions, strategy_report, predictions_with_attribution = analyzer.generate_prediction_sets_advanced(final_sets, optimal, analysis)
                 
-                # Save to session and file
+                # Save to session and file with attribution data
                 st.session_state.sia_predictions = predictions
                 st.session_state.sia_strategy_report = strategy_report
-                filepath = analyzer.save_predictions_advanced(predictions, analysis, optimal, final_sets)
+                st.session_state.sia_predictions_with_attribution = predictions_with_attribution
+                filepath = analyzer.save_predictions_advanced(predictions, analysis, optimal, final_sets, predictions_with_attribution)
                 
                 st.success(f"✅ Successfully generated {final_sets} AI-optimized prediction sets!")
                 st.balloons()
                 
                 # Display strategy report prominently
                 st.info(strategy_report)
+                
+                # ===== MODEL PERFORMANCE BREAKDOWN =====
+                st.markdown("### 🤖 Model Performance Breakdown")
+                st.markdown("*Showing which models contributed to the generated predictions*")
+                
+                # Calculate model contribution statistics
+                model_vote_counts = {}
+                total_votes = 0
+                
+                for pred_set in predictions_with_attribution:
+                    attribution = pred_set.get('model_attribution', {})
+                    for number, voters in attribution.items():
+                        for voter in voters:
+                            model_name = voter['model']
+                            model_vote_counts[model_name] = model_vote_counts.get(model_name, 0) + 1
+                            total_votes += 1
+                
+                if model_vote_counts and total_votes > 0:
+                    # Create performance breakdown table
+                    perf_data = []
+                    for model_name, vote_count in sorted(model_vote_counts.items(), key=lambda x: x[1], reverse=True):
+                        contribution_pct = (vote_count / total_votes) * 100
+                        avg_votes_per_set = vote_count / final_sets
+                        
+                        # Find model type from analysis
+                        model_type = "unknown"
+                        for m in analysis['models']:
+                            if m['name'] in model_name:
+                                model_type = m['type']
+                                break
+                        
+                        perf_data.append({
+                            'Model': model_name,
+                            'Type': model_type,
+                            'Total Votes': vote_count,
+                            'Contribution %': f"{contribution_pct:.1f}%",
+                            'Avg Votes/Set': f"{avg_votes_per_set:.1f}"
+                        })
+                    
+                    perf_df = pd.DataFrame(perf_data)
+                    st.dataframe(perf_df, use_container_width=True, hide_index=True)
+                    
+                    # Summary metrics
+                    col1, col2, col3, col4 = st.columns(4)
+                    with col1:
+                        st.metric("Total Model Votes", total_votes)
+                    with col2:
+                        st.metric("Models Contributing", len(model_vote_counts))
+                    with col3:
+                        st.metric("Avg Votes per Set", f"{total_votes / final_sets:.1f}")
+                    with col4:
+                        top_model = max(model_vote_counts.items(), key=lambda x: x[1])
+                        st.metric("Top Contributor", f"{top_model[1]} votes")
+                    
+                    st.info("💡 **How to read this:** Models 'vote' for numbers by assigning them higher probabilities. Numbers with multiple model votes have stronger consensus.")
+                else:
+                    st.warning("⚠️ No model attribution data available for this generation.")
                 
             except Exception as e:
                 st.error(f"Error generating predictions: {str(e)}")
@@ -3686,8 +3779,38 @@ def _render_previous_draw_mode(analyzer: SuperIntelligentAIAnalyzer, game: str) 
                         st.markdown("**🤖 Model Performance Breakdown:**")
                         model_perf = analysis.get('model_performance', {})
                         if model_perf.get('model_contributions'):
-                            model_df = pd.DataFrame(model_perf['model_contributions'])
-                            st.dataframe(model_df, use_container_width=True, hide_index=True)
+                            # Show data source indicator
+                            data_source = model_perf.get('data_source', 'unknown')
+                            if data_source == 'attribution':
+                                st.success("✅ **Using Real Attribution Data** - Actual model votes tracked during generation")
+                                # Display enhanced columns with vote data
+                                model_df = pd.DataFrame(model_perf['model_contributions'])
+                                st.dataframe(model_df, use_container_width=True, hide_index=True)
+                                
+                                # Show summary stats
+                                total_votes = model_perf.get('total_votes', 0)
+                                total_correct_votes = model_perf.get('total_correct_votes', 0)
+                                if total_votes > 0:
+                                    col1, col2, col3 = st.columns(3)
+                                    with col1:
+                                        st.metric("Total Model Votes", total_votes)
+                                    with col2:
+                                        st.metric("Correct Votes", total_correct_votes)
+                                    with col3:
+                                        vote_accuracy = (total_correct_votes / total_votes * 100) if total_votes > 0 else 0
+                                        st.metric("Vote Accuracy", f"{vote_accuracy:.1f}%")
+                            elif data_source == 'estimation':
+                                st.warning("⚠️ **Using Estimated Data** - Prediction file lacks attribution tracking")
+                                model_df = pd.DataFrame(model_perf['model_contributions'])
+                                st.dataframe(model_df, use_container_width=True, hide_index=True)
+                            else:
+                                model_df = pd.DataFrame(model_perf['model_contributions'])
+                                st.dataframe(model_df, use_container_width=True, hide_index=True)
+                            
+                            # Show best performing model
+                            best = model_perf.get('best_performing_model')
+                            if best:
+                                st.info(f"🏆 **Top Contributor:** {best['name']} ({best['contribution']:.1%} contribution)")
                         
                         # Temporal Patterns
                         st.markdown("**📅 Temporal Patterns:**")
@@ -4462,58 +4585,146 @@ def _analyze_consecutive_patterns(sorted_predictions: List[Dict], winning_number
 
 
 def _analyze_model_performance(pred_data: Dict, sorted_predictions: List[Dict], winning_numbers: List[int]) -> Dict:
-    """Analyze which models contributed to correct predictions."""
+    """Analyze which models contributed to correct predictions using REAL attribution data."""
     # Get model info from prediction data
     selected_models = pred_data.get('analysis', {}).get('selected_models', [])
+    predictions_with_attribution = pred_data.get('predictions_with_attribution', [])
     
     if not selected_models:
-        return {'model_contributions': [], 'best_performing_model': None}
+        return {'model_contributions': [], 'best_performing_model': None, 'data_source': 'none'}
     
     # Initialize model contribution tracker
-    model_stats = {model['name']: {'correct': 0, 'total': 0, 'type': model['type']} for model in selected_models}
-    
-    # Count correct predictions per position (approximation based on model types)
-    total_correct = sum(pred['correct_count'] for pred in sorted_predictions)
-    
-    # Estimate contributions based on model weights and accuracy
+    model_stats = {}
     for model in selected_models:
         model_name = model['name']
-        model_accuracy = model.get('accuracy', 0)
-        model_confidence = model.get('confidence', 0)
-        
-        # Weight contribution by accuracy and confidence
-        weight = model_accuracy * model_confidence
-        estimated_contribution = weight * total_correct / len(selected_models) if selected_models else 0
-        
-        model_stats[model_name]['correct'] = estimated_contribution
-        model_stats[model_name]['total'] = len(sorted_predictions) * 7  # Total predictions
-        model_stats[model_name]['contribution_rate'] = estimated_contribution / total_correct if total_correct > 0 else 0
-    
-    # Create contribution list
-    contributions = [
-        {
-            'Model': name,
-            'Type': stats['type'],
-            'Contribution': f"{stats['contribution_rate']:.1%}",
-            'Est. Correct': f"{stats['correct']:.1f}"
-        }
-        for name, stats in model_stats.items()
-    ]
-    contributions.sort(key=lambda x: float(x['Contribution'].strip('%')), reverse=True)
-    
-    best_model = None
-    if contributions:
-        best = contributions[0]
-        best_model = {
-            'name': best['Model'],
-            'contribution': float(best['Contribution'].strip('%')) / 100
+        model_stats[model_name] = {
+            'correct': 0,
+            'total_votes': 0,
+            'correct_votes': 0,
+            'type': model['type'],
+            'accuracy': model.get('accuracy', 0)
         }
     
-    return {
-        'model_contributions': contributions,
-        'best_performing_model': best_model,
-        'model_diversity': len(selected_models)
-    }
+    # Try to use REAL attribution data if available
+    if predictions_with_attribution and len(predictions_with_attribution) > 0:
+        # Count votes from attribution data
+        for idx, pred_set in enumerate(predictions_with_attribution):
+            attribution = pred_set.get('model_attribution', {})
+            pred_numbers = pred_set.get('numbers', [])
+            
+            for number in pred_numbers:
+                # Attribution keys are strings, convert number to string
+                number_str = str(number)
+                voters = attribution.get(number_str, [])
+                for voter in voters:
+                    model_key = voter.get('model', '')
+                    # Match model key to model name (key contains "name (type)")
+                    for model_name in model_stats.keys():
+                        if model_name in model_key:
+                            model_stats[model_name]['total_votes'] += 1
+                            # Check if this number is in winning numbers
+                            if number in winning_numbers:
+                                model_stats[model_name]['correct_votes'] += 1
+                            break
+        
+        # Calculate actual contributions from real data
+        total_correct_votes = sum(stats['correct_votes'] for stats in model_stats.values())
+        total_votes = sum(stats['total_votes'] for stats in model_stats.values())
+        
+        contributions = []
+        for name, stats in model_stats.items():
+            if total_votes > 0:
+                vote_rate = stats['total_votes'] / total_votes
+            else:
+                vote_rate = 0
+            
+            if total_correct_votes > 0:
+                contribution_rate = stats['correct_votes'] / total_correct_votes
+            else:
+                # Show expected contribution based on vote rate
+                contribution_rate = vote_rate
+            
+            contributions.append({
+                'Model': name,
+                'Type': stats['type'],
+                'Total Votes': stats['total_votes'],
+                'Correct Votes': stats['correct_votes'],
+                'Contribution': f"{contribution_rate:.1%}",
+                'Vote Rate': f"{vote_rate:.1%}",
+                'Accuracy': f"{stats['accuracy']:.1%}"
+            })
+        
+        contributions.sort(key=lambda x: x['Correct Votes'], reverse=True)
+        
+        best_model = None
+        if contributions and contributions[0]['Correct Votes'] > 0:
+            best = contributions[0]
+            best_model = {
+                'name': best['Model'],
+                'contribution': float(best['Contribution'].strip('%')) / 100,
+                'correct_votes': best['Correct Votes']
+            }
+        
+        return {
+            'model_contributions': contributions,
+            'best_performing_model': best_model,
+            'model_diversity': len(selected_models),
+            'data_source': 'attribution',
+            'total_votes': total_votes,
+            'total_correct_votes': total_correct_votes
+        }
+    
+    else:
+        # FALLBACK: Use estimation if no attribution data
+        total_correct = sum(pred['correct_count'] for pred in sorted_predictions)
+        
+        for model in selected_models:
+            model_name = model['name']
+            model_accuracy = model.get('accuracy', 0)
+            model_confidence = model.get('confidence', 0)
+            
+            weight = model_accuracy * model_confidence
+            total_weight = sum(m.get('accuracy', 0) * m.get('confidence', 0) for m in selected_models)
+            
+            if total_weight > 0:
+                expected_rate = weight / total_weight
+            else:
+                expected_rate = 1.0 / len(selected_models)
+            
+            if total_correct > 0:
+                estimated_contribution = expected_rate * total_correct
+            else:
+                estimated_contribution = 0
+            
+            model_stats[model_name]['correct'] = estimated_contribution
+            model_stats[model_name]['contribution_rate'] = expected_rate if total_correct == 0 else (estimated_contribution / total_correct if total_correct > 0 else 0)
+        
+        contributions = [
+            {
+                'Model': name,
+                'Type': stats['type'],
+                'Contribution': f"{stats['contribution_rate']:.1%}",
+                'Est. Correct': f"{stats['correct']:.1f}",
+                'Note': 'Estimated' if total_correct == 0 else 'Calculated'
+            }
+            for name, stats in model_stats.items()
+        ]
+        contributions.sort(key=lambda x: float(x['Contribution'].strip('%')), reverse=True)
+        
+        best_model = None
+        if contributions:
+            best = contributions[0]
+            best_model = {
+                'name': best['Model'],
+                'contribution': float(best['Contribution'].strip('%')) / 100
+            }
+        
+        return {
+            'model_contributions': contributions,
+            'best_performing_model': best_model,
+            'model_diversity': len(selected_models),
+            'data_source': 'estimation'
+        }
 
 
 def _analyze_temporal_patterns(draw_date: str, sorted_predictions: List[Dict]) -> Dict:
