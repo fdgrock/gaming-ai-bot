@@ -3812,6 +3812,33 @@ def _render_next_draw_mode(analyzer: SuperIntelligentAIAnalyzer, game: str) -> N
                             for col, num in zip(cols, sorted(pred_set)):
                                 with col:
                                     st.markdown(_get_ball_html(num), unsafe_allow_html=True)
+                    
+                    # Download button for ranked results
+                    st.markdown("")
+                    download_text = f"Learning-Ranked Predictions Results\n"
+                    download_text += f"{'='*60}\n\n"
+                    download_text += f"Game: {game}\n"
+                    download_text += f"Prediction File: {selected_file.name}\n"
+                    download_text += f"Learning Sources: {len(selected_learning_files)} file(s)\n"
+                    download_text += f"Total Predictions: {len(predictions)}\n"
+                    download_text += f"Ranked Date: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n"
+                    download_text += f"{'='*60}\n\n"
+                    download_text += ranking_report + "\n\n"
+                    download_text += f"{'='*60}\n"
+                    download_text += f"TOP 20 RANKED PREDICTIONS\n"
+                    download_text += f"{'='*60}\n\n"
+                    
+                    for rank, (score, pred_set) in enumerate(ranked_predictions[:20], 1):
+                        download_text += f"Rank #{rank} - Learning Score: {score:.3f}\n"
+                        download_text += f"Numbers: {', '.join(map(str, sorted(pred_set)))}\n\n"
+                    
+                    st.download_button(
+                        label="📥 Download Ranked Results",
+                        data=download_text,
+                        file_name=f"ranked_predictions_{game.lower().replace(' ', '_')}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt",
+                        mime="text/plain",
+                        use_container_width=True
+                    )
     
     except Exception as e:
         st.error(f"Error loading prediction file: {e}")
