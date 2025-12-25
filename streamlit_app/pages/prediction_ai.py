@@ -3616,6 +3616,15 @@ def _render_next_draw_mode(analyzer: SuperIntelligentAIAnalyzer, game: str) -> N
             st.markdown(f"**Total Sets:** {len(predictions)}")
             st.markdown(f"**Algorithm:** {pred_data.get('algorithm', 'N/A')}")
             st.markdown(f"**Timestamp:** {pred_data.get('timestamp', 'N/A')}")
+            
+            st.markdown("---")
+            st.markdown("**Predicted Sets:**")
+            for idx, pred in enumerate(predictions, 1):
+                if isinstance(pred, dict):
+                    numbers = sorted([int(n) for n in pred.get('numbers', [])])
+                else:
+                    numbers = sorted([int(n) for n in pred])
+                st.markdown(f"Set #{idx}: {', '.join(map(str, numbers))}")
         
         st.divider()
         
