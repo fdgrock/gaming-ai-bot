@@ -5639,7 +5639,15 @@ def _regenerate_predictions_with_learning(
     # Factor 1: Hot numbers
     number_freq = analysis.get('number_frequency', {})
     hot_numbers_data = number_freq.get('hot_numbers', [])
-    hot_numbers = [item['number'] if isinstance(item, dict) else item for item in hot_numbers_data]
+    # Handle different formats: dict, tuple (number, count), or bare int
+    hot_numbers = []
+    for item in hot_numbers_data:
+        if isinstance(item, dict):
+            hot_numbers.append(int(item['number']))
+        elif isinstance(item, tuple):
+            hot_numbers.append(int(item[0]))  # (number, count) tuple
+        else:
+            hot_numbers.append(int(item))
     
     # Factor 2: Sum target
     sum_analysis = analysis.get('sum_analysis', {})
@@ -5992,17 +6000,21 @@ def _generate_learning_based_sets(
         
         # CONSTRAINT 1: Start with hot numbers (50-70% of set)
         num_hot = int(draw_size * np.random.uniform(0.5, 0.7))
-        available_hot = [n for n in hot_numbers if n not in new_set and n not in cold_numbers]
+        # Ensure all numbers are integers (not tuples or other types)
+        available_hot = [int(n) for n in hot_numbers if int(n) not in new_set and int(n) not in cold_numbers]
         
         for _ in range(min(num_hot, len(available_hot))):
             if available_hot:
                 idx = np.random.randint(0, len(available_hot))
-                new_set.append(available_hot.pop(idx))
+                num = int(available_hot.pop(idx))
+                new_set.append(num)
         
         # CONSTRAINT 2: Fill remaining avoiding cold numbers
         remaining = draw_size - len(new_set)
+        # Ensure cold_numbers are integers
+        cold_numbers_int = [int(n) for n in cold_numbers] if cold_numbers else []
         available_numbers = [n for n in range(1, max_number + 1) 
-                           if n not in new_set and n not in cold_numbers]
+                           if n not in new_set and n not in cold_numbers_int]
         
         # CONSTRAINT 3: Try to match even/odd ratio
         current_even = sum(1 for n in new_set if n % 2 == 0)
@@ -6017,11 +6029,11 @@ def _generate_learning_based_sets(
                 if need_even:
                     evens = [n for n in available_numbers if n % 2 == 0]
                     if evens:
-                        num = np.random.choice(evens)
+                        num = int(np.random.choice(evens))
                     else:
-                        num = np.random.choice(available_numbers)
+                        num = int(np.random.choice(available_numbers))
                 else:
-                    num = np.random.choice(available_numbers)
+                    num = int(np.random.choice(available_numbers))
                 
                 new_set.append(num)
                 available_numbers.remove(num)
