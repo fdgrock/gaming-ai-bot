@@ -1906,3 +1906,24 @@ RuntimeError: Failed to generate model probabilities: Failed to generate model p
 streamlit.errors.StreamlitInvalidColumnSpecError: The `spec` argument to `st.columns` must be either a positive integer (number of columns) or a list of positive numbers (width ratios of the columns). See [documentation](https://docs.streamlit.io/develop/api-reference/layout/st.columns) for more information.
 
 2025-12-21 21:04:36 - lottery_ai - ERROR - logger.py:138 - Error saving predictions: keys must be str, int, float, bool or None, not int64
+2025-12-23 21:13:55 - lottery_ai - ERROR - logger.py:138 - Error generating CatBoost features: Can only use .dt accessor with datetimelike values
+2025-12-23 21:13:56 - lottery_ai - ERROR - logger.py:138 - Error generating CatBoost features: Can only use .dt accessor with datetimelike values
+2025-12-23 21:13:57 - lottery_ai - ERROR - logger.py:138 - Error generating CatBoost features: Can only use .dt accessor with datetimelike values
+2025-12-23 21:13:58 - lottery_ai - ERROR - logger.py:138 - Error generating CatBoost features: Can only use .dt accessor with datetimelike values
+2025-12-23 21:13:59 - lottery_ai - ERROR - logger.py:138 - Error generating XGBoost features: Can only use .dt accessor with datetimelike values
+2025-12-23 21:14:00 - lottery_ai - ERROR - logger.py:138 - Error generating CatBoost features: Can only use .dt accessor with datetimelike values
+2025-12-23 21:14:01 - lottery_ai - ERROR - logger.py:138 - Error generating XGBoost features: Can only use .dt accessor with datetimelike values
+2025-12-23 21:14:02 - lottery_ai - ERROR - logger.py:138 - Error generating XGBoost features: Can only use .dt accessor with datetimelike values
+2025-12-23 21:14:03 - lottery_ai - ERROR - logger.py:138 - Error generating XGBoost features: Can only use .dt accessor with datetimelike values
+2025-12-23 21:14:04 - lottery_ai - ERROR - logger.py:138 - Error generating XGBoost features: Can only use .dt accessor with datetimelike values
+2025-12-23 21:14:05 - lottery_ai - ERROR - logger.py:138 - Error generating CatBoost features: Can only use .dt accessor with datetimelike values
+2025-12-23 21:14:06 - lottery_ai - ERROR - logger.py:138 - Error generating CatBoost features: Can only use .dt accessor with datetimelike values
+2025-12-23 21:14:07 - lottery_ai - ERROR - logger.py:138 - Error generating XGBoost features: Can only use .dt accessor with datetimelike values
+2025-12-23 21:14:09 - lottery_ai - ERROR - logger.py:138 - Error generating XGBoost features: Can only use .dt accessor with datetimelike values
+2025-12-23 21:14:10 - lottery_ai - ERROR - logger.py:138 - Error generating LightGBM features: Can only use .dt accessor with datetimelike values
+2025-12-23 21:14:11 - lottery_ai - ERROR - logger.py:138 - Error generating LightGBM features: Can only use .dt accessor with datetimelike values
+2025-12-23 21:14:13 - lottery_ai - ERROR - logger.py:138 - Error generating LightGBM features: Can only use .dt accessor with datetimelike values
+2025-12-23 21:14:14 - lottery_ai - ERROR - logger.py:138 - Error generating LightGBM features: Can only use .dt accessor with datetimelike values
+2025-12-23 21:14:16 - lottery_ai - ERROR - logger.py:138 - Error generating LightGBM features: Can only use .dt accessor with datetimelike values
+2025-12-23 21:14:18 - lottery_ai - ERROR - logger.py:138 - Error generating LightGBM features: Can only use .dt accessor with datetimelike values
+2025-12-23 21:14:20 - lottery_ai - ERROR - logger.py:138 - Error generating LightGBM features: Can only use .dt accessor with datetimelike values

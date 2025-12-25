@@ -214,6 +214,11 @@ class AdvancedFeatureGenerator:
     def _parse_numbers(self, raw_data: pd.DataFrame) -> pd.DataFrame:
         """Parse and prepare number data."""
         data = raw_data.copy()
+        
+        # Parse draw_date as datetime if it's not already
+        if "draw_date" in data.columns and not pd.api.types.is_datetime64_any_dtype(data["draw_date"]):
+            data["draw_date"] = pd.to_datetime(data["draw_date"], errors='coerce')
+        
         data["numbers_list"] = data["numbers"].apply(
             lambda x: sorted([int(n.strip()) for n in str(x).split(",")])
         )
