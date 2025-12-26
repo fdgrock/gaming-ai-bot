@@ -28111,3 +28111,517 @@ streamlit.errors.StreamlitInvalidColumnSpecError: The `spec` argument to `st.col
 2025-12-24 21:12:14 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
 2025-12-24 21:13:35 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
 2025-12-24 21:13:41 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
+2025-12-24 21:20:39 - lottery_ai - INFO - logger.py:138 - Dashboard rendered successfully
+2025-12-24 21:20:55 - lottery_ai - WARNING - logger.py:138 - Error loading prediction file predictions\lotto_max\prediction_ai\sia_predictions_20251221_210436_109sets.json: Expecting property name enclosed in double quotes: line 1000 column 29 (char 10689)
+2025-12-24 21:20:56 - lottery_ai - WARNING - logger.py:138 - Error reading file sia_predictions_20251221_210436_109sets.json: Expecting property name enclosed in double quotes: line 1000 column 29 (char 10689)
+2025-12-24 21:20:56 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
+2025-12-24 21:21:12 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
+2025-12-24 21:21:22 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
+2025-12-24 21:21:26 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
+2025-12-24 21:21:31 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
+2025-12-24 21:22:40 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
+2025-12-24 21:22:47 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
+2025-12-24 22:02:02 - lottery_ai - INFO - logger.py:138 - Dashboard rendered successfully
+2025-12-24 22:02:19 - lottery_ai - WARNING - logger.py:138 - Error loading prediction file predictions\lotto_max\prediction_ai\sia_predictions_20251221_210436_109sets.json: Expecting property name enclosed in double quotes: line 1000 column 29 (char 10689)
+2025-12-24 22:02:20 - lottery_ai - WARNING - logger.py:138 - Error reading file sia_predictions_20251221_210436_109sets.json: Expecting property name enclosed in double quotes: line 1000 column 29 (char 10689)
+2025-12-24 22:02:20 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
+2025-12-24 22:02:25 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
+2025-12-24 22:02:55 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
+2025-12-24 22:02:56 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
+2025-12-24 22:03:00 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
+2025-12-24 22:03:36 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
+2025-12-24 22:07:17 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
+2025-12-24 22:09:27 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
+2025-12-24 22:09:44 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
+2025-12-24 22:13:06 - lottery_ai - INFO - logger.py:138 - Dashboard rendered successfully
+2025-12-24 22:13:13 - lottery_ai - WARNING - logger.py:138 - Error loading prediction file predictions\lotto_max\prediction_ai\sia_predictions_20251221_210436_109sets.json: Expecting property name enclosed in double quotes: line 1000 column 29 (char 10689)
+2025-12-24 22:13:14 - lottery_ai - WARNING - logger.py:138 - Error reading file sia_predictions_20251221_210436_109sets.json: Expecting property name enclosed in double quotes: line 1000 column 29 (char 10689)
+2025-12-24 22:13:14 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
+2025-12-24 22:13:33 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
+2025-12-24 22:13:39 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
+2025-12-24 22:13:42 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
+2025-12-24 22:13:57 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
+2025-12-24 22:14:32 - lottery_ai - INFO - logger.py:138 - Generating CatBoost features optimized for categorical boosting...
+2025-12-24 22:14:33 - lottery_ai - INFO - logger.py:138 - Saved FeatureSchema to C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\data\features\catboost\lotto_6_49\feature_schema.json
+2025-12-24 22:14:33 - lottery_ai - INFO - logger.py:138 - Generating CatBoost features optimized for categorical boosting...
+2025-12-24 22:14:34 - lottery_ai - INFO - logger.py:138 - Saved FeatureSchema to C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\data\features\catboost\lotto_6_49\feature_schema.json
+2025-12-24 22:14:34 - lottery_ai - INFO - logger.py:138 - Generating CatBoost features optimized for categorical boosting...
+2025-12-24 22:14:35 - lottery_ai - INFO - logger.py:138 - Saved FeatureSchema to C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\data\features\catboost\lotto_6_49\feature_schema.json
+2025-12-24 22:14:35 - lottery_ai - INFO - logger.py:138 - Generating CatBoost features optimized for categorical boosting...
+2025-12-24 22:14:36 - lottery_ai - INFO - logger.py:138 - Saved FeatureSchema to C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\data\features\catboost\lotto_6_49\feature_schema.json
+2025-12-24 22:14:36 - lottery_ai - INFO - logger.py:138 - Generating CatBoost features optimized for categorical boosting...
+2025-12-24 22:14:37 - lottery_ai - INFO - logger.py:138 - Saved FeatureSchema to C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\data\features\catboost\lotto_6_49\feature_schema.json
+2025-12-24 22:14:37 - lottery_ai - INFO - logger.py:138 - Generating CatBoost features optimized for categorical boosting...
+2025-12-24 22:14:37 - lottery_ai - INFO - logger.py:138 - Saved FeatureSchema to C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\data\features\catboost\lotto_6_49\feature_schema.json
+2025-12-24 22:14:38 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
+2025-12-24 22:15:07 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
+2025-12-24 22:15:27 - lottery_ai - INFO - logger.py:138 - Predictions saved to predictions\lotto_6_49\prediction_ai\sia_predictions_20251224_221527_48sets.json
+2025-12-24 22:15:27 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
+2025-12-24 22:43:21 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
+2025-12-24 22:43:40 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
+2025-12-24 22:43:52 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
+2025-12-24 22:43:56 - lottery_ai - WARNING - logger.py:138 - Error loading prediction file predictions\lotto_max\prediction_ai\sia_predictions_20251221_210436_109sets.json: Expecting property name enclosed in double quotes: line 1000 column 29 (char 10689)
+2025-12-24 22:43:57 - lottery_ai - WARNING - logger.py:138 - Error reading file sia_predictions_20251221_210436_109sets.json: Expecting property name enclosed in double quotes: line 1000 column 29 (char 10689)
+2025-12-24 22:43:58 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
+2025-12-24 22:44:44 - lottery_ai - WARNING - logger.py:138 - Error loading prediction file predictions\lotto_max\prediction_ai\sia_predictions_20251221_210436_109sets.json: Expecting property name enclosed in double quotes: line 1000 column 29 (char 10689)
+2025-12-24 22:44:45 - lottery_ai - WARNING - logger.py:138 - Error reading file sia_predictions_20251221_210436_109sets.json: Expecting property name enclosed in double quotes: line 1000 column 29 (char 10689)
+2025-12-24 22:44:45 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
+2025-12-24 22:45:28 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
+2025-12-24 22:46:05 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
+2025-12-24 22:49:35 - lottery_ai - INFO - logger.py:138 - Dashboard rendered successfully
+2025-12-24 22:49:46 - lottery_ai - WARNING - logger.py:138 - Error loading prediction file predictions\lotto_max\prediction_ai\sia_predictions_20251221_210436_109sets.json: Expecting property name enclosed in double quotes: line 1000 column 29 (char 10689)
+2025-12-24 22:49:47 - lottery_ai - WARNING - logger.py:138 - Error reading file sia_predictions_20251221_210436_109sets.json: Expecting property name enclosed in double quotes: line 1000 column 29 (char 10689)
+2025-12-24 22:49:47 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
+2025-12-24 22:50:03 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
+2025-12-24 22:50:13 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
+2025-12-24 22:50:13 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
+2025-12-24 22:50:18 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
+2025-12-24 22:50:27 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
+2025-12-24 22:50:33 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
+2025-12-24 22:50:40 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
+2025-12-24 22:50:43 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
+2025-12-24 22:50:58 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
+2025-12-24 22:54:29 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
+2025-12-24 22:55:13 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
+2025-12-24 22:55:30 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
+2025-12-24 22:56:38 - lottery_ai - WARNING - logger.py:138 - Error loading prediction file predictions\lotto_max\prediction_ai\sia_predictions_20251221_210436_109sets.json: Expecting property name enclosed in double quotes: line 1000 column 29 (char 10689)
+2025-12-24 22:56:39 - lottery_ai - WARNING - logger.py:138 - Error reading file sia_predictions_20251221_210436_109sets.json: Expecting property name enclosed in double quotes: line 1000 column 29 (char 10689)
+2025-12-24 22:56:39 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
+2025-12-24 22:56:46 - lottery_ai - WARNING - logger.py:138 - Error loading prediction file predictions\lotto_max\prediction_ai\sia_predictions_20251221_210436_109sets.json: Expecting property name enclosed in double quotes: line 1000 column 29 (char 10689)
+2025-12-24 22:56:47 - lottery_ai - WARNING - logger.py:138 - Error reading file sia_predictions_20251221_210436_109sets.json: Expecting property name enclosed in double quotes: line 1000 column 29 (char 10689)
+2025-12-24 22:56:48 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
+2025-12-24 22:56:53 - lottery_ai - WARNING - logger.py:138 - Error loading prediction file predictions\lotto_max\prediction_ai\sia_predictions_20251221_210436_109sets.json: Expecting property name enclosed in double quotes: line 1000 column 29 (char 10689)
+2025-12-24 22:56:54 - lottery_ai - WARNING - logger.py:138 - Error reading file sia_predictions_20251221_210436_109sets.json: Expecting property name enclosed in double quotes: line 1000 column 29 (char 10689)
+2025-12-24 22:56:57 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
+2025-12-24 22:57:09 - lottery_ai - WARNING - logger.py:138 - Error loading prediction file predictions\lotto_max\prediction_ai\sia_predictions_20251221_210436_109sets.json: Expecting property name enclosed in double quotes: line 1000 column 29 (char 10689)
+2025-12-24 22:57:10 - lottery_ai - WARNING - logger.py:138 - Error reading file sia_predictions_20251221_210436_109sets.json: Expecting property name enclosed in double quotes: line 1000 column 29 (char 10689)
+2025-12-24 22:57:12 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
+2025-12-24 22:57:27 - lottery_ai - WARNING - logger.py:138 - Error loading prediction file predictions\lotto_max\prediction_ai\sia_predictions_20251221_210436_109sets.json: Expecting property name enclosed in double quotes: line 1000 column 29 (char 10689)
+2025-12-24 22:57:29 - lottery_ai - WARNING - logger.py:138 - Error reading file sia_predictions_20251221_210436_109sets.json: Expecting property name enclosed in double quotes: line 1000 column 29 (char 10689)
+2025-12-24 22:57:30 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
+2025-12-24 22:58:02 - lottery_ai - WARNING - logger.py:138 - Error loading prediction file predictions\lotto_max\prediction_ai\sia_predictions_20251221_210436_109sets.json: Expecting property name enclosed in double quotes: line 1000 column 29 (char 10689)
+2025-12-24 22:58:04 - lottery_ai - WARNING - logger.py:138 - Error reading file sia_predictions_20251221_210436_109sets.json: Expecting property name enclosed in double quotes: line 1000 column 29 (char 10689)
+2025-12-24 22:58:07 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
+2025-12-24 22:58:20 - lottery_ai - WARNING - logger.py:138 - Error loading prediction file predictions\lotto_max\prediction_ai\sia_predictions_20251221_210436_109sets.json: Expecting property name enclosed in double quotes: line 1000 column 29 (char 10689)
+2025-12-24 22:58:21 - lottery_ai - WARNING - logger.py:138 - Error reading file sia_predictions_20251221_210436_109sets.json: Expecting property name enclosed in double quotes: line 1000 column 29 (char 10689)
+2025-12-24 22:58:22 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
+2025-12-24 22:58:35 - lottery_ai - WARNING - logger.py:138 - Error loading prediction file predictions\lotto_max\prediction_ai\sia_predictions_20251221_210436_109sets.json: Expecting property name enclosed in double quotes: line 1000 column 29 (char 10689)
+2025-12-24 22:58:36 - lottery_ai - WARNING - logger.py:138 - Error reading file sia_predictions_20251221_210436_109sets.json: Expecting property name enclosed in double quotes: line 1000 column 29 (char 10689)
+2025-12-24 22:58:37 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
+2025-12-24 22:58:46 - lottery_ai - WARNING - logger.py:138 - Error loading prediction file predictions\lotto_max\prediction_ai\sia_predictions_20251221_210436_109sets.json: Expecting property name enclosed in double quotes: line 1000 column 29 (char 10689)
+2025-12-24 22:58:47 - lottery_ai - WARNING - logger.py:138 - Error reading file sia_predictions_20251221_210436_109sets.json: Expecting property name enclosed in double quotes: line 1000 column 29 (char 10689)
+2025-12-24 22:58:49 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
+2025-12-24 22:59:02 - lottery_ai - WARNING - logger.py:138 - Error loading prediction file predictions\lotto_max\prediction_ai\sia_predictions_20251221_210436_109sets.json: Expecting property name enclosed in double quotes: line 1000 column 29 (char 10689)
+2025-12-24 22:59:03 - lottery_ai - WARNING - logger.py:138 - Error reading file sia_predictions_20251221_210436_109sets.json: Expecting property name enclosed in double quotes: line 1000 column 29 (char 10689)
+2025-12-24 22:59:05 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
+2025-12-24 22:59:29 - lottery_ai - WARNING - logger.py:138 - Error loading prediction file predictions\lotto_max\prediction_ai\sia_predictions_20251221_210436_109sets.json: Expecting property name enclosed in double quotes: line 1000 column 29 (char 10689)
+2025-12-24 22:59:30 - lottery_ai - WARNING - logger.py:138 - Error reading file sia_predictions_20251221_210436_109sets.json: Expecting property name enclosed in double quotes: line 1000 column 29 (char 10689)
+2025-12-24 22:59:32 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
+2025-12-24 22:59:44 - lottery_ai - WARNING - logger.py:138 - Error loading prediction file predictions\lotto_max\prediction_ai\sia_predictions_20251221_210436_109sets.json: Expecting property name enclosed in double quotes: line 1000 column 29 (char 10689)
+2025-12-24 22:59:45 - lottery_ai - WARNING - logger.py:138 - Error reading file sia_predictions_20251221_210436_109sets.json: Expecting property name enclosed in double quotes: line 1000 column 29 (char 10689)
+2025-12-24 22:59:46 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
+2025-12-24 23:00:57 - lottery_ai - WARNING - logger.py:138 - Error loading prediction file predictions\lotto_max\prediction_ai\sia_predictions_20251221_210436_109sets.json: Expecting property name enclosed in double quotes: line 1000 column 29 (char 10689)
+2025-12-24 23:00:58 - lottery_ai - WARNING - logger.py:138 - Error reading file sia_predictions_20251221_210436_109sets.json: Expecting property name enclosed in double quotes: line 1000 column 29 (char 10689)
+2025-12-24 23:00:58 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
+2025-12-24 23:01:26 - lottery_ai - WARNING - logger.py:138 - Error loading prediction file predictions\lotto_max\prediction_ai\sia_predictions_20251221_210436_109sets.json: Expecting property name enclosed in double quotes: line 1000 column 29 (char 10689)
+2025-12-24 23:01:27 - lottery_ai - WARNING - logger.py:138 - Error reading file sia_predictions_20251221_210436_109sets.json: Expecting property name enclosed in double quotes: line 1000 column 29 (char 10689)
+2025-12-24 23:01:28 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
+2025-12-24 23:02:28 - lottery_ai - WARNING - logger.py:138 - Error loading prediction file predictions\lotto_max\prediction_ai\sia_predictions_20251221_210436_109sets.json: Expecting property name enclosed in double quotes: line 1000 column 29 (char 10689)
+2025-12-24 23:02:29 - lottery_ai - WARNING - logger.py:138 - Error reading file sia_predictions_20251221_210436_109sets.json: Expecting property name enclosed in double quotes: line 1000 column 29 (char 10689)
+2025-12-24 23:02:30 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
+2025-12-24 23:02:45 - lottery_ai - WARNING - logger.py:138 - Error loading prediction file predictions\lotto_max\prediction_ai\sia_predictions_20251221_210436_109sets.json: Expecting property name enclosed in double quotes: line 1000 column 29 (char 10689)
+2025-12-24 23:02:46 - lottery_ai - WARNING - logger.py:138 - Error reading file sia_predictions_20251221_210436_109sets.json: Expecting property name enclosed in double quotes: line 1000 column 29 (char 10689)
+2025-12-24 23:02:47 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
+2025-12-24 23:02:57 - lottery_ai - WARNING - logger.py:138 - Error loading prediction file predictions\lotto_max\prediction_ai\sia_predictions_20251221_210436_109sets.json: Expecting property name enclosed in double quotes: line 1000 column 29 (char 10689)
+2025-12-24 23:02:58 - lottery_ai - WARNING - logger.py:138 - Error reading file sia_predictions_20251221_210436_109sets.json: Expecting property name enclosed in double quotes: line 1000 column 29 (char 10689)
+2025-12-24 23:02:59 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
+2025-12-25 16:54:56 - lottery_ai - INFO - logger.py:138 - 🔍 Looking for xgboost features in: C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\data\features\xgboost\lotto_max
+2025-12-25 16:54:57 - lottery_ai - INFO - logger.py:138 -   Valid extensions for xgboost: ['.csv']
+2025-12-25 16:54:57 - lottery_ai - INFO - logger.py:138 -   Found 1 total xgboost files with valid extensions
+2025-12-25 16:54:57 - lottery_ai - INFO - logger.py:138 -     - xgboost_features_validated_20251214_180629.csv
+2025-12-25 16:54:57 - lottery_ai - INFO - logger.py:138 - Feature file selection for xgboost:
+2025-12-25 16:54:57 - lottery_ai - INFO - logger.py:138 -   1. xgboost_features_validated_20251214_180629.csv
+2025-12-25 16:54:58 - lottery_ai - INFO - logger.py:138 - Training page rendered
+2025-12-25 16:55:16 - lottery_ai - INFO - logger.py:138 - 🔍 Looking for xgboost features in: C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\data\features\xgboost\lotto_max
+2025-12-25 16:55:16 - lottery_ai - INFO - logger.py:138 -   Valid extensions for xgboost: ['.csv']
+2025-12-25 16:55:16 - lottery_ai - INFO - logger.py:138 -   Found 1 total xgboost files with valid extensions
+2025-12-25 16:55:16 - lottery_ai - INFO - logger.py:138 -     - xgboost_features_validated_20251214_180629.csv
+2025-12-25 16:55:16 - lottery_ai - INFO - logger.py:138 - Feature file selection for xgboost:
+2025-12-25 16:55:16 - lottery_ai - INFO - logger.py:138 -   1. xgboost_features_validated_20251214_180629.csv
+2025-12-25 16:55:16 - lottery_ai - INFO - logger.py:138 - Training page rendered
+2025-12-25 16:55:26 - lottery_ai - INFO - logger.py:138 - Scraping data from https://ca.lottonumbers.com/lotto-649/numbers/2025 for year 2025
+2025-12-25 16:55:28 - lottery_ai - INFO - logger.py:138 - Found 1 tables on page
+2025-12-25 16:55:28 - lottery_ai - INFO - logger.py:138 - Successfully scraped 103 records for 2025
+2025-12-25 16:55:28 - lottery_ai - INFO - logger.py:138 - 🔍 Looking for xgboost features in: C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\data\features\xgboost\lotto_max
+2025-12-25 16:55:28 - lottery_ai - INFO - logger.py:138 -   Valid extensions for xgboost: ['.csv']
+2025-12-25 16:55:28 - lottery_ai - INFO - logger.py:138 -   Found 1 total xgboost files with valid extensions
+2025-12-25 16:55:28 - lottery_ai - INFO - logger.py:138 -     - xgboost_features_validated_20251214_180629.csv
+2025-12-25 16:55:28 - lottery_ai - INFO - logger.py:138 - Feature file selection for xgboost:
+2025-12-25 16:55:28 - lottery_ai - INFO - logger.py:138 -   1. xgboost_features_validated_20251214_180629.csv
+2025-12-25 16:55:28 - lottery_ai - INFO - logger.py:138 - Training page rendered
+2025-12-25 16:55:35 - lottery_ai - INFO - logger.py:138 - 🔍 Looking for xgboost features in: C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\data\features\xgboost\lotto_max
+2025-12-25 16:55:35 - lottery_ai - INFO - logger.py:138 -   Valid extensions for xgboost: ['.csv']
+2025-12-25 16:55:35 - lottery_ai - INFO - logger.py:138 -   Found 1 total xgboost files with valid extensions
+2025-12-25 16:55:35 - lottery_ai - INFO - logger.py:138 -     - xgboost_features_validated_20251214_180629.csv
+2025-12-25 16:55:35 - lottery_ai - INFO - logger.py:138 - Feature file selection for xgboost:
+2025-12-25 16:55:35 - lottery_ai - INFO - logger.py:138 -   1. xgboost_features_validated_20251214_180629.csv
+2025-12-25 16:55:36 - lottery_ai - INFO - logger.py:138 - Training page rendered
+2025-12-25 16:55:39 - lottery_ai - INFO - logger.py:138 - Smart Update: 1 new records added (Total: 103)
+2025-12-25 16:55:39 - lottery_ai - INFO - logger.py:138 - Data saved successfully: training_data_2025.csv
+2025-12-25 16:55:39 - lottery_ai - INFO - logger.py:138 - 🔍 Looking for xgboost features in: C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\data\features\xgboost\lotto_max
+2025-12-25 16:55:39 - lottery_ai - INFO - logger.py:138 -   Valid extensions for xgboost: ['.csv']
+2025-12-25 16:55:39 - lottery_ai - INFO - logger.py:138 -   Found 1 total xgboost files with valid extensions
+2025-12-25 16:55:39 - lottery_ai - INFO - logger.py:138 -     - xgboost_features_validated_20251214_180629.csv
+2025-12-25 16:55:39 - lottery_ai - INFO - logger.py:138 - Feature file selection for xgboost:
+2025-12-25 16:55:39 - lottery_ai - INFO - logger.py:138 -   1. xgboost_features_validated_20251214_180629.csv
+2025-12-25 16:55:40 - lottery_ai - INFO - logger.py:138 - Training page rendered
+2025-12-25 16:56:07 - lottery_ai - WARNING - logger.py:138 - Error loading prediction file predictions\lotto_max\prediction_ai\sia_predictions_20251221_210436_109sets.json: Expecting property name enclosed in double quotes: line 1000 column 29 (char 10689)
+2025-12-25 16:56:08 - lottery_ai - WARNING - logger.py:138 - Error reading file sia_predictions_20251221_210436_109sets.json: Expecting property name enclosed in double quotes: line 1000 column 29 (char 10689)
+2025-12-25 16:56:09 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
+2025-12-25 16:56:12 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
+2025-12-25 16:56:40 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
+2025-12-25 16:57:22 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
+2025-12-25 16:58:05 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
+2025-12-25 16:58:17 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
+2025-12-25 16:59:31 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
+2025-12-25 16:59:50 - lottery_ai - WARNING - logger.py:138 - Error loading prediction file predictions\lotto_max\prediction_ai\sia_predictions_20251221_210436_109sets.json: Expecting property name enclosed in double quotes: line 1000 column 29 (char 10689)
+2025-12-25 16:59:50 - lottery_ai - WARNING - logger.py:138 - Error reading file sia_predictions_20251221_210436_109sets.json: Expecting property name enclosed in double quotes: line 1000 column 29 (char 10689)
+2025-12-25 16:59:51 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
+2025-12-25 17:00:11 - lottery_ai - WARNING - logger.py:138 - Error loading prediction file predictions\lotto_max\prediction_ai\sia_predictions_20251221_210436_109sets.json: Expecting property name enclosed in double quotes: line 1000 column 29 (char 10689)
+2025-12-25 17:00:12 - lottery_ai - WARNING - logger.py:138 - Error reading file sia_predictions_20251221_210436_109sets.json: Expecting property name enclosed in double quotes: line 1000 column 29 (char 10689)
+2025-12-25 17:00:12 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
+2025-12-25 17:00:23 - lottery_ai - WARNING - logger.py:138 - Error loading prediction file predictions\lotto_max\prediction_ai\sia_predictions_20251221_210436_109sets.json: Expecting property name enclosed in double quotes: line 1000 column 29 (char 10689)
+2025-12-25 17:00:23 - lottery_ai - WARNING - logger.py:138 - Error reading file sia_predictions_20251221_210436_109sets.json: Expecting property name enclosed in double quotes: line 1000 column 29 (char 10689)
+2025-12-25 17:00:24 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
+2025-12-25 17:00:36 - lottery_ai - WARNING - logger.py:138 - Error loading prediction file predictions\lotto_max\prediction_ai\sia_predictions_20251221_210436_109sets.json: Expecting property name enclosed in double quotes: line 1000 column 29 (char 10689)
+2025-12-25 17:00:37 - lottery_ai - WARNING - logger.py:138 - Error reading file sia_predictions_20251221_210436_109sets.json: Expecting property name enclosed in double quotes: line 1000 column 29 (char 10689)
+2025-12-25 17:00:37 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
+2025-12-25 17:02:13 - lottery_ai - WARNING - logger.py:138 - Error loading prediction file predictions\lotto_max\prediction_ai\sia_predictions_20251221_210436_109sets.json: Expecting property name enclosed in double quotes: line 1000 column 29 (char 10689)
+2025-12-25 17:02:13 - lottery_ai - WARNING - logger.py:138 - Error reading file sia_predictions_20251221_210436_109sets.json: Expecting property name enclosed in double quotes: line 1000 column 29 (char 10689)
+2025-12-25 17:02:14 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
+2025-12-25 17:02:17 - lottery_ai - WARNING - logger.py:138 - Error loading prediction file predictions\lotto_max\prediction_ai\sia_predictions_20251221_210436_109sets.json: Expecting property name enclosed in double quotes: line 1000 column 29 (char 10689)
+2025-12-25 17:02:18 - lottery_ai - WARNING - logger.py:138 - Error reading file sia_predictions_20251221_210436_109sets.json: Expecting property name enclosed in double quotes: line 1000 column 29 (char 10689)
+2025-12-25 17:02:18 - lottery_ai - WARNING - logger.py:138 - Error loading prediction file predictions\lotto_max\prediction_ai\sia_predictions_20251221_210436_109sets.json: Expecting property name enclosed in double quotes: line 1000 column 29 (char 10689)
+2025-12-25 17:02:19 - lottery_ai - WARNING - logger.py:138 - Error reading file sia_predictions_20251221_210436_109sets.json: Expecting property name enclosed in double quotes: line 1000 column 29 (char 10689)
+2025-12-25 17:02:20 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
+2025-12-25 17:02:21 - lottery_ai - WARNING - logger.py:138 - Error loading prediction file predictions\lotto_max\prediction_ai\sia_predictions_20251221_210436_109sets.json: Expecting property name enclosed in double quotes: line 1000 column 29 (char 10689)
+2025-12-25 17:02:22 - lottery_ai - WARNING - logger.py:138 - Error loading prediction file predictions\lotto_max\prediction_ai\sia_predictions_20251221_210436_109sets.json: Expecting property name enclosed in double quotes: line 1000 column 29 (char 10689)
+2025-12-25 17:02:25 - lottery_ai - WARNING - logger.py:138 - Error loading prediction file predictions\lotto_max\prediction_ai\sia_predictions_20251221_210436_109sets.json: Expecting property name enclosed in double quotes: line 1000 column 29 (char 10689)
+2025-12-25 17:02:26 - lottery_ai - WARNING - logger.py:138 - Error loading prediction file predictions\lotto_max\prediction_ai\sia_predictions_20251221_210436_109sets.json: Expecting property name enclosed in double quotes: line 1000 column 29 (char 10689)
+2025-12-25 17:02:40 - lottery_ai - WARNING - logger.py:138 - Error loading prediction file predictions\lotto_max\prediction_ai\sia_predictions_20251221_210436_109sets.json: Expecting property name enclosed in double quotes: line 1000 column 29 (char 10689)
+2025-12-25 17:02:41 - lottery_ai - WARNING - logger.py:138 - Error reading file sia_predictions_20251221_210436_109sets.json: Expecting property name enclosed in double quotes: line 1000 column 29 (char 10689)
+2025-12-25 17:02:42 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
+2025-12-25 17:02:47 - lottery_ai - INFO - logger.py:138 - Generating CatBoost features optimized for categorical boosting...
+2025-12-25 17:02:48 - lottery_ai - INFO - logger.py:138 - Saved FeatureSchema to C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\data\features\catboost\lotto_max\feature_schema.json
+2025-12-25 17:02:48 - lottery_ai - INFO - logger.py:138 - Generating CatBoost features optimized for categorical boosting...
+2025-12-25 17:02:49 - lottery_ai - INFO - logger.py:138 - Saved FeatureSchema to C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\data\features\catboost\lotto_max\feature_schema.json
+2025-12-25 17:02:49 - lottery_ai - INFO - logger.py:138 - Generating CatBoost features optimized for categorical boosting...
+2025-12-25 17:02:50 - lottery_ai - INFO - logger.py:138 - Saved FeatureSchema to C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\data\features\catboost\lotto_max\feature_schema.json
+2025-12-25 17:02:50 - lottery_ai - INFO - logger.py:138 - Generating CatBoost features optimized for categorical boosting...
+2025-12-25 17:02:51 - lottery_ai - INFO - logger.py:138 - Saved FeatureSchema to C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\data\features\catboost\lotto_max\feature_schema.json
+2025-12-25 17:02:54 - lottery_ai - INFO - logger.py:138 - Generating CatBoost features optimized for categorical boosting...
+2025-12-25 17:02:56 - lottery_ai - INFO - logger.py:138 - Saved FeatureSchema to C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\data\features\catboost\lotto_max\feature_schema.json
+2025-12-25 17:03:08 - lottery_ai - INFO - logger.py:138 - Generating CatBoost features optimized for categorical boosting...
+2025-12-25 17:03:10 - lottery_ai - INFO - logger.py:138 - Saved FeatureSchema to C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\data\features\catboost\lotto_max\feature_schema.json
+2025-12-25 17:03:10 - lottery_ai - INFO - logger.py:138 - Generating CatBoost features optimized for categorical boosting...
+2025-12-25 17:03:11 - lottery_ai - INFO - logger.py:138 - Saved FeatureSchema to C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\data\features\catboost\lotto_max\feature_schema.json
+2025-12-25 17:03:31 - lottery_ai - WARNING - logger.py:138 - Error loading prediction file predictions\lotto_max\prediction_ai\sia_predictions_20251221_210436_109sets.json: Expecting property name enclosed in double quotes: line 1000 column 29 (char 10689)
+2025-12-25 17:03:32 - lottery_ai - WARNING - logger.py:138 - Error reading file sia_predictions_20251221_210436_109sets.json: Expecting property name enclosed in double quotes: line 1000 column 29 (char 10689)
+2025-12-25 17:03:33 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
+2025-12-25 17:03:55 - lottery_ai - WARNING - logger.py:138 - Error loading prediction file predictions\lotto_max\prediction_ai\sia_predictions_20251221_210436_109sets.json: Expecting property name enclosed in double quotes: line 1000 column 29 (char 10689)
+2025-12-25 17:03:56 - lottery_ai - WARNING - logger.py:138 - Error reading file sia_predictions_20251221_210436_109sets.json: Expecting property name enclosed in double quotes: line 1000 column 29 (char 10689)
+2025-12-25 17:03:56 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
+2025-12-25 17:04:15 - lottery_ai - WARNING - logger.py:138 - Error loading prediction file predictions\lotto_max\prediction_ai\sia_predictions_20251221_210436_109sets.json: Expecting property name enclosed in double quotes: line 1000 column 29 (char 10689)
+2025-12-25 17:04:16 - lottery_ai - WARNING - logger.py:138 - Error reading file sia_predictions_20251221_210436_109sets.json: Expecting property name enclosed in double quotes: line 1000 column 29 (char 10689)
+2025-12-25 17:04:17 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
+2025-12-25 17:04:32 - lottery_ai - WARNING - logger.py:138 - Error loading prediction file predictions\lotto_max\prediction_ai\sia_predictions_20251221_210436_109sets.json: Expecting property name enclosed in double quotes: line 1000 column 29 (char 10689)
+2025-12-25 17:04:33 - lottery_ai - WARNING - logger.py:138 - Error reading file sia_predictions_20251221_210436_109sets.json: Expecting property name enclosed in double quotes: line 1000 column 29 (char 10689)
+2025-12-25 17:04:34 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
+2025-12-25 17:04:38 - lottery_ai - WARNING - logger.py:138 - Error loading prediction file predictions\lotto_max\prediction_ai\sia_predictions_20251221_210436_109sets.json: Expecting property name enclosed in double quotes: line 1000 column 29 (char 10689)
+2025-12-25 17:04:39 - lottery_ai - WARNING - logger.py:138 - Error reading file sia_predictions_20251221_210436_109sets.json: Expecting property name enclosed in double quotes: line 1000 column 29 (char 10689)
+2025-12-25 17:04:39 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
+2025-12-25 17:04:42 - lottery_ai - WARNING - logger.py:138 - Error loading prediction file predictions\lotto_max\prediction_ai\sia_predictions_20251221_210436_109sets.json: Expecting property name enclosed in double quotes: line 1000 column 29 (char 10689)
+2025-12-25 17:04:43 - lottery_ai - WARNING - logger.py:138 - Error reading file sia_predictions_20251221_210436_109sets.json: Expecting property name enclosed in double quotes: line 1000 column 29 (char 10689)
+2025-12-25 17:04:44 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
+2025-12-25 17:04:58 - lottery_ai - INFO - logger.py:138 - Predictions saved to predictions\lotto_max\prediction_ai\sia_predictions_20251225_170458_28sets.json
+2025-12-25 17:04:58 - lottery_ai - WARNING - logger.py:138 - Error loading prediction file predictions\lotto_max\prediction_ai\sia_predictions_20251221_210436_109sets.json: Expecting property name enclosed in double quotes: line 1000 column 29 (char 10689)
+2025-12-25 17:04:59 - lottery_ai - WARNING - logger.py:138 - Error reading file sia_predictions_20251221_210436_109sets.json: Expecting property name enclosed in double quotes: line 1000 column 29 (char 10689)
+2025-12-25 17:04:59 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
+2025-12-25 17:05:31 - lottery_ai - WARNING - logger.py:138 - Error loading prediction file predictions\lotto_max\prediction_ai\sia_predictions_20251221_210436_109sets.json: Expecting property name enclosed in double quotes: line 1000 column 29 (char 10689)
+2025-12-25 17:05:32 - lottery_ai - WARNING - logger.py:138 - Error reading file sia_predictions_20251221_210436_109sets.json: Expecting property name enclosed in double quotes: line 1000 column 29 (char 10689)
+2025-12-25 17:05:32 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
+2025-12-25 17:05:53 - lottery_ai - WARNING - logger.py:138 - Error loading prediction file predictions\lotto_max\prediction_ai\sia_predictions_20251221_210436_109sets.json: Expecting property name enclosed in double quotes: line 1000 column 29 (char 10689)
+2025-12-25 17:05:53 - lottery_ai - WARNING - logger.py:138 - Error reading file sia_predictions_20251221_210436_109sets.json: Expecting property name enclosed in double quotes: line 1000 column 29 (char 10689)
+2025-12-25 17:05:53 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
+2025-12-25 17:05:57 - lottery_ai - WARNING - logger.py:138 - Error loading prediction file predictions\lotto_max\prediction_ai\sia_predictions_20251221_210436_109sets.json: Expecting property name enclosed in double quotes: line 1000 column 29 (char 10689)
+2025-12-25 17:05:57 - lottery_ai - WARNING - logger.py:138 - Error reading file sia_predictions_20251221_210436_109sets.json: Expecting property name enclosed in double quotes: line 1000 column 29 (char 10689)
+2025-12-25 17:05:57 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
+2025-12-25 17:06:13 - lottery_ai - WARNING - logger.py:138 - Error loading prediction file predictions\lotto_max\prediction_ai\sia_predictions_20251221_210436_109sets.json: Expecting property name enclosed in double quotes: line 1000 column 29 (char 10689)
+2025-12-25 17:06:14 - lottery_ai - WARNING - logger.py:138 - Error reading file sia_predictions_20251221_210436_109sets.json: Expecting property name enclosed in double quotes: line 1000 column 29 (char 10689)
+2025-12-25 17:06:14 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
+2025-12-25 17:06:29 - lottery_ai - WARNING - logger.py:138 - Error loading prediction file predictions\lotto_max\prediction_ai\sia_predictions_20251221_210436_109sets.json: Expecting property name enclosed in double quotes: line 1000 column 29 (char 10689)
+2025-12-25 17:06:29 - lottery_ai - WARNING - logger.py:138 - Error reading file sia_predictions_20251221_210436_109sets.json: Expecting property name enclosed in double quotes: line 1000 column 29 (char 10689)
+2025-12-25 17:06:29 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
+2025-12-25 17:10:01 - lottery_ai - WARNING - logger.py:138 - Error loading prediction file predictions\lotto_max\prediction_ai\sia_predictions_20251221_210436_109sets.json: Expecting property name enclosed in double quotes: line 1000 column 29 (char 10689)
+2025-12-25 17:10:02 - lottery_ai - WARNING - logger.py:138 - Error reading file sia_predictions_20251221_210436_109sets.json: Expecting property name enclosed in double quotes: line 1000 column 29 (char 10689)
+2025-12-25 17:10:02 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
+2025-12-25 17:10:11 - lottery_ai - INFO - logger.py:138 - Dashboard rendered successfully
+2025-12-25 17:11:09 - lottery_ai - WARNING - logger.py:138 - Error loading prediction file predictions\lotto_max\prediction_ai\sia_predictions_20251221_210436_109sets.json: Expecting property name enclosed in double quotes: line 1000 column 29 (char 10689)
+2025-12-25 17:11:09 - lottery_ai - WARNING - logger.py:138 - Error reading file sia_predictions_20251221_210436_109sets.json: Expecting property name enclosed in double quotes: line 1000 column 29 (char 10689)
+2025-12-25 17:11:09 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
+2025-12-25 17:11:19 - lottery_ai - WARNING - logger.py:138 - Error loading prediction file predictions\lotto_max\prediction_ai\sia_predictions_20251221_210436_109sets.json: Expecting property name enclosed in double quotes: line 1000 column 29 (char 10689)
+2025-12-25 17:11:19 - lottery_ai - WARNING - logger.py:138 - Error reading file sia_predictions_20251221_210436_109sets.json: Expecting property name enclosed in double quotes: line 1000 column 29 (char 10689)
+2025-12-25 17:11:19 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
+2025-12-25 17:11:20 - lottery_ai - WARNING - logger.py:138 - Error loading prediction file predictions\lotto_max\prediction_ai\sia_predictions_20251221_210436_109sets.json: Expecting property name enclosed in double quotes: line 1000 column 29 (char 10689)
+2025-12-25 17:11:20 - lottery_ai - WARNING - logger.py:138 - Error reading file sia_predictions_20251221_210436_109sets.json: Expecting property name enclosed in double quotes: line 1000 column 29 (char 10689)
+2025-12-25 17:11:20 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
+2025-12-25 17:11:40 - lottery_ai - WARNING - logger.py:138 - Error loading prediction file predictions\lotto_max\prediction_ai\sia_predictions_20251221_210436_109sets.json: Expecting property name enclosed in double quotes: line 1000 column 29 (char 10689)
+2025-12-25 17:11:40 - lottery_ai - WARNING - logger.py:138 - Error reading file sia_predictions_20251221_210436_109sets.json: Expecting property name enclosed in double quotes: line 1000 column 29 (char 10689)
+2025-12-25 17:11:40 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
+2025-12-25 17:12:03 - lottery_ai - WARNING - logger.py:138 - Error loading prediction file predictions\lotto_max\prediction_ai\sia_predictions_20251221_210436_109sets.json: Expecting property name enclosed in double quotes: line 1000 column 29 (char 10689)
+2025-12-25 17:12:03 - lottery_ai - WARNING - logger.py:138 - Error reading file sia_predictions_20251221_210436_109sets.json: Expecting property name enclosed in double quotes: line 1000 column 29 (char 10689)
+2025-12-25 17:12:03 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
+2025-12-25 17:12:53 - lottery_ai - WARNING - logger.py:138 - Error loading prediction file predictions\lotto_max\prediction_ai\sia_predictions_20251221_210436_109sets.json: Expecting property name enclosed in double quotes: line 1000 column 29 (char 10689)
+2025-12-25 17:12:53 - lottery_ai - WARNING - logger.py:138 - Error reading file sia_predictions_20251221_210436_109sets.json: Expecting property name enclosed in double quotes: line 1000 column 29 (char 10689)
+2025-12-25 17:12:54 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
+2025-12-25 17:13:05 - lottery_ai - WARNING - logger.py:138 - Error loading prediction file predictions\lotto_max\prediction_ai\sia_predictions_20251221_210436_109sets.json: Expecting property name enclosed in double quotes: line 1000 column 29 (char 10689)
+2025-12-25 17:13:05 - lottery_ai - WARNING - logger.py:138 - Error reading file sia_predictions_20251221_210436_109sets.json: Expecting property name enclosed in double quotes: line 1000 column 29 (char 10689)
+2025-12-25 17:13:05 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
+2025-12-25 17:17:53 - lottery_ai - WARNING - logger.py:138 - Error loading prediction file predictions\lotto_max\prediction_ai\sia_predictions_20251221_210436_109sets.json: Expecting property name enclosed in double quotes: line 1000 column 29 (char 10689)
+2025-12-25 17:17:54 - lottery_ai - WARNING - logger.py:138 - Error reading file sia_predictions_20251221_210436_109sets.json: Expecting property name enclosed in double quotes: line 1000 column 29 (char 10689)
+2025-12-25 17:17:54 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
+2025-12-25 17:18:10 - lottery_ai - WARNING - logger.py:138 - Error loading prediction file predictions\lotto_max\prediction_ai\sia_predictions_20251221_210436_109sets.json: Expecting property name enclosed in double quotes: line 1000 column 29 (char 10689)
+2025-12-25 17:18:10 - lottery_ai - WARNING - logger.py:138 - Error reading file sia_predictions_20251221_210436_109sets.json: Expecting property name enclosed in double quotes: line 1000 column 29 (char 10689)
+2025-12-25 17:18:10 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
+2025-12-25 17:18:30 - lottery_ai - WARNING - logger.py:138 - Error loading prediction file predictions\lotto_max\prediction_ai\sia_predictions_20251221_210436_109sets.json: Expecting property name enclosed in double quotes: line 1000 column 29 (char 10689)
+2025-12-25 17:18:31 - lottery_ai - WARNING - logger.py:138 - Error reading file sia_predictions_20251221_210436_109sets.json: Expecting property name enclosed in double quotes: line 1000 column 29 (char 10689)
+2025-12-25 17:18:31 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
+2025-12-25 17:21:19 - lottery_ai - WARNING - logger.py:138 - Error loading prediction file predictions\lotto_max\prediction_ai\sia_predictions_20251221_210436_109sets.json: Expecting property name enclosed in double quotes: line 1000 column 29 (char 10689)
+2025-12-25 17:21:19 - lottery_ai - WARNING - logger.py:138 - Error reading file sia_predictions_20251221_210436_109sets.json: Expecting property name enclosed in double quotes: line 1000 column 29 (char 10689)
+2025-12-25 17:21:20 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
+2025-12-25 17:21:30 - lottery_ai - WARNING - logger.py:138 - Error loading prediction file predictions\lotto_max\prediction_ai\sia_predictions_20251221_210436_109sets.json: Expecting property name enclosed in double quotes: line 1000 column 29 (char 10689)
+2025-12-25 17:21:30 - lottery_ai - WARNING - logger.py:138 - Error reading file sia_predictions_20251221_210436_109sets.json: Expecting property name enclosed in double quotes: line 1000 column 29 (char 10689)
+2025-12-25 17:21:31 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
+2025-12-25 17:21:39 - lottery_ai - WARNING - logger.py:138 - Error loading prediction file predictions\lotto_max\prediction_ai\sia_predictions_20251221_210436_109sets.json: Expecting property name enclosed in double quotes: line 1000 column 29 (char 10689)
+2025-12-25 17:21:39 - lottery_ai - WARNING - logger.py:138 - Error reading file sia_predictions_20251221_210436_109sets.json: Expecting property name enclosed in double quotes: line 1000 column 29 (char 10689)
+2025-12-25 17:21:40 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
+2025-12-25 17:21:43 - lottery_ai - WARNING - logger.py:138 - Error loading prediction file predictions\lotto_max\prediction_ai\sia_predictions_20251221_210436_109sets.json: Expecting property name enclosed in double quotes: line 1000 column 29 (char 10689)
+2025-12-25 17:21:43 - lottery_ai - WARNING - logger.py:138 - Error reading file sia_predictions_20251221_210436_109sets.json: Expecting property name enclosed in double quotes: line 1000 column 29 (char 10689)
+2025-12-25 17:21:44 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
+2025-12-25 17:23:04 - lottery_ai - WARNING - logger.py:138 - Error loading prediction file predictions\lotto_max\prediction_ai\sia_predictions_20251221_210436_109sets.json: Expecting property name enclosed in double quotes: line 1000 column 29 (char 10689)
+2025-12-25 17:23:04 - lottery_ai - WARNING - logger.py:138 - Error reading file sia_predictions_20251221_210436_109sets.json: Expecting property name enclosed in double quotes: line 1000 column 29 (char 10689)
+2025-12-25 17:23:05 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
+2025-12-25 17:23:15 - lottery_ai - WARNING - logger.py:138 - Error loading prediction file predictions\lotto_max\prediction_ai\sia_predictions_20251221_210436_109sets.json: Expecting property name enclosed in double quotes: line 1000 column 29 (char 10689)
+2025-12-25 17:23:15 - lottery_ai - WARNING - logger.py:138 - Error reading file sia_predictions_20251221_210436_109sets.json: Expecting property name enclosed in double quotes: line 1000 column 29 (char 10689)
+2025-12-25 17:23:17 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
+2025-12-25 17:23:53 - lottery_ai - WARNING - logger.py:138 - Error loading prediction file predictions\lotto_max\prediction_ai\sia_predictions_20251221_210436_109sets.json: Expecting property name enclosed in double quotes: line 1000 column 29 (char 10689)
+2025-12-25 17:23:53 - lottery_ai - WARNING - logger.py:138 - Error reading file sia_predictions_20251221_210436_109sets.json: Expecting property name enclosed in double quotes: line 1000 column 29 (char 10689)
+2025-12-25 17:23:53 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
+2025-12-25 17:24:02 - lottery_ai - WARNING - logger.py:138 - Error loading prediction file predictions\lotto_max\prediction_ai\sia_predictions_20251221_210436_109sets.json: Expecting property name enclosed in double quotes: line 1000 column 29 (char 10689)
+2025-12-25 17:24:03 - lottery_ai - WARNING - logger.py:138 - Error reading file sia_predictions_20251221_210436_109sets.json: Expecting property name enclosed in double quotes: line 1000 column 29 (char 10689)
+2025-12-25 17:24:04 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
+2025-12-25 17:25:02 - lottery_ai - WARNING - logger.py:138 - Error loading prediction file predictions\lotto_max\prediction_ai\sia_predictions_20251221_210436_109sets.json: Expecting property name enclosed in double quotes: line 1000 column 29 (char 10689)
+2025-12-25 17:25:02 - lottery_ai - WARNING - logger.py:138 - Error reading file sia_predictions_20251221_210436_109sets.json: Expecting property name enclosed in double quotes: line 1000 column 29 (char 10689)
+2025-12-25 17:25:03 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
+2025-12-25 17:25:12 - lottery_ai - WARNING - logger.py:138 - Error loading prediction file predictions\lotto_max\prediction_ai\sia_predictions_20251221_210436_109sets.json: Expecting property name enclosed in double quotes: line 1000 column 29 (char 10689)
+2025-12-25 17:25:12 - lottery_ai - WARNING - logger.py:138 - Error reading file sia_predictions_20251221_210436_109sets.json: Expecting property name enclosed in double quotes: line 1000 column 29 (char 10689)
+2025-12-25 17:25:13 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
+2025-12-25 17:26:09 - lottery_ai - WARNING - logger.py:138 - Error loading prediction file predictions\lotto_max\prediction_ai\sia_predictions_20251221_210436_109sets.json: Expecting property name enclosed in double quotes: line 1000 column 29 (char 10689)
+2025-12-25 17:26:09 - lottery_ai - WARNING - logger.py:138 - Error reading file sia_predictions_20251221_210436_109sets.json: Expecting property name enclosed in double quotes: line 1000 column 29 (char 10689)
+2025-12-25 17:26:10 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
+2025-12-25 17:26:16 - lottery_ai - WARNING - logger.py:138 - Error loading prediction file predictions\lotto_max\prediction_ai\sia_predictions_20251221_210436_109sets.json: Expecting property name enclosed in double quotes: line 1000 column 29 (char 10689)
+2025-12-25 17:26:16 - lottery_ai - WARNING - logger.py:138 - Error reading file sia_predictions_20251221_210436_109sets.json: Expecting property name enclosed in double quotes: line 1000 column 29 (char 10689)
+2025-12-25 17:26:18 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
+2025-12-25 17:26:49 - lottery_ai - WARNING - logger.py:138 - Error loading prediction file predictions\lotto_max\prediction_ai\sia_predictions_20251221_210436_109sets.json: Expecting property name enclosed in double quotes: line 1000 column 29 (char 10689)
+2025-12-25 17:26:49 - lottery_ai - WARNING - logger.py:138 - Error reading file sia_predictions_20251221_210436_109sets.json: Expecting property name enclosed in double quotes: line 1000 column 29 (char 10689)
+2025-12-25 17:26:50 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
+2025-12-25 17:26:56 - lottery_ai - WARNING - logger.py:138 - Error loading prediction file predictions\lotto_max\prediction_ai\sia_predictions_20251221_210436_109sets.json: Expecting property name enclosed in double quotes: line 1000 column 29 (char 10689)
+2025-12-25 17:26:56 - lottery_ai - WARNING - logger.py:138 - Error reading file sia_predictions_20251221_210436_109sets.json: Expecting property name enclosed in double quotes: line 1000 column 29 (char 10689)
+2025-12-25 17:26:57 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
+2025-12-25 17:28:14 - lottery_ai - WARNING - logger.py:138 - Error loading prediction file predictions\lotto_max\prediction_ai\sia_predictions_20251221_210436_109sets.json: Expecting property name enclosed in double quotes: line 1000 column 29 (char 10689)
+2025-12-25 17:28:15 - lottery_ai - WARNING - logger.py:138 - Error reading file sia_predictions_20251221_210436_109sets.json: Expecting property name enclosed in double quotes: line 1000 column 29 (char 10689)
+2025-12-25 17:28:15 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
+2025-12-25 17:29:27 - lottery_ai - INFO - logger.py:138 - Dashboard rendered successfully
+2025-12-25 17:29:35 - lottery_ai - WARNING - logger.py:138 - Error loading prediction file predictions\lotto_max\prediction_ai\sia_predictions_20251221_210436_109sets.json: Expecting property name enclosed in double quotes: line 1000 column 29 (char 10689)
+2025-12-25 17:29:36 - lottery_ai - WARNING - logger.py:138 - Error reading file sia_predictions_20251221_210436_109sets.json: Expecting property name enclosed in double quotes: line 1000 column 29 (char 10689)
+2025-12-25 17:29:37 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
+2025-12-25 17:30:40 - lottery_ai - WARNING - logger.py:138 - Error loading prediction file predictions\lotto_max\prediction_ai\sia_predictions_20251221_210436_109sets.json: Expecting property name enclosed in double quotes: line 1000 column 29 (char 10689)
+2025-12-25 17:30:41 - lottery_ai - WARNING - logger.py:138 - Error reading file sia_predictions_20251221_210436_109sets.json: Expecting property name enclosed in double quotes: line 1000 column 29 (char 10689)
+2025-12-25 17:30:41 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
+2025-12-25 17:30:53 - lottery_ai - WARNING - logger.py:138 - Error loading prediction file predictions\lotto_max\prediction_ai\sia_predictions_20251221_210436_109sets.json: Expecting property name enclosed in double quotes: line 1000 column 29 (char 10689)
+2025-12-25 17:30:53 - lottery_ai - WARNING - logger.py:138 - Error reading file sia_predictions_20251221_210436_109sets.json: Expecting property name enclosed in double quotes: line 1000 column 29 (char 10689)
+2025-12-25 17:30:53 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
+2025-12-25 17:30:54 - lottery_ai - WARNING - logger.py:138 - Error loading prediction file predictions\lotto_max\prediction_ai\sia_predictions_20251221_210436_109sets.json: Expecting property name enclosed in double quotes: line 1000 column 29 (char 10689)
+2025-12-25 17:30:55 - lottery_ai - WARNING - logger.py:138 - Error reading file sia_predictions_20251221_210436_109sets.json: Expecting property name enclosed in double quotes: line 1000 column 29 (char 10689)
+2025-12-25 17:30:55 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
+2025-12-25 17:30:57 - lottery_ai - WARNING - logger.py:138 - Error loading prediction file predictions\lotto_max\prediction_ai\sia_predictions_20251221_210436_109sets.json: Expecting property name enclosed in double quotes: line 1000 column 29 (char 10689)
+2025-12-25 17:30:58 - lottery_ai - WARNING - logger.py:138 - Error reading file sia_predictions_20251221_210436_109sets.json: Expecting property name enclosed in double quotes: line 1000 column 29 (char 10689)
+2025-12-25 17:31:00 - lottery_ai - WARNING - logger.py:138 - Error loading prediction file predictions\lotto_max\prediction_ai\sia_predictions_20251221_210436_109sets.json: Expecting property name enclosed in double quotes: line 1000 column 29 (char 10689)
+2025-12-25 17:31:01 - lottery_ai - WARNING - logger.py:138 - Error reading file sia_predictions_20251221_210436_109sets.json: Expecting property name enclosed in double quotes: line 1000 column 29 (char 10689)
+2025-12-25 17:31:01 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
+2025-12-25 17:31:08 - lottery_ai - WARNING - logger.py:138 - Error loading prediction file predictions\lotto_max\prediction_ai\sia_predictions_20251221_210436_109sets.json: Expecting property name enclosed in double quotes: line 1000 column 29 (char 10689)
+2025-12-25 17:31:09 - lottery_ai - WARNING - logger.py:138 - Error reading file sia_predictions_20251221_210436_109sets.json: Expecting property name enclosed in double quotes: line 1000 column 29 (char 10689)
+2025-12-25 17:31:09 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
+2025-12-25 17:31:16 - lottery_ai - WARNING - logger.py:138 - Error loading prediction file predictions\lotto_max\prediction_ai\sia_predictions_20251221_210436_109sets.json: Expecting property name enclosed in double quotes: line 1000 column 29 (char 10689)
+2025-12-25 17:31:17 - lottery_ai - WARNING - logger.py:138 - Error reading file sia_predictions_20251221_210436_109sets.json: Expecting property name enclosed in double quotes: line 1000 column 29 (char 10689)
+2025-12-25 17:31:17 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
+2025-12-25 17:31:33 - lottery_ai - WARNING - logger.py:138 - Error loading prediction file predictions\lotto_max\prediction_ai\sia_predictions_20251221_210436_109sets.json: Expecting property name enclosed in double quotes: line 1000 column 29 (char 10689)
+2025-12-25 17:31:34 - lottery_ai - WARNING - logger.py:138 - Error reading file sia_predictions_20251221_210436_109sets.json: Expecting property name enclosed in double quotes: line 1000 column 29 (char 10689)
+2025-12-25 17:31:34 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
+2025-12-25 17:32:03 - lottery_ai - WARNING - logger.py:138 - Error loading prediction file predictions\lotto_max\prediction_ai\sia_predictions_20251221_210436_109sets.json: Expecting property name enclosed in double quotes: line 1000 column 29 (char 10689)
+2025-12-25 17:32:03 - lottery_ai - WARNING - logger.py:138 - Error reading file sia_predictions_20251221_210436_109sets.json: Expecting property name enclosed in double quotes: line 1000 column 29 (char 10689)
+2025-12-25 17:32:04 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
+2025-12-25 17:34:27 - lottery_ai - INFO - logger.py:138 - Dashboard rendered successfully
+2025-12-25 17:34:37 - lottery_ai - WARNING - logger.py:138 - Error loading prediction file predictions\lotto_max\prediction_ai\sia_predictions_20251221_210436_109sets.json: Expecting property name enclosed in double quotes: line 1000 column 29 (char 10689)
+2025-12-25 17:34:37 - lottery_ai - WARNING - logger.py:138 - Error reading file sia_predictions_20251221_210436_109sets.json: Expecting property name enclosed in double quotes: line 1000 column 29 (char 10689)
+2025-12-25 17:34:37 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
+2025-12-25 17:35:32 - lottery_ai - WARNING - logger.py:138 - Error loading prediction file predictions\lotto_max\prediction_ai\sia_predictions_20251221_210436_109sets.json: Expecting property name enclosed in double quotes: line 1000 column 29 (char 10689)
+2025-12-25 17:35:32 - lottery_ai - WARNING - logger.py:138 - Error reading file sia_predictions_20251221_210436_109sets.json: Expecting property name enclosed in double quotes: line 1000 column 29 (char 10689)
+2025-12-25 17:35:32 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
+2025-12-25 17:37:12 - lottery_ai - WARNING - logger.py:138 - Error loading prediction file predictions\lotto_max\prediction_ai\sia_predictions_20251221_210436_109sets.json: Expecting property name enclosed in double quotes: line 1000 column 29 (char 10689)
+2025-12-25 17:37:12 - lottery_ai - WARNING - logger.py:138 - Error reading file sia_predictions_20251221_210436_109sets.json: Expecting property name enclosed in double quotes: line 1000 column 29 (char 10689)
+2025-12-25 17:37:12 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
+2025-12-25 17:37:51 - lottery_ai - WARNING - logger.py:138 - Error loading prediction file predictions\lotto_max\prediction_ai\sia_predictions_20251221_210436_109sets.json: Expecting property name enclosed in double quotes: line 1000 column 29 (char 10689)
+2025-12-25 17:37:51 - lottery_ai - WARNING - logger.py:138 - Error reading file sia_predictions_20251221_210436_109sets.json: Expecting property name enclosed in double quotes: line 1000 column 29 (char 10689)
+2025-12-25 17:37:51 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
+2025-12-25 17:37:59 - lottery_ai - WARNING - logger.py:138 - Error loading prediction file predictions\lotto_max\prediction_ai\sia_predictions_20251221_210436_109sets.json: Expecting property name enclosed in double quotes: line 1000 column 29 (char 10689)
+2025-12-25 17:37:59 - lottery_ai - WARNING - logger.py:138 - Error reading file sia_predictions_20251221_210436_109sets.json: Expecting property name enclosed in double quotes: line 1000 column 29 (char 10689)
+2025-12-25 17:37:59 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
+2025-12-25 17:38:24 - lottery_ai - WARNING - logger.py:138 - Error loading prediction file predictions\lotto_max\prediction_ai\sia_predictions_20251221_210436_109sets.json: Expecting property name enclosed in double quotes: line 1000 column 29 (char 10689)
+2025-12-25 17:38:24 - lottery_ai - WARNING - logger.py:138 - Error reading file sia_predictions_20251221_210436_109sets.json: Expecting property name enclosed in double quotes: line 1000 column 29 (char 10689)
+2025-12-25 17:38:25 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
+2025-12-25 17:38:29 - lottery_ai - WARNING - logger.py:138 - Error loading prediction file predictions\lotto_max\prediction_ai\sia_predictions_20251221_210436_109sets.json: Expecting property name enclosed in double quotes: line 1000 column 29 (char 10689)
+2025-12-25 17:38:29 - lottery_ai - WARNING - logger.py:138 - Error reading file sia_predictions_20251221_210436_109sets.json: Expecting property name enclosed in double quotes: line 1000 column 29 (char 10689)
+2025-12-25 17:38:29 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
+2025-12-25 17:38:49 - lottery_ai - WARNING - logger.py:138 - Error loading prediction file predictions\lotto_max\prediction_ai\sia_predictions_20251221_210436_109sets.json: Expecting property name enclosed in double quotes: line 1000 column 29 (char 10689)
+2025-12-25 17:38:49 - lottery_ai - WARNING - logger.py:138 - Error reading file sia_predictions_20251221_210436_109sets.json: Expecting property name enclosed in double quotes: line 1000 column 29 (char 10689)
+2025-12-25 17:38:50 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
+2025-12-25 17:38:56 - lottery_ai - INFO - logger.py:138 - Generating CatBoost features optimized for categorical boosting...
+2025-12-25 17:38:57 - lottery_ai - INFO - logger.py:138 - Saved FeatureSchema to C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\data\features\catboost\lotto_max\feature_schema.json
+2025-12-25 17:38:57 - lottery_ai - INFO - logger.py:138 - Generating CatBoost features optimized for categorical boosting...
+2025-12-25 17:38:58 - lottery_ai - INFO - logger.py:138 - Saved FeatureSchema to C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\data\features\catboost\lotto_max\feature_schema.json
+2025-12-25 17:38:58 - lottery_ai - INFO - logger.py:138 - Generating CatBoost features optimized for categorical boosting...
+2025-12-25 17:39:00 - lottery_ai - INFO - logger.py:138 - Saved FeatureSchema to C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\data\features\catboost\lotto_max\feature_schema.json
+2025-12-25 17:39:00 - lottery_ai - INFO - logger.py:138 - Generating CatBoost features optimized for categorical boosting...
+2025-12-25 17:39:01 - lottery_ai - INFO - logger.py:138 - Saved FeatureSchema to C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\data\features\catboost\lotto_max\feature_schema.json
+2025-12-25 17:39:03 - lottery_ai - INFO - logger.py:138 - Generating CatBoost features optimized for categorical boosting...
+2025-12-25 17:39:04 - lottery_ai - INFO - logger.py:138 - Saved FeatureSchema to C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\data\features\catboost\lotto_max\feature_schema.json
+2025-12-25 17:39:11 - lottery_ai - INFO - logger.py:138 - Generating CatBoost features optimized for categorical boosting...
+2025-12-25 17:39:12 - lottery_ai - INFO - logger.py:138 - Saved FeatureSchema to C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\data\features\catboost\lotto_max\feature_schema.json
+2025-12-25 17:39:12 - lottery_ai - INFO - logger.py:138 - Generating CatBoost features optimized for categorical boosting...
+2025-12-25 17:39:13 - lottery_ai - INFO - logger.py:138 - Saved FeatureSchema to C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\data\features\catboost\lotto_max\feature_schema.json
+2025-12-25 17:39:31 - lottery_ai - WARNING - logger.py:138 - Error loading prediction file predictions\lotto_max\prediction_ai\sia_predictions_20251221_210436_109sets.json: Expecting property name enclosed in double quotes: line 1000 column 29 (char 10689)
+2025-12-25 17:39:31 - lottery_ai - WARNING - logger.py:138 - Error reading file sia_predictions_20251221_210436_109sets.json: Expecting property name enclosed in double quotes: line 1000 column 29 (char 10689)
+2025-12-25 17:39:31 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
+2025-12-25 17:44:28 - lottery_ai - INFO - logger.py:138 - Dashboard rendered successfully
+2025-12-25 17:44:36 - lottery_ai - WARNING - logger.py:138 - Error loading prediction file predictions\lotto_max\prediction_ai\sia_predictions_20251221_210436_109sets.json: Expecting property name enclosed in double quotes: line 1000 column 29 (char 10689)
+2025-12-25 17:44:36 - lottery_ai - WARNING - logger.py:138 - Error reading file sia_predictions_20251221_210436_109sets.json: Expecting property name enclosed in double quotes: line 1000 column 29 (char 10689)
+2025-12-25 17:44:36 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
+2025-12-25 17:44:53 - lottery_ai - WARNING - logger.py:138 - Error loading prediction file predictions\lotto_max\prediction_ai\sia_predictions_20251221_210436_109sets.json: Expecting property name enclosed in double quotes: line 1000 column 29 (char 10689)
+2025-12-25 17:44:53 - lottery_ai - WARNING - logger.py:138 - Error reading file sia_predictions_20251221_210436_109sets.json: Expecting property name enclosed in double quotes: line 1000 column 29 (char 10689)
+2025-12-25 17:44:53 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
+2025-12-25 17:44:56 - lottery_ai - WARNING - logger.py:138 - Error loading prediction file predictions\lotto_max\prediction_ai\sia_predictions_20251221_210436_109sets.json: Expecting property name enclosed in double quotes: line 1000 column 29 (char 10689)
+2025-12-25 17:44:56 - lottery_ai - WARNING - logger.py:138 - Error reading file sia_predictions_20251221_210436_109sets.json: Expecting property name enclosed in double quotes: line 1000 column 29 (char 10689)
+2025-12-25 17:44:57 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
+2025-12-25 17:44:57 - lottery_ai - WARNING - logger.py:138 - Error loading prediction file predictions\lotto_max\prediction_ai\sia_predictions_20251221_210436_109sets.json: Expecting property name enclosed in double quotes: line 1000 column 29 (char 10689)
+2025-12-25 17:44:57 - lottery_ai - WARNING - logger.py:138 - Error reading file sia_predictions_20251221_210436_109sets.json: Expecting property name enclosed in double quotes: line 1000 column 29 (char 10689)
+2025-12-25 17:44:58 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
+2025-12-25 17:44:59 - lottery_ai - WARNING - logger.py:138 - Error loading prediction file predictions\lotto_max\prediction_ai\sia_predictions_20251221_210436_109sets.json: Expecting property name enclosed in double quotes: line 1000 column 29 (char 10689)
+2025-12-25 17:44:59 - lottery_ai - WARNING - logger.py:138 - Error reading file sia_predictions_20251221_210436_109sets.json: Expecting property name enclosed in double quotes: line 1000 column 29 (char 10689)
+2025-12-25 17:45:19 - lottery_ai - WARNING - logger.py:138 - Error loading prediction file predictions\lotto_max\prediction_ai\sia_predictions_20251221_210436_109sets.json: Expecting property name enclosed in double quotes: line 1000 column 29 (char 10689)
+2025-12-25 17:45:19 - lottery_ai - WARNING - logger.py:138 - Error reading file sia_predictions_20251221_210436_109sets.json: Expecting property name enclosed in double quotes: line 1000 column 29 (char 10689)
+2025-12-25 17:45:20 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
+2025-12-25 17:45:24 - lottery_ai - INFO - logger.py:138 - Generating CatBoost features optimized for categorical boosting...
+2025-12-25 17:45:26 - lottery_ai - INFO - logger.py:138 - Saved FeatureSchema to C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\data\features\catboost\lotto_max\feature_schema.json
+2025-12-25 17:45:26 - lottery_ai - INFO - logger.py:138 - Generating CatBoost features optimized for categorical boosting...
+2025-12-25 17:45:27 - lottery_ai - INFO - logger.py:138 - Saved FeatureSchema to C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\data\features\catboost\lotto_max\feature_schema.json
+2025-12-25 17:45:27 - lottery_ai - INFO - logger.py:138 - Generating CatBoost features optimized for categorical boosting...
+2025-12-25 17:45:29 - lottery_ai - INFO - logger.py:138 - Saved FeatureSchema to C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\data\features\catboost\lotto_max\feature_schema.json
+2025-12-25 17:45:29 - lottery_ai - INFO - logger.py:138 - Generating CatBoost features optimized for categorical boosting...
+2025-12-25 17:45:30 - lottery_ai - INFO - logger.py:138 - Saved FeatureSchema to C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\data\features\catboost\lotto_max\feature_schema.json
+2025-12-25 17:45:32 - lottery_ai - INFO - logger.py:138 - Generating CatBoost features optimized for categorical boosting...
+2025-12-25 17:45:33 - lottery_ai - INFO - logger.py:138 - Saved FeatureSchema to C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\data\features\catboost\lotto_max\feature_schema.json
+2025-12-25 17:45:41 - lottery_ai - INFO - logger.py:138 - Generating CatBoost features optimized for categorical boosting...
+2025-12-25 17:45:43 - lottery_ai - INFO - logger.py:138 - Saved FeatureSchema to C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\data\features\catboost\lotto_max\feature_schema.json
+2025-12-25 17:45:43 - lottery_ai - INFO - logger.py:138 - Generating CatBoost features optimized for categorical boosting...
+2025-12-25 17:45:44 - lottery_ai - INFO - logger.py:138 - Saved FeatureSchema to C:\Users\dian_\OneDrive\1 - My Documents\9 - Rocket Innovations Inc\gaming-ai-bot\data\features\catboost\lotto_max\feature_schema.json
+2025-12-25 17:46:01 - lottery_ai - WARNING - logger.py:138 - Error loading prediction file predictions\lotto_max\prediction_ai\sia_predictions_20251221_210436_109sets.json: Expecting property name enclosed in double quotes: line 1000 column 29 (char 10689)
+2025-12-25 17:46:01 - lottery_ai - WARNING - logger.py:138 - Error reading file sia_predictions_20251221_210436_109sets.json: Expecting property name enclosed in double quotes: line 1000 column 29 (char 10689)
+2025-12-25 17:46:01 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
+2025-12-25 17:47:07 - lottery_ai - WARNING - logger.py:138 - Error loading prediction file predictions\lotto_max\prediction_ai\sia_predictions_20251221_210436_109sets.json: Expecting property name enclosed in double quotes: line 1000 column 29 (char 10689)
+2025-12-25 17:47:07 - lottery_ai - WARNING - logger.py:138 - Error reading file sia_predictions_20251221_210436_109sets.json: Expecting property name enclosed in double quotes: line 1000 column 29 (char 10689)
+2025-12-25 17:47:07 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
+2025-12-25 17:47:21 - lottery_ai - WARNING - logger.py:138 - Error loading prediction file predictions\lotto_max\prediction_ai\sia_predictions_20251221_210436_109sets.json: Expecting property name enclosed in double quotes: line 1000 column 29 (char 10689)
+2025-12-25 17:47:21 - lottery_ai - WARNING - logger.py:138 - Error reading file sia_predictions_20251221_210436_109sets.json: Expecting property name enclosed in double quotes: line 1000 column 29 (char 10689)
+2025-12-25 17:47:21 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
+2025-12-25 17:47:45 - lottery_ai - WARNING - logger.py:138 - Error loading prediction file predictions\lotto_max\prediction_ai\sia_predictions_20251221_210436_109sets.json: Expecting property name enclosed in double quotes: line 1000 column 29 (char 10689)
+2025-12-25 17:47:45 - lottery_ai - WARNING - logger.py:138 - Error reading file sia_predictions_20251221_210436_109sets.json: Expecting property name enclosed in double quotes: line 1000 column 29 (char 10689)
+2025-12-25 17:47:45 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
+2025-12-25 17:47:51 - lottery_ai - INFO - logger.py:138 - Predictions saved to predictions\lotto_max\prediction_ai\sia_predictions_20251225_174751_69sets.json
+2025-12-25 17:47:52 - lottery_ai - WARNING - logger.py:138 - Error loading prediction file predictions\lotto_max\prediction_ai\sia_predictions_20251221_210436_109sets.json: Expecting property name enclosed in double quotes: line 1000 column 29 (char 10689)
+2025-12-25 17:47:52 - lottery_ai - WARNING - logger.py:138 - Error reading file sia_predictions_20251221_210436_109sets.json: Expecting property name enclosed in double quotes: line 1000 column 29 (char 10689)
+2025-12-25 17:47:53 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
+2025-12-25 17:48:55 - lottery_ai - WARNING - logger.py:138 - Error loading prediction file predictions\lotto_max\prediction_ai\sia_predictions_20251221_210436_109sets.json: Expecting property name enclosed in double quotes: line 1000 column 29 (char 10689)
+2025-12-25 17:48:55 - lottery_ai - WARNING - logger.py:138 - Error reading file sia_predictions_20251221_210436_109sets.json: Expecting property name enclosed in double quotes: line 1000 column 29 (char 10689)
+2025-12-25 17:48:55 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
+2025-12-25 17:49:00 - lottery_ai - WARNING - logger.py:138 - Error loading prediction file predictions\lotto_max\prediction_ai\sia_predictions_20251221_210436_109sets.json: Expecting property name enclosed in double quotes: line 1000 column 29 (char 10689)
+2025-12-25 17:49:00 - lottery_ai - WARNING - logger.py:138 - Error reading file sia_predictions_20251221_210436_109sets.json: Expecting property name enclosed in double quotes: line 1000 column 29 (char 10689)
+2025-12-25 17:49:03 - lottery_ai - WARNING - logger.py:138 - Error loading prediction file predictions\lotto_max\prediction_ai\sia_predictions_20251221_210436_109sets.json: Expecting property name enclosed in double quotes: line 1000 column 29 (char 10689)
+2025-12-25 17:49:03 - lottery_ai - WARNING - logger.py:138 - Error reading file sia_predictions_20251221_210436_109sets.json: Expecting property name enclosed in double quotes: line 1000 column 29 (char 10689)
+2025-12-25 17:49:03 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
+2025-12-25 17:49:10 - lottery_ai - WARNING - logger.py:138 - Error loading prediction file predictions\lotto_max\prediction_ai\sia_predictions_20251221_210436_109sets.json: Expecting property name enclosed in double quotes: line 1000 column 29 (char 10689)
+2025-12-25 17:49:10 - lottery_ai - WARNING - logger.py:138 - Error reading file sia_predictions_20251221_210436_109sets.json: Expecting property name enclosed in double quotes: line 1000 column 29 (char 10689)
+2025-12-25 17:49:10 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
+2025-12-25 17:49:17 - lottery_ai - WARNING - logger.py:138 - Error loading prediction file predictions\lotto_max\prediction_ai\sia_predictions_20251221_210436_109sets.json: Expecting property name enclosed in double quotes: line 1000 column 29 (char 10689)
+2025-12-25 17:49:17 - lottery_ai - WARNING - logger.py:138 - Error reading file sia_predictions_20251221_210436_109sets.json: Expecting property name enclosed in double quotes: line 1000 column 29 (char 10689)
+2025-12-25 17:49:18 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
+2025-12-25 17:49:50 - lottery_ai - WARNING - logger.py:138 - Error loading prediction file predictions\lotto_max\prediction_ai\sia_predictions_20251221_210436_109sets.json: Expecting property name enclosed in double quotes: line 1000 column 29 (char 10689)
+2025-12-25 17:49:51 - lottery_ai - WARNING - logger.py:138 - Error reading file sia_predictions_20251221_210436_109sets.json: Expecting property name enclosed in double quotes: line 1000 column 29 (char 10689)
+2025-12-25 17:49:51 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
+2025-12-26 12:23:53 - lottery_ai - INFO - logger.py:138 - Dashboard rendered successfully
+2025-12-26 12:24:07 - lottery_ai - WARNING - logger.py:138 - Error loading prediction file predictions\lotto_max\prediction_ai\sia_predictions_20251221_210436_109sets.json: Expecting property name enclosed in double quotes: line 1000 column 29 (char 10689)
+2025-12-26 12:24:07 - lottery_ai - WARNING - logger.py:138 - Error reading file sia_predictions_20251221_210436_109sets.json: Expecting property name enclosed in double quotes: line 1000 column 29 (char 10689)
+2025-12-26 12:24:07 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
+2025-12-26 12:25:25 - lottery_ai - INFO - logger.py:138 - Dashboard rendered successfully
+2025-12-26 12:25:35 - lottery_ai - WARNING - logger.py:138 - Error loading prediction file predictions\lotto_max\prediction_ai\sia_predictions_20251221_210436_109sets.json: Expecting property name enclosed in double quotes: line 1000 column 29 (char 10689)
+2025-12-26 12:25:35 - lottery_ai - WARNING - logger.py:138 - Error reading file sia_predictions_20251221_210436_109sets.json: Expecting property name enclosed in double quotes: line 1000 column 29 (char 10689)
+2025-12-26 12:25:35 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
+2025-12-26 12:26:02 - lottery_ai - WARNING - logger.py:138 - Error loading prediction file predictions\lotto_max\prediction_ai\sia_predictions_20251221_210436_109sets.json: Expecting property name enclosed in double quotes: line 1000 column 29 (char 10689)
+2025-12-26 12:26:02 - lottery_ai - WARNING - logger.py:138 - Error reading file sia_predictions_20251221_210436_109sets.json: Expecting property name enclosed in double quotes: line 1000 column 29 (char 10689)
+2025-12-26 12:26:02 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
+2025-12-26 12:27:46 - lottery_ai - WARNING - logger.py:138 - Error loading prediction file predictions\lotto_max\prediction_ai\sia_predictions_20251221_210436_109sets.json: Expecting property name enclosed in double quotes: line 1000 column 29 (char 10689)
+2025-12-26 12:27:46 - lottery_ai - WARNING - logger.py:138 - Error reading file sia_predictions_20251221_210436_109sets.json: Expecting property name enclosed in double quotes: line 1000 column 29 (char 10689)
+2025-12-26 12:27:46 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
+2025-12-26 12:30:34 - lottery_ai - WARNING - logger.py:138 - Error loading prediction file predictions\lotto_max\prediction_ai\sia_predictions_20251221_210436_109sets.json: Expecting property name enclosed in double quotes: line 1000 column 29 (char 10689)
+2025-12-26 12:30:34 - lottery_ai - WARNING - logger.py:138 - Error reading file sia_predictions_20251221_210436_109sets.json: Expecting property name enclosed in double quotes: line 1000 column 29 (char 10689)
+2025-12-26 12:30:34 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
+2025-12-26 12:30:39 - lottery_ai - WARNING - logger.py:138 - Error loading prediction file predictions\lotto_max\prediction_ai\sia_predictions_20251221_210436_109sets.json: Expecting property name enclosed in double quotes: line 1000 column 29 (char 10689)
+2025-12-26 12:30:39 - lottery_ai - WARNING - logger.py:138 - Error reading file sia_predictions_20251221_210436_109sets.json: Expecting property name enclosed in double quotes: line 1000 column 29 (char 10689)
+2025-12-26 12:30:39 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
+2025-12-26 12:30:41 - lottery_ai - WARNING - logger.py:138 - Error loading prediction file predictions\lotto_max\prediction_ai\sia_predictions_20251221_210436_109sets.json: Expecting property name enclosed in double quotes: line 1000 column 29 (char 10689)
+2025-12-26 12:30:41 - lottery_ai - WARNING - logger.py:138 - Error reading file sia_predictions_20251221_210436_109sets.json: Expecting property name enclosed in double quotes: line 1000 column 29 (char 10689)
+2025-12-26 12:30:41 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
+2025-12-26 12:30:43 - lottery_ai - WARNING - logger.py:138 - Error loading prediction file predictions\lotto_max\prediction_ai\sia_predictions_20251221_210436_109sets.json: Expecting property name enclosed in double quotes: line 1000 column 29 (char 10689)
+2025-12-26 12:30:43 - lottery_ai - WARNING - logger.py:138 - Error reading file sia_predictions_20251221_210436_109sets.json: Expecting property name enclosed in double quotes: line 1000 column 29 (char 10689)
+2025-12-26 12:30:43 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
+2025-12-26 12:31:16 - lottery_ai - WARNING - logger.py:138 - Error loading prediction file predictions\lotto_max\prediction_ai\sia_predictions_20251221_210436_109sets.json: Expecting property name enclosed in double quotes: line 1000 column 29 (char 10689)
+2025-12-26 12:31:16 - lottery_ai - WARNING - logger.py:138 - Error reading file sia_predictions_20251221_210436_109sets.json: Expecting property name enclosed in double quotes: line 1000 column 29 (char 10689)
+2025-12-26 12:31:16 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
+2025-12-26 12:33:00 - lottery_ai - WARNING - logger.py:138 - Error loading prediction file predictions\lotto_max\prediction_ai\sia_predictions_20251221_210436_109sets.json: Expecting property name enclosed in double quotes: line 1000 column 29 (char 10689)
+2025-12-26 12:33:00 - lottery_ai - WARNING - logger.py:138 - Error reading file sia_predictions_20251221_210436_109sets.json: Expecting property name enclosed in double quotes: line 1000 column 29 (char 10689)
+2025-12-26 12:33:01 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
+2025-12-26 13:07:49 - lottery_ai - WARNING - logger.py:138 - Error loading prediction file predictions\lotto_max\prediction_ai\sia_predictions_20251221_210436_109sets.json: Expecting property name enclosed in double quotes: line 1000 column 29 (char 10689)
+2025-12-26 13:07:49 - lottery_ai - WARNING - logger.py:138 - Error reading file sia_predictions_20251221_210436_109sets.json: Expecting property name enclosed in double quotes: line 1000 column 29 (char 10689)
+2025-12-26 13:07:49 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
+2025-12-26 13:08:11 - lottery_ai - WARNING - logger.py:138 - Error loading prediction file predictions\lotto_max\prediction_ai\sia_predictions_20251221_210436_109sets.json: Expecting property name enclosed in double quotes: line 1000 column 29 (char 10689)
+2025-12-26 13:08:11 - lottery_ai - WARNING - logger.py:138 - Error reading file sia_predictions_20251221_210436_109sets.json: Expecting property name enclosed in double quotes: line 1000 column 29 (char 10689)
+2025-12-26 13:08:11 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
+2025-12-26 13:16:57 - lottery_ai - WARNING - logger.py:138 - Error loading prediction file predictions\lotto_max\prediction_ai\sia_predictions_20251221_210436_109sets.json: Expecting property name enclosed in double quotes: line 1000 column 29 (char 10689)
+2025-12-26 13:16:57 - lottery_ai - WARNING - logger.py:138 - Error reading file sia_predictions_20251221_210436_109sets.json: Expecting property name enclosed in double quotes: line 1000 column 29 (char 10689)
+2025-12-26 13:16:57 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
+2025-12-26 13:17:35 - lottery_ai - WARNING - logger.py:138 - Error loading prediction file predictions\lotto_max\prediction_ai\sia_predictions_20251221_210436_109sets.json: Expecting property name enclosed in double quotes: line 1000 column 29 (char 10689)
+2025-12-26 13:17:35 - lottery_ai - WARNING - logger.py:138 - Error reading file sia_predictions_20251221_210436_109sets.json: Expecting property name enclosed in double quotes: line 1000 column 29 (char 10689)
+2025-12-26 13:17:36 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
+2025-12-26 13:18:49 - lottery_ai - WARNING - logger.py:138 - Error loading prediction file predictions\lotto_max\prediction_ai\sia_predictions_20251221_210436_109sets.json: Expecting property name enclosed in double quotes: line 1000 column 29 (char 10689)
+2025-12-26 13:18:49 - lottery_ai - WARNING - logger.py:138 - Error reading file sia_predictions_20251221_210436_109sets.json: Expecting property name enclosed in double quotes: line 1000 column 29 (char 10689)
+2025-12-26 13:18:50 - lottery_ai - INFO - logger.py:138 - AI Prediction Engine page rendered successfully
