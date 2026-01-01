@@ -1239,12 +1239,21 @@ understanding that lottery outcomes remain random and unpredictable.
             }
     
     def generate_prediction_sets_advanced(self, num_sets: int, optimal_analysis: Dict[str, Any],
-                                        model_analysis: Dict[str, Any]) -> tuple:
+                                        model_analysis: Dict[str, Any], learning_data: Dict[str, Any] = None) -> tuple:
         """
         Generate AI-optimized prediction sets using REAL MODEL PROBABILITIES from ensemble inference.
         
+        Args:
+            num_sets: Number of prediction sets to generate
+            optimal_analysis: Optimal analysis results from SIA
+            model_analysis: Model analysis results
+            learning_data: Optional learning data to enhance predictions with historical insights
+        
         Returns:
-            Tuple of (predictions, strategy_report) where strategy_report describes which strategies were used
+            Tuple of (predictions, strategy_report, predictions_with_attribution) where:
+            - predictions: List of prediction sets
+            - strategy_report: Description of strategies used
+            - predictions_with_attribution: Detailed model attribution per set
         
         This method:
         1. Uses real ensemble probabilities from model inference
@@ -1252,7 +1261,8 @@ understanding that lottery outcomes remain random and unpredictable.
         3. Applies Gumbel-Top-K sampling for diversity with entropy optimization
         4. Weights selections by model agreement and confidence
         5. Applies hot/cold number analysis based on probability scores
-        6. Generates scientifically-grounded number sets
+        6. Incorporates learning data insights when available (NEW)
+        7. Generates scientifically-grounded number sets
         
         Advanced Strategy:
         - Real model probability distributions (not random)
@@ -1261,6 +1271,7 @@ understanding that lottery outcomes remain random and unpredictable.
         - Hot/cold balancing from real probability scores
         - Progressive diversity across sets
         - Multi-model consensus analysis
+        - Learning-enhanced optimization (when learning_data provided)
         """
         import sys
         from pathlib import Path
@@ -1282,7 +1293,8 @@ understanding that lottery outcomes remain random and unpredictable.
             "strategy_3_confidence_weighted": 0,
             "strategy_4_topk": 0,
             "total_sets": num_sets,
-            "details": []
+            "details": [],
+            "learning_enhanced": learning_data is not None
         }
         
         # Use real ensemble probabilities if available
@@ -1299,6 +1311,44 @@ understanding that lottery outcomes remain random and unpredictable.
             prob_values = prob_values / prob_sum
         else:
             prob_values = np.ones(max_number) / max_number
+        
+        # ===== ENHANCE WITH LEARNING DATA IF AVAILABLE =====
+        if learning_data:
+            # Extract learning insights
+            hot_numbers_learning = learning_data.get('analysis', {}).get('number_frequency', {})
+            position_accuracy = learning_data.get('analysis', {}).get('position_accuracy', {})
+            cold_numbers_learning = learning_data.get('analysis', {}).get('cold_numbers', [])
+            target_sum = learning_data.get('avg_sum', 0)
+            sum_range = learning_data.get('sum_range', {'min': 0, 'max': 999})
+            
+            # Boost probabilities for hot numbers from learning
+            if hot_numbers_learning:
+                for num_str, freq_data in hot_numbers_learning.items():
+                    try:
+                        num_idx = int(num_str) - 1
+                        if 0 <= num_idx < max_number:
+                            # Frequency comes as dict with 'number' and 'frequency' or just frequency
+                            freq = freq_data.get('frequency', freq_data) if isinstance(freq_data, dict) else freq_data
+                            # Boost probability by frequency factor (scaled)
+                            boost_factor = 1.0 + (float(freq) * 0.1)  # 10% boost per frequency unit
+                            prob_values[num_idx] *= boost_factor
+                    except (ValueError, KeyError, TypeError):
+                        continue
+            
+            # Penalize cold numbers slightly
+            if cold_numbers_learning:
+                for num in cold_numbers_learning:
+                    try:
+                        num_idx = int(num) - 1
+                        if 0 <= num_idx < max_number:
+                            prob_values[num_idx] *= 0.8  # 20% penalty
+                    except (ValueError, TypeError):
+                        continue
+            
+            # Re-normalize after learning adjustments
+            prob_sum = np.sum(prob_values)
+            if prob_sum > 0:
+                prob_values = prob_values / prob_sum
         
         ensemble_confidence = float(model_analysis.get("ensemble_confidence", 0.5))
         diversity_factor = float(optimal_analysis.get("diversity_factor", 1.5))
@@ -2378,6 +2428,106 @@ def _render_prediction_generator(analyzer: SuperIntelligentAIAnalyzer) -> None:
     - Hot/cold number analysis and diversity optimization
     """)
     
+    # ===== NEW: GENERATION CONTROLS =====
+    st.divider()
+    st.markdown("### ⚙️ Generation Controls")
+    
+    # Initialize session state for new controls
+    if 'sia_use_learning' not in st.session_state:
+        st.session_state.sia_use_learning = False
+    if 'sia_selected_learning_files' not in st.session_state:
+        st.session_state.sia_selected_learning_files = []
+    if 'sia_use_custom_quantity' not in st.session_state:
+        st.session_state.sia_use_custom_quantity = False
+    if 'sia_custom_quantity' not in st.session_state:
+        st.session_state.sia_custom_quantity = optimal["optimal_sets"]
+    
+    # Two column layout for the checkboxes
+    checkbox_col1, checkbox_col2 = st.columns(2)
+    
+    with checkbox_col1:
+        use_learning = st.checkbox(
+            "📚 Use Learning Files",
+            value=st.session_state.sia_use_learning,
+            key="sia_use_learning_checkbox",
+            help="Incorporate insights from historical learning data to optimize predictions"
+        )
+        st.session_state.sia_use_learning = use_learning
+    
+    with checkbox_col2:
+        use_custom_quantity = st.checkbox(
+            "🎲 Custom Sets Quantity",
+            value=st.session_state.sia_use_custom_quantity,
+            key="sia_use_custom_quantity_checkbox",
+            help="Override recommended quantity with your own custom number of sets"
+        )
+        st.session_state.sia_use_custom_quantity = use_custom_quantity
+    
+    # Learning Files Selection (shown when checkbox is enabled)
+    if use_learning:
+        st.markdown("#### 📂 Select Learning Files")
+        
+        # Find available learning files
+        available_learning_files = _find_all_learning_files(analyzer.game)
+        
+        if available_learning_files:
+            # Create readable options
+            learning_options = []
+            for lf in available_learning_files:
+                # Parse filename for date/draw info
+                file_stats = lf.stat()
+                mod_time = datetime.fromtimestamp(file_stats.st_mtime).strftime('%Y-%m-%d %H:%M')
+                size_kb = file_stats.st_size / 1024
+                learning_options.append(f"{lf.name} (Modified: {mod_time}, Size: {size_kb:.1f}KB)")
+            
+            # Multi-select for learning files
+            selected_learning_indices = st.multiselect(
+                "Choose one or more learning files:",
+                range(len(available_learning_files)),
+                format_func=lambda i: learning_options[i],
+                default=st.session_state.sia_selected_learning_files if st.session_state.sia_selected_learning_files else [0],
+                key="sia_learning_files_multiselect",
+                help="Select multiple files to combine their insights for better predictions"
+            )
+            
+            st.session_state.sia_selected_learning_files = selected_learning_indices
+            
+            if selected_learning_indices:
+                st.info(f"✅ Selected {len(selected_learning_indices)} learning file(s) to incorporate into generation")
+            else:
+                st.warning("⚠️ No learning files selected. Predictions will be generated without learning insights.")
+        else:
+            st.warning(f"⚠️ No learning files found for {analyzer.game}. Generate predictions first and analyze them in the Deep Learning & Analytics tab to create learning data.")
+            st.session_state.sia_use_learning = False
+    
+    # Custom Quantity Control (shown when checkbox is enabled)
+    if use_custom_quantity:
+        st.markdown("#### 🔢 Custom Quantity")
+        
+        custom_quantity_col1, custom_quantity_col2 = st.columns([3, 1])
+        
+        with custom_quantity_col1:
+            custom_sets = st.number_input(
+                "Number of sets to generate:",
+                min_value=1,
+                max_value=500,
+                value=st.session_state.sia_custom_quantity,
+                step=1,
+                key="sia_custom_quantity_input",
+                help="Choose between 1 and 500 prediction sets (overrides SIA calculation)"
+            )
+            st.session_state.sia_custom_quantity = custom_sets
+        
+        with custom_quantity_col2:
+            st.markdown("<br>", unsafe_allow_html=True)
+            if custom_sets != optimal["optimal_sets"]:
+                st.warning(f"⚠️ Override: {custom_sets} sets")
+            else:
+                st.success("✅ Matches SIA")
+    
+    st.divider()
+    
+    # ===== METRICS ROW =====
     col1, col2, col3, col4 = st.columns(4)
     
     with col1:
@@ -2394,11 +2544,18 @@ def _render_prediction_generator(analyzer: SuperIntelligentAIAnalyzer) -> None:
         )
     
     with col3:
-        final_sets = max(1, int(optimal["optimal_sets"] * adjustment))
+        # Determine final sets count based on custom quantity override
+        if use_custom_quantity:
+            final_sets = st.session_state.sia_custom_quantity
+        else:
+            final_sets = max(1, int(optimal["optimal_sets"] * adjustment))
         st.metric("Final Sets", final_sets)
     
     with col4:
-        adjustment_str = "Conservative" if adjustment < 1.0 else "Aggressive" if adjustment > 1.0 else "Optimal"
+        if use_custom_quantity:
+            adjustment_str = "Custom Override"
+        else:
+            adjustment_str = "Conservative" if adjustment < 1.0 else "Aggressive" if adjustment > 1.0 else "Optimal"
         st.metric("Strategy", adjustment_str)
     
     st.divider()
@@ -2433,17 +2590,61 @@ def _render_prediction_generator(analyzer: SuperIntelligentAIAnalyzer) -> None:
     if st.button("🚀 Generate AI-Optimized Prediction Sets", use_container_width=True, key="gen_pred_btn", help="Generate precisely calculated sets for maximum winning probability"):
         with st.spinner(f"🤖 Generating {final_sets} AI-optimized prediction sets using deep learning..."):
             try:
-                # Generate predictions with advanced reasoning and attribution tracking
-                predictions, strategy_report, predictions_with_attribution = analyzer.generate_prediction_sets_advanced(final_sets, optimal, analysis)
+                # ===== LOAD LEARNING FILES IF ENABLED =====
+                learning_data = None
+                learning_file_paths = []
+                
+                if use_learning and st.session_state.sia_selected_learning_files:
+                    st.info("📚 Loading learning files to enhance predictions...")
+                    available_files = _find_all_learning_files(analyzer.game)
+                    selected_files = [available_files[i] for i in st.session_state.sia_selected_learning_files]
+                    
+                    if selected_files:
+                        learning_file_paths = selected_files
+                        learning_data = _load_and_combine_learning_files(selected_files)
+                        st.success(f"✅ Loaded {len(selected_files)} learning file(s) with combined insights")
+                
+                # ===== GENERATE PREDICTIONS =====
+                # Pass learning data to generation if available
+                if learning_data:
+                    # Generate with learning-enhanced algorithm
+                    predictions, strategy_report, predictions_with_attribution = analyzer.generate_prediction_sets_advanced(
+                        final_sets, 
+                        optimal, 
+                        analysis,
+                        learning_data=learning_data
+                    )
+                else:
+                    # Generate normally without learning
+                    predictions, strategy_report, predictions_with_attribution = analyzer.generate_prediction_sets_advanced(
+                        final_sets, 
+                        optimal, 
+                        analysis
+                    )
                 
                 # Save to session and file with attribution data
                 st.session_state.sia_predictions = predictions
                 st.session_state.sia_strategy_report = strategy_report
                 st.session_state.sia_predictions_with_attribution = predictions_with_attribution
-                filepath = analyzer.save_predictions_advanced(predictions, analysis, optimal, final_sets, predictions_with_attribution)
+                
+                # Add learning metadata to saved file
+                if learning_data:
+                    # Store learning file info in optimal_analysis for saving
+                    optimal_with_learning = optimal.copy()
+                    optimal_with_learning['learning_files_used'] = [str(f.name) for f in learning_file_paths]
+                    optimal_with_learning['learning_insights_count'] = len(learning_data.get('combined_insights', []))
+                    filepath = analyzer.save_predictions_advanced(predictions, analysis, optimal_with_learning, final_sets, predictions_with_attribution)
+                else:
+                    filepath = analyzer.save_predictions_advanced(predictions, analysis, optimal, final_sets, predictions_with_attribution)
                 
                 st.success(f"✅ Successfully generated {final_sets} AI-optimized prediction sets!")
-                st.balloons()
+                
+                # Show learning enhancement info
+                if learning_data:
+                    st.balloons()
+                    st.success(f"🎓 **Learning Enhanced:** Predictions optimized using insights from {len(learning_file_paths)} historical learning file(s)")
+                else:
+                    st.balloons()
                 
                 # Display strategy report prominently
                 st.info(strategy_report)
