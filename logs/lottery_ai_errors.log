@@ -1927,3 +1927,4 @@ streamlit.errors.StreamlitInvalidColumnSpecError: The `spec` argument to `st.col
 2025-12-23 21:14:16 - lottery_ai - ERROR - logger.py:138 - Error generating LightGBM features: Can only use .dt accessor with datetimelike values
 2025-12-23 21:14:18 - lottery_ai - ERROR - logger.py:138 - Error generating LightGBM features: Can only use .dt accessor with datetimelike values
 2025-12-23 21:14:20 - lottery_ai - ERROR - logger.py:138 - Error generating LightGBM features: Can only use .dt accessor with datetimelike values
+2026-01-11 10:17:09 - lottery_ai - ERROR - logger.py:138 - URL fetch error: Invalid URL 'Lotto Max Numbers for 2026 | Winning Numbers from 2026': No scheme supplied. Perhaps you meant https://Lotto Max Numbers for 2026 | Winning Numbers from 2026?

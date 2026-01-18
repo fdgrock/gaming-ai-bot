@@ -16,6 +16,8 @@ from pathlib import Path
 from datetime import datetime, timedelta
 from typing import Optional, Dict, Any, List, Tuple
 import json
+import random
+from copy import deepcopy
 
 try:
     from ..core import get_available_games, get_session_value, set_session_value, app_log
@@ -47,6 +49,531 @@ except ImportError:
         def __init__(self, game, output_dir="data/learning"): self.game = game
         def save_training_data(self, data): return ""
         def get_training_summary(self): return {}
+
+
+# ============================================================================
+# ADVANCED LEARNING SYSTEM - META-LEARNING & ADAPTIVE INTELLIGENCE
+# ============================================================================
+
+class AdaptiveLearningSystem:
+    """
+    Advanced learning system with:
+    1. Adaptive weight learning based on historical success
+    2. Temporal decay for recent pattern emphasis
+    3. Cross-factor interaction detection
+    4. Anti-pattern tracking from failures
+    5. Meta-learning for optimal strategy combinations
+    """
+    
+    def __init__(self, game: str):
+        self.game = game
+        self.game_folder = _sanitize_game_name(game)
+        self.meta_learning_file = Path("data") / "learning" / self.game_folder / "meta_learning.json"
+        self.meta_learning_data = self._load_meta_learning()
+        
+    def _load_meta_learning(self) -> Dict:
+        """Load or initialize meta-learning data."""
+        if self.meta_learning_file.exists():
+            try:
+                with open(self.meta_learning_file, 'r') as f:
+                    return json.load(f)
+            except:
+                pass
+        
+        # Initialize default meta-learning structure
+        return {
+            'factor_weights': {
+                'hot_numbers': 0.12,
+                'sum_alignment': 0.15,
+                'diversity': 0.10,
+                'gap_patterns': 0.12,
+                'zone_distribution': 0.10,
+                'even_odd_ratio': 0.08,
+                'cold_penalty': 0.10,
+                'decade_coverage': 0.10,
+                'pattern_fingerprint': 0.08,
+                'position_weighting': 0.15
+            },
+            'weight_history': [],
+            'factor_success_rates': {},
+            'cross_factor_interactions': {},
+            'anti_patterns': [],
+            'strategy_performance': {},
+            'file_combination_performance': {},
+            'temporal_decay_rate': 0.95,  # 5% decay per draw age
+            'last_updated': datetime.now().isoformat(),
+            'total_learning_cycles': 0
+        }
+    
+    def _save_meta_learning(self):
+        """Save meta-learning data."""
+        self.meta_learning_file.parent.mkdir(parents=True, exist_ok=True)
+        with open(self.meta_learning_file, 'w') as f:
+            json.dump(self.meta_learning_data, f, indent=2)
+    
+    def get_adaptive_weights(self, draw_age: int = 0) -> Dict[str, float]:
+        """
+        Get adaptive weights with temporal decay applied.
+        
+        Args:
+            draw_age: Number of draws since this learning data was created (0 = most recent)
+        """
+        base_weights = self.meta_learning_data['factor_weights']
+        decay_rate = self.meta_learning_data['temporal_decay_rate']
+        
+        # Apply temporal decay: older data gets less weight
+        decay_factor = decay_rate ** draw_age
+        
+        # Return decayed weights
+        return {k: v * decay_factor for k, v in base_weights.items()}
+    
+    def update_weights_from_success(self, winning_numbers: List[int], top_predictions: List[List[int]], 
+                                    factor_scores: Dict[str, List[float]]):
+        """
+        Adaptive learning: Update factor weights based on which factors 
+        were strong in successful predictions.
+        
+        Args:
+            winning_numbers: The actual winning numbers
+            top_predictions: The best-performing prediction sets
+            factor_scores: Score breakdown by factor for each top prediction
+        """
+        # Calculate how well each factor predicted success
+        for factor_name, scores in factor_scores.items():
+            # Higher scores in top predictions mean this factor is predictive
+            avg_score = np.mean(scores) if scores else 0
+            
+            # Update success rate tracking
+            if factor_name not in self.meta_learning_data['factor_success_rates']:
+                self.meta_learning_data['factor_success_rates'][factor_name] = []
+            
+            self.meta_learning_data['factor_success_rates'][factor_name].append(avg_score)
+            
+            # Keep only last 50 results
+            if len(self.meta_learning_data['factor_success_rates'][factor_name]) > 50:
+                self.meta_learning_data['factor_success_rates'][factor_name].pop(0)
+        
+        # Recalculate adaptive weights based on historical success
+        self._recalculate_adaptive_weights()
+        
+        # Save updated meta-learning
+        self.meta_learning_data['total_learning_cycles'] += 1
+        self.meta_learning_data['last_updated'] = datetime.now().isoformat()
+        self._save_meta_learning()
+    
+    def _recalculate_adaptive_weights(self):
+        """Recalculate factor weights based on historical success rates."""
+        success_rates = self.meta_learning_data['factor_success_rates']
+        
+        if not success_rates:
+            return
+        
+        # Calculate average success for each factor
+        factor_performance = {}
+        for factor, scores in success_rates.items():
+            if scores:
+                factor_performance[factor] = np.mean(scores)
+        
+        if not factor_performance:
+            return
+        
+        # Normalize to get new weights (softmax-like distribution)
+        total_performance = sum(factor_performance.values())
+        if total_performance > 0:
+            for factor in self.meta_learning_data['factor_weights']:
+                if factor in factor_performance:
+                    # Blend old weight (30%) with new performance-based weight (70%)
+                    old_weight = self.meta_learning_data['factor_weights'][factor]
+                    new_weight = factor_performance[factor] / total_performance
+                    self.meta_learning_data['factor_weights'][factor] = 0.3 * old_weight + 0.7 * new_weight
+        
+        # Record weight change in history
+        self.meta_learning_data['weight_history'].append({
+            'timestamp': datetime.now().isoformat(),
+            'weights': self.meta_learning_data['factor_weights'].copy()
+        })
+        
+        # Keep only last 100 history entries
+        if len(self.meta_learning_data['weight_history']) > 100:
+            self.meta_learning_data['weight_history'].pop(0)
+    
+    def detect_cross_factor_interactions(self, predictions: List[List[int]], 
+                                        winning_numbers: List[int],
+                                        factor_scores: Dict[str, Dict[int, float]]):
+        """
+        Detect when combinations of factors predict better together.
+        
+        Args:
+            predictions: All prediction sets
+            winning_numbers: Actual winning numbers
+            factor_scores: Individual factor scores for each prediction
+        """
+        # Analyze top 10% of predictions
+        num_top = max(1, len(predictions) // 10)
+        
+        # Calculate match scores for each prediction
+        match_scores = []
+        for pred in predictions:
+            matches = len(set(pred) & set(winning_numbers))
+            match_scores.append(matches)
+        
+        top_indices = np.argsort(match_scores)[-num_top:]
+        
+        # Analyze factor combinations in top predictions
+        factor_pairs = {}
+        factors = list(self.meta_learning_data['factor_weights'].keys())
+        
+        for i, factor1 in enumerate(factors):
+            for factor2 in factors[i+1:]:
+                pair_key = f"{factor1}+{factor2}"
+                pair_scores = []
+                
+                for idx in top_indices:
+                    if idx < len(predictions):
+                        score1 = factor_scores.get(factor1, {}).get(idx, 0)
+                        score2 = factor_scores.get(factor2, {}).get(idx, 0)
+                        # Interaction strength: product of both scores
+                        pair_scores.append(score1 * score2)
+                
+                if pair_scores:
+                    factor_pairs[pair_key] = np.mean(pair_scores)
+        
+        # Update interaction tracking
+        self.meta_learning_data['cross_factor_interactions'] = factor_pairs
+        self._save_meta_learning()
+        
+        return factor_pairs
+    
+    def track_anti_patterns(self, worst_predictions: List[List[int]], 
+                           winning_numbers: List[int]):
+        """
+        Learn from failures: Track patterns that consistently fail.
+        
+        Args:
+            worst_predictions: The worst-performing prediction sets
+            winning_numbers: Actual winning numbers
+        """
+        for pred in worst_predictions:
+            # Extract anti-pattern characteristics
+            anti_pattern = {
+                'numbers': sorted(pred),
+                'sum': sum(pred),
+                'gaps': [pred[i+1] - pred[i] for i in range(len(pred)-1)] if len(pred) > 1 else [],
+                'even_count': sum(1 for n in pred if n % 2 == 0),
+                'zones': self._categorize_zones(pred),
+                'timestamp': datetime.now().isoformat()
+            }
+            
+            self.meta_learning_data['anti_patterns'].append(anti_pattern)
+        
+        # Keep only last 200 anti-patterns
+        if len(self.meta_learning_data['anti_patterns']) > 200:
+            self.meta_learning_data['anti_patterns'] = self.meta_learning_data['anti_patterns'][-200:]
+        
+        self._save_meta_learning()
+    
+    def _categorize_zones(self, numbers: List[int]) -> Dict[str, int]:
+        """Categorize numbers into zones."""
+        max_number = 50 if 'max' in self.game.lower() else 49
+        low_boundary = max_number // 3
+        mid_boundary = (max_number * 2) // 3
+        
+        zones = {'low': 0, 'mid': 0, 'high': 0}
+        for num in numbers:
+            if num <= low_boundary:
+                zones['low'] += 1
+            elif num <= mid_boundary:
+                zones['mid'] += 1
+            else:
+                zones['high'] += 1
+        return zones
+    
+    def penalize_anti_patterns(self, prediction: List[int]) -> float:
+        """
+        Calculate penalty score if prediction matches known anti-patterns.
+        
+        Returns:
+            Penalty value (0.0 = no penalty, 1.0 = strong match to anti-pattern)
+        """
+        if not self.meta_learning_data['anti_patterns']:
+            return 0.0
+        
+        pred_sum = sum(prediction)
+        pred_zones = self._categorize_zones(prediction)
+        pred_even = sum(1 for n in prediction if n % 2 == 0)
+        
+        penalty = 0.0
+        matches = 0
+        
+        for anti in self.meta_learning_data['anti_patterns'][-50:]:  # Check recent 50
+            similarity = 0.0
+            
+            # Sum similarity
+            sum_diff = abs(pred_sum - anti['sum'])
+            if sum_diff < 20:
+                similarity += 0.3
+            
+            # Zone similarity
+            zone_diff = sum(abs(pred_zones[z] - anti['zones'].get(z, 0)) for z in ['low', 'mid', 'high'])
+            if zone_diff <= 2:
+                similarity += 0.3
+            
+            # Even/odd similarity
+            if abs(pred_even - anti['even_count']) <= 1:
+                similarity += 0.2
+            
+            # Number overlap
+            overlap = len(set(prediction) & set(anti['numbers']))
+            if overlap >= 4:
+                similarity += 0.2
+            
+            if similarity > 0.6:  # Strong match to anti-pattern
+                penalty += similarity
+                matches += 1
+        
+        # Average penalty from matches
+        return min(1.0, penalty / max(1, matches))
+    
+    def record_strategy_performance(self, strategy_name: str, success_metrics: Dict):
+        """Track performance of different regeneration strategies."""
+        if strategy_name not in self.meta_learning_data['strategy_performance']:
+            self.meta_learning_data['strategy_performance'][strategy_name] = []
+        
+        self.meta_learning_data['strategy_performance'][strategy_name].append({
+            'timestamp': datetime.now().isoformat(),
+            'metrics': success_metrics
+        })
+        
+        # Keep only last 50 results per strategy
+        if len(self.meta_learning_data['strategy_performance'][strategy_name]) > 50:
+            self.meta_learning_data['strategy_performance'][strategy_name].pop(0)
+        
+        self._save_meta_learning()
+    
+    def get_best_strategy(self) -> str:
+        """Determine which regeneration strategy historically performs best."""
+        if not self.meta_learning_data['strategy_performance']:
+            return "Learning-Optimized"  # Default
+        
+        strategy_scores = {}
+        for strategy, results in self.meta_learning_data['strategy_performance'].items():
+            if results:
+                avg_score = np.mean([r['metrics'].get('accuracy', 0) for r in results])
+                strategy_scores[strategy] = avg_score
+        
+        if strategy_scores:
+            return max(strategy_scores, key=strategy_scores.get)
+        return "Learning-Optimized"
+    
+    def record_file_combination_performance(self, file_names: List[str], success_score: float):
+        """Meta-learning: Track which learning file combinations work best."""
+        combo_key = "+".join(sorted(file_names))
+        
+        if combo_key not in self.meta_learning_data['file_combination_performance']:
+            self.meta_learning_data['file_combination_performance'][combo_key] = []
+        
+        self.meta_learning_data['file_combination_performance'][combo_key].append({
+            'timestamp': datetime.now().isoformat(),
+            'score': success_score,
+            'num_files': len(file_names)
+        })
+        
+        # Keep only last 20 results per combination
+        if len(self.meta_learning_data['file_combination_performance'][combo_key]) > 20:
+            self.meta_learning_data['file_combination_performance'][combo_key].pop(0)
+        
+        self._save_meta_learning()
+    
+    def get_optimal_file_combination(self, available_files: List[str]) -> List[str]:
+        """Recommend which learning files to combine based on historical performance."""
+        if not self.meta_learning_data['file_combination_performance']:
+            # Default: use most recent
+            return available_files[:1] if available_files else []
+        
+        # Score all possible combinations
+        combo_scores = {}
+        for combo_key, results in self.meta_learning_data['file_combination_performance'].items():
+            if results:
+                avg_score = np.mean([r['score'] for r in results])
+                combo_scores[combo_key] = avg_score
+        
+        if not combo_scores:
+            return available_files[:1]
+        
+        # Find best combination that uses available files
+        best_combo = max(combo_scores, key=combo_scores.get)
+        files_in_combo = best_combo.split('+')
+        
+        # Return files from best combo that are available
+        return [f for f in files_in_combo if f in available_files]
+
+
+class GeneticSetOptimizer:
+    """
+    Genetic algorithm for intelligent set optimization.
+    Evolves prediction sets to maximize learning score.
+    """
+    
+    def __init__(self, draw_size: int, max_number: int, learning_data: Dict,
+                 adaptive_system: AdaptiveLearningSystem):
+        self.draw_size = draw_size
+        self.max_number = max_number
+        self.learning_data = learning_data
+        self.adaptive_system = adaptive_system
+        self.population_size = 100
+        self.generations = 50
+        self.mutation_rate = 0.1
+        self.crossover_rate = 0.7
+        self.elite_size = 10
+    
+    def optimize_set(self, initial_set: List[int] = None) -> List[int]:
+        """
+        Optimize a prediction set using genetic algorithm.
+        
+        Args:
+            initial_set: Starting set (optional, will generate random if None)
+        
+        Returns:
+            Optimized prediction set
+        """
+        # Initialize population
+        population = self._initialize_population(initial_set)
+        
+        best_fitness = 0
+        best_individual = None
+        generations_without_improvement = 0
+        
+        for generation in range(self.generations):
+            # Evaluate fitness
+            fitness_scores = [self._evaluate_fitness(ind) for ind in population]
+            
+            # Track best
+            gen_best_idx = np.argmax(fitness_scores)
+            gen_best_fitness = fitness_scores[gen_best_idx]
+            
+            if gen_best_fitness > best_fitness:
+                best_fitness = gen_best_fitness
+                best_individual = population[gen_best_idx].copy()
+                generations_without_improvement = 0
+            else:
+                generations_without_improvement += 1
+            
+            # Early stopping if no improvement for 10 generations
+            if generations_without_improvement >= 10:
+                break
+            
+            # Selection
+            selected = self._selection(population, fitness_scores)
+            
+            # Crossover
+            offspring = self._crossover(selected)
+            
+            # Mutation
+            offspring = self._mutation(offspring)
+            
+            # Elitism: Keep best individuals
+            elite_indices = np.argsort(fitness_scores)[-self.elite_size:]
+            elite = [population[i] for i in elite_indices]
+            
+            # New generation
+            population = elite + offspring[:self.population_size - self.elite_size]
+        
+        return sorted(best_individual) if best_individual else initial_set or self._generate_random_set()
+    
+    def _initialize_population(self, initial_set: List[int] = None) -> List[List[int]]:
+        """Create initial population."""
+        population = []
+        
+        # Add initial set if provided
+        if initial_set:
+            population.append(initial_set.copy())
+        
+        # Generate random individuals
+        while len(population) < self.population_size:
+            population.append(self._generate_random_set())
+        
+        return population
+    
+    def _generate_random_set(self) -> List[int]:
+        """Generate a random valid set."""
+        return sorted(random.sample(range(1, self.max_number + 1), self.draw_size))
+    
+    def _evaluate_fitness(self, individual: List[int]) -> float:
+        """Evaluate fitness using enhanced learning score."""
+        # Use adaptive learning system to calculate score
+        base_score = _calculate_learning_score_advanced(
+            individual, 
+            self.learning_data, 
+            self.adaptive_system
+        )
+        
+        # Additional fitness components
+        # Penalty for anti-patterns
+        anti_penalty = self.adaptive_system.penalize_anti_patterns(individual)
+        
+        # Bonus for diversity
+        diversity_bonus = (max(individual) - min(individual)) / self.max_number * 0.1
+        
+        return base_score - anti_penalty + diversity_bonus
+    
+    def _selection(self, population: List[List[int]], fitness_scores: List[float]) -> List[List[int]]:
+        """Tournament selection."""
+        selected = []
+        tournament_size = 5
+        
+        for _ in range(self.population_size):
+            tournament_indices = random.sample(range(len(population)), tournament_size)
+            tournament_fitness = [fitness_scores[i] for i in tournament_indices]
+            winner_idx = tournament_indices[np.argmax(tournament_fitness)]
+            selected.append(population[winner_idx].copy())
+        
+        return selected
+    
+    def _crossover(self, parents: List[List[int]]) -> List[List[int]]:
+        """Uniform crossover between parent sets."""
+        offspring = []
+        
+        for i in range(0, len(parents) - 1, 2):
+            if random.random() < self.crossover_rate:
+                parent1 = parents[i]
+                parent2 = parents[i + 1]
+                
+                # Create child by mixing numbers from both parents
+                combined = list(set(parent1 + parent2))
+                if len(combined) >= self.draw_size:
+                    child = sorted(random.sample(combined, self.draw_size))
+                else:
+                    # Not enough unique numbers, fill randomly
+                    remaining = [n for n in range(1, self.max_number + 1) if n not in combined]
+                    child = sorted(combined + random.sample(remaining, self.draw_size - len(combined)))
+                
+                offspring.append(child)
+            else:
+                offspring.append(parents[i].copy())
+        
+        return offspring
+    
+    def _mutation(self, population: List[List[int]]) -> List[List[int]]:
+        """Mutate individuals by swapping numbers."""
+        mutated = []
+        
+        for individual in population:
+            if random.random() < self.mutation_rate:
+                # Swap one number
+                idx_to_replace = random.randint(0, len(individual) - 1)
+                new_number = random.randint(1, self.max_number)
+                
+                # Ensure uniqueness
+                while new_number in individual:
+                    new_number = random.randint(1, self.max_number)
+                
+                mutated_ind = individual.copy()
+                mutated_ind[idx_to_replace] = new_number
+                mutated.append(sorted(mutated_ind))
+            else:
+                mutated.append(individual.copy())
+        
+        return mutated
 
 
 # ============================================================================
@@ -1239,7 +1766,8 @@ understanding that lottery outcomes remain random and unpredictable.
             }
     
     def generate_prediction_sets_advanced(self, num_sets: int, optimal_analysis: Dict[str, Any],
-                                        model_analysis: Dict[str, Any], learning_data: Dict[str, Any] = None) -> tuple:
+                                        model_analysis: Dict[str, Any], learning_data: Dict[str, Any] = None,
+                                        no_repeat_numbers: bool = False) -> tuple:
         """
         Generate AI-optimized prediction sets using REAL MODEL PROBABILITIES from ensemble inference.
         
@@ -1248,6 +1776,7 @@ understanding that lottery outcomes remain random and unpredictable.
             optimal_analysis: Optimal analysis results from SIA
             model_analysis: Model analysis results
             learning_data: Optional learning data to enhance predictions with historical insights
+            no_repeat_numbers: If True, minimize number repetition across sets for maximum diversity
         
         Returns:
             Tuple of (predictions, strategy_report, predictions_with_attribution) where:
@@ -1261,8 +1790,9 @@ understanding that lottery outcomes remain random and unpredictable.
         3. Applies Gumbel-Top-K sampling for diversity with entropy optimization
         4. Weights selections by model agreement and confidence
         5. Applies hot/cold number analysis based on probability scores
-        6. Incorporates learning data insights when available (NEW)
-        7. Generates scientifically-grounded number sets
+        6. Incorporates learning data insights when available
+        7. Optionally enforces number diversity across sets (no_repeat_numbers)
+        8. Generates scientifically-grounded number sets
         
         Advanced Strategy:
         - Real model probability distributions (not random)
@@ -1272,6 +1802,7 @@ understanding that lottery outcomes remain random and unpredictable.
         - Progressive diversity across sets
         - Multi-model consensus analysis
         - Learning-enhanced optimization (when learning_data provided)
+        - Intelligent number uniqueness management (when no_repeat_numbers enabled)
         """
         import sys
         from pathlib import Path
@@ -1294,8 +1825,28 @@ understanding that lottery outcomes remain random and unpredictable.
             "strategy_4_topk": 0,
             "total_sets": num_sets,
             "details": [],
-            "learning_enhanced": learning_data is not None
+            "learning_enhanced": learning_data is not None,
+            "no_repeat_enabled": no_repeat_numbers
         }
+        
+        # ===== INTELLIGENT NUMBER TRACKING FOR DIVERSITY =====
+        # Track number usage across sets for intelligent calibration
+        number_usage_count = {}  # Track how many times each number has been used
+        total_possible_unique_sets = max_number // draw_size  # Rough estimate
+        
+        # Determine diversity strategy based on num_sets
+        if no_repeat_numbers:
+            if num_sets <= total_possible_unique_sets:
+                # Phase 1: Pure uniqueness - no repeats at all
+                diversity_mode = "pure_unique"
+                strategy_log["diversity_mode"] = "Pure Uniqueness (no number repeats)"
+            else:
+                # Phase 2: Intelligent calibration - minimize repeats, prioritize unused numbers
+                diversity_mode = "calibrated_diversity"
+                strategy_log["diversity_mode"] = "Calibrated Diversity (minimize repeats)"
+        else:
+            diversity_mode = "standard"
+            strategy_log["diversity_mode"] = "Standard (probability-based)"
         
         # Use real ensemble probabilities if available
         ensemble_probs = model_analysis.get("ensemble_probabilities", {})
@@ -1313,7 +1864,20 @@ understanding that lottery outcomes remain random and unpredictable.
             prob_values = np.ones(max_number) / max_number
         
         # ===== ENHANCE WITH LEARNING DATA IF AVAILABLE =====
+        adaptive_system = None
         if learning_data:
+            # Initialize adaptive learning system for this game
+            adaptive_system = AdaptiveLearningSystem(self.game)
+            
+            # Get current adaptive weights
+            adaptive_weights = adaptive_system.get_adaptive_weights(draw_age=0)
+            total_cycles = adaptive_system.meta_learning_data.get('total_learning_cycles', 0)
+            
+            # Add to strategy log
+            strategy_log['adaptive_learning_enabled'] = True
+            strategy_log['learning_cycles'] = total_cycles
+            strategy_log['adaptive_weights'] = adaptive_weights
+            
             # Extract learning insights
             hot_numbers_learning = learning_data.get('analysis', {}).get('number_frequency', {})
             position_accuracy = learning_data.get('analysis', {}).get('position_accuracy', {})
@@ -1321,27 +1885,33 @@ understanding that lottery outcomes remain random and unpredictable.
             target_sum = learning_data.get('avg_sum', 0)
             sum_range = learning_data.get('sum_range', {'min': 0, 'max': 999})
             
-            # Boost probabilities for hot numbers from learning
+            # Apply ADAPTIVE weight boosting based on hot_numbers factor weight
+            hot_numbers_weight = adaptive_weights.get('hot_numbers', 0.12)
+            
+            # Boost probabilities for hot numbers from learning with ADAPTIVE strength
             if hot_numbers_learning:
                 for num_str, freq_data in hot_numbers_learning.items():
                     try:
                         num_idx = int(num_str) - 1
                         if 0 <= num_idx < max_number:
-                            # Frequency comes as dict with 'number' and 'frequency' or just frequency
                             freq = freq_data.get('frequency', freq_data) if isinstance(freq_data, dict) else freq_data
-                            # Boost probability by frequency factor (scaled)
-                            boost_factor = 1.0 + (float(freq) * 0.1)  # 10% boost per frequency unit
+                            # Use adaptive weight to determine boost strength
+                            boost_factor = 1.0 + (float(freq) * hot_numbers_weight)  # Scaled by adaptive weight
                             prob_values[num_idx] *= boost_factor
                     except (ValueError, KeyError, TypeError):
                         continue
             
-            # Penalize cold numbers slightly
+            # Apply ADAPTIVE cold number penalty based on cold_penalty factor weight
+            cold_penalty_weight = adaptive_weights.get('cold_penalty', 0.10)
+            
+            # Penalize cold numbers with ADAPTIVE strength
             if cold_numbers_learning:
                 for num in cold_numbers_learning:
                     try:
                         num_idx = int(num) - 1
                         if 0 <= num_idx < max_number:
-                            prob_values[num_idx] *= 0.8  # 20% penalty
+                            penalty_factor = 1.0 - cold_penalty_weight  # e.g., 0.90 if weight is 0.10
+                            prob_values[num_idx] *= penalty_factor
                     except (ValueError, TypeError):
                         continue
             
@@ -1387,6 +1957,37 @@ understanding that lottery outcomes remain random and unpredictable.
             log_probs = np.log(prob_values + 1e-10)
             scaled_log_probs = log_probs / (temperature + 0.1)
             adjusted_probs = softmax(scaled_log_probs)
+            
+            # ===== APPLY NUMBER DIVERSITY PENALTY IF ENABLED =====
+            if no_repeat_numbers and number_usage_count:
+                # Calculate penalty for each number based on usage
+                diversity_adjusted_probs = adjusted_probs.copy()
+                
+                for num in range(1, max_number + 1):
+                    usage_count = number_usage_count.get(num, 0)
+                    
+                    if diversity_mode == "pure_unique":
+                        # Phase 1: Eliminate already-used numbers completely
+                        if usage_count > 0:
+                            diversity_adjusted_probs[num - 1] = 0.0
+                    
+                    elif diversity_mode == "calibrated_diversity":
+                        # Phase 2: Heavily penalize frequently used numbers
+                        # Penalty increases exponentially with usage
+                        penalty_factor = 1.0 / (1.0 + usage_count ** 2)  # Exponential decay
+                        diversity_adjusted_probs[num - 1] *= penalty_factor
+                
+                # Re-normalize probabilities
+                prob_sum = np.sum(diversity_adjusted_probs)
+                if prob_sum > 0:
+                    adjusted_probs = diversity_adjusted_probs / prob_sum
+                else:
+                    # Fallback: if all numbers exhausted, use least-used
+                    min_usage = min(number_usage_count.values()) if number_usage_count else 0
+                    for num in range(1, max_number + 1):
+                        if number_usage_count.get(num, 0) == min_usage:
+                            adjusted_probs[num - 1] = prob_values[num - 1]
+                    adjusted_probs = adjusted_probs / np.sum(adjusted_probs)
             
             selected_numbers = None
             strategy_used = None
@@ -1477,6 +2078,11 @@ understanding that lottery outcomes remain random and unpredictable.
                                 'confidence': float(number_prob / avg_prob)  # Relative confidence
                             })
             
+            # ===== UPDATE NUMBER USAGE TRACKING =====
+            if no_repeat_numbers:
+                for number in selected_numbers:
+                    number_usage_count[number] = number_usage_count.get(number, 0) + 1
+            
             predictions.append(selected_numbers)
             predictions_with_attribution.append({
                 'numbers': selected_numbers,
@@ -1523,7 +2129,18 @@ understanding that lottery outcomes remain random and unpredictable.
 
 **DISTRIBUTION METHOD**: {distribution_method}
 
-**STRATEGY BREAKDOWN**:
+"""
+        
+        # Add diversity mode info if enabled
+        if strategy_log.get("no_repeat_enabled"):
+            diversity_mode_desc = strategy_log.get("diversity_mode", "Unknown")
+            report += f"""**🔢 NUMBER DIVERSITY MODE**: {diversity_mode_desc}
+   └─ Intelligent calibration to maximize number coverage across sets
+   └─ Minimizes repetition while maintaining probability-based quality
+
+"""
+        
+        report += f"""**STRATEGY BREAKDOWN**:
 {'─' * 80}
 
 """
@@ -1594,6 +2211,52 @@ understanding that lottery outcomes remain random and unpredictable.
 ✓ Hot/cold probability analysis
 ✓ Progressive diversity across sets
 """
+        
+        # Add diversity statistics if no_repeat mode was enabled
+        if strategy_log.get("no_repeat_enabled"):
+            # Calculate diversity metrics from strategy_log details
+            all_numbers_used = set()
+            number_frequency = {}
+            
+            for detail in strategy_log.get("details", []):
+                numbers = detail.get("numbers", [])
+                all_numbers_used.update(numbers)
+                for num in numbers:
+                    number_frequency[num] = number_frequency.get(num, 0) + 1
+            
+            unique_numbers = len(all_numbers_used)
+            max_possible_numbers = 50 if "max" in distribution_method.lower() else 49  # Estimate
+            coverage_pct = (unique_numbers / max_possible_numbers) * 100
+            
+            # Find numbers used most/least
+            if number_frequency:
+                max_usage = max(number_frequency.values())
+                min_usage = min(number_frequency.values())
+                avg_usage = sum(number_frequency.values()) / len(number_frequency)
+                
+                report += f"""
+{'─' * 80}
+
+**🔢 NUMBER DIVERSITY STATISTICS**:
+
+✓ Unique Numbers Coverage: {unique_numbers}/{max_possible_numbers} ({coverage_pct:.1f}%)
+✓ Number Usage Range: {min_usage}-{max_usage} times per number
+✓ Average Usage per Number: {avg_usage:.2f}
+✓ Diversity Strategy: {"Pure Uniqueness" if strategy_log.get("diversity_mode") == "Pure Uniqueness (no number repeats)" else "Calibrated Minimization"}
+
+"""
+                
+                # Show most and least used numbers
+                most_used = sorted(number_frequency.items(), key=lambda x: x[1], reverse=True)[:5]
+                least_used = sorted(number_frequency.items(), key=lambda x: x[1])[:5]
+                
+                report += "**Most Frequently Used:** "
+                report += ", ".join([f"#{num}({count}x)" for num, count in most_used])
+                report += "\n"
+                
+                report += "**Least Frequently Used:** "
+                report += ", ".join([f"#{num}({count}x)" for num, count in least_used])
+                report += "\n"
         
         return report.strip()
 
@@ -2441,9 +3104,11 @@ def _render_prediction_generator(analyzer: SuperIntelligentAIAnalyzer) -> None:
         st.session_state.sia_use_custom_quantity = False
     if 'sia_custom_quantity' not in st.session_state:
         st.session_state.sia_custom_quantity = optimal["optimal_sets"]
+    if 'sia_no_repeat_numbers' not in st.session_state:
+        st.session_state.sia_no_repeat_numbers = False
     
-    # Two column layout for the checkboxes
-    checkbox_col1, checkbox_col2 = st.columns(2)
+    # Three column layout for the checkboxes
+    checkbox_col1, checkbox_col2, checkbox_col3 = st.columns(3)
     
     with checkbox_col1:
         use_learning = st.checkbox(
@@ -2462,6 +3127,15 @@ def _render_prediction_generator(analyzer: SuperIntelligentAIAnalyzer) -> None:
             help="Override recommended quantity with your own custom number of sets"
         )
         st.session_state.sia_use_custom_quantity = use_custom_quantity
+    
+    with checkbox_col3:
+        no_repeat_numbers = st.checkbox(
+            "🔢 No Repeat Numbers Across Sets",
+            value=st.session_state.sia_no_repeat_numbers,
+            key="sia_no_repeat_numbers_checkbox",
+            help="Maximize number diversity by minimizing repetition across sets. Uses intelligent calibration to ensure unique coverage."
+        )
+        st.session_state.sia_no_repeat_numbers = no_repeat_numbers
     
     # Learning Files Selection (shown when checkbox is enabled)
     if use_learning:
@@ -2612,14 +3286,16 @@ def _render_prediction_generator(analyzer: SuperIntelligentAIAnalyzer) -> None:
                         final_sets, 
                         optimal, 
                         analysis,
-                        learning_data=learning_data
+                        learning_data=learning_data,
+                        no_repeat_numbers=no_repeat_numbers
                     )
                 else:
                     # Generate normally without learning
                     predictions, strategy_report, predictions_with_attribution = analyzer.generate_prediction_sets_advanced(
                         final_sets, 
                         optimal, 
-                        analysis
+                        analysis,
+                        no_repeat_numbers=no_repeat_numbers
                     )
                 
                 # Save to session and file with attribution data
@@ -2639,10 +3315,23 @@ def _render_prediction_generator(analyzer: SuperIntelligentAIAnalyzer) -> None:
                 
                 st.success(f"✅ Successfully generated {final_sets} AI-optimized prediction sets!")
                 
-                # Show learning enhancement info
+                # Show learning enhancement info with adaptive intelligence status
                 if learning_data:
                     st.balloons()
-                    st.success(f"🎓 **Learning Enhanced:** Predictions optimized using insights from {len(learning_file_paths)} historical learning file(s)")
+                    
+                    # Check if adaptive learning was used
+                    if strategy_log.get('adaptive_learning_enabled'):
+                        learning_cycles = strategy_log.get('learning_cycles', 0)
+                        st.success(f"🧬 **Adaptive Learning Applied:** Using evolved intelligence from {learning_cycles} learning cycles")
+                        
+                        # Show adaptive weights summary
+                        adaptive_weights = strategy_log.get('adaptive_weights', {})
+                        if adaptive_weights:
+                            top_3_factors = sorted(adaptive_weights.items(), key=lambda x: x[1], reverse=True)[:3]
+                            factors_str = ", ".join([f"{name.replace('_', ' ').title()}: {weight:.1%}" for name, weight in top_3_factors])
+                            st.info(f"📊 **Top Adaptive Factors:** {factors_str}")
+                    
+                    st.success(f"📚 **Learning Enhanced:** Predictions optimized using insights from {len(learning_file_paths)} historical learning file(s)")
                 else:
                     st.balloons()
                 
@@ -2704,7 +3393,38 @@ def _render_prediction_generator(analyzer: SuperIntelligentAIAnalyzer) -> None:
                     
                     st.info("💡 **How to read this:** Models 'vote' for numbers by assigning them higher probabilities. Numbers with multiple model votes have stronger consensus.")
                 else:
+                    # Debug info to understand why attribution is missing
                     st.warning("⚠️ No model attribution data available for this generation.")
+                    
+                    with st.expander("🔍 Debug Information", expanded=False):
+                        st.write(f"**Total prediction sets:** {len(predictions_with_attribution)}")
+                        st.write(f"**Predictions with attribution structure:** {len([p for p in predictions_with_attribution if isinstance(p, dict)])}")
+                        
+                        # Check if any attribution exists
+                        has_attribution = False
+                        for idx, pred_set in enumerate(predictions_with_attribution[:3]):  # Check first 3
+                            attribution = pred_set.get('model_attribution', {}) if isinstance(pred_set, dict) else {}
+                            if attribution:
+                                has_attribution = True
+                                st.write(f"**Set {idx+1} attribution:** {len(attribution)} numbers with attribution")
+                                # Show first number's attribution as example
+                                first_num = list(attribution.keys())[0] if attribution else None
+                                if first_num:
+                                    voters = attribution[first_num]
+                                    st.write(f"  Example - Number {first_num}: {len(voters)} model(s) voted")
+                                    for voter in voters[:2]:  # Show first 2 voters
+                                        st.write(f"    - {voter.get('model', 'unknown')}: prob={voter.get('probability', 0):.4f}")
+                            else:
+                                st.write(f"**Set {idx+1}:** No attribution data")
+                        
+                        if not has_attribution:
+                            st.error("❌ No attribution found in any prediction set. This usually means `model_probabilities` was empty in model analysis.")
+                            st.write("**Model analysis keys:**", list(analysis.keys()) if isinstance(analysis, dict) else "Not a dict")
+                            if 'model_probabilities' in analysis:
+                                st.write(f"**model_probabilities keys:** {list(analysis['model_probabilities'].keys())}")
+                                st.write(f"**model_probabilities count:** {len(analysis['model_probabilities'])}")
+                            else:
+                                st.write("**model_probabilities:** Not found in analysis")
                 
             except Exception as e:
                 st.error(f"Error generating predictions: {str(e)}")
@@ -4243,10 +4963,123 @@ def _render_previous_draw_mode(analyzer: SuperIntelligentAIAnalyzer, game: str) 
                 )
                 
                 if learning_data:
+                    # ===== ADAPTIVE LEARNING SYSTEM UPDATE =====
+                    # Initialize adaptive learning system
+                    adaptive_system = AdaptiveLearningSystem(game)
+                    
+                    # Get top 10% and bottom 10% predictions for analysis
+                    total_predictions = len(sorted_predictions)
+                    top_count = max(1, total_predictions // 10)
+                    bottom_count = max(1, total_predictions // 10)
+                    
+                    top_predictions = [
+                        [n['number'] for n in pred['numbers']]
+                        for pred in sorted_predictions[:top_count]
+                    ]
+                    
+                    worst_predictions = [
+                        [n['number'] for n in pred['numbers']]
+                        for pred in sorted_predictions[-bottom_count:]
+                    ]
+                    
+                    # Calculate factor scores for top predictions
+                    analysis = learning_data.get('analysis', {})
+                    factor_scores = {}
+                    
+                    # Collect scores for each factor from top predictions
+                    for factor_name in adaptive_system.meta_learning_data['factor_weights'].keys():
+                        factor_scores[factor_name] = []
+                    
+                    for pred_set in top_predictions:
+                        # Calculate how strong each factor is in this successful prediction
+                        # Hot numbers factor
+                        number_freq = analysis.get('number_frequency', {})
+                        hot_numbers_data = number_freq.get('hot_numbers', [])
+                        hot_numbers = [item['number'] if isinstance(item, dict) else item for item in hot_numbers_data[:10]]
+                        hot_matches = sum(1 for n in pred_set if n in hot_numbers)
+                        factor_scores['hot_numbers'].append(hot_matches / 10.0)
+                        
+                        # Sum alignment factor
+                        sum_analysis = analysis.get('sum_analysis', {})
+                        target_sum = sum_analysis.get('winning_sum', 0)
+                        if target_sum:
+                            sum_diff = abs(sum(pred_set) - target_sum)
+                            sum_score = max(0, 1.0 - (sum_diff / 100.0))
+                            factor_scores['sum_alignment'].append(sum_score)
+                        
+                        # Diversity factor
+                        max_number = 50 if 'max' in game.lower() else 49
+                        num_range = max(pred_set) - min(pred_set)
+                        diversity_score = num_range / (max_number - 1)
+                        factor_scores['diversity'].append(diversity_score)
+                        
+                        # Gap patterns factor
+                        gap_patterns = analysis.get('gap_patterns', {})
+                        avg_winning_gap = gap_patterns.get('avg_winning_gap', 0)
+                        if avg_winning_gap:
+                            sorted_nums = sorted(pred_set)
+                            gaps = [sorted_nums[i+1] - sorted_nums[i] for i in range(len(sorted_nums)-1)]
+                            avg_gap = np.mean(gaps) if gaps else 0
+                            gap_diff = abs(avg_winning_gap - avg_gap)
+                            gap_score = max(0, 1.0 - (gap_diff / 10.0))
+                            factor_scores['gap_patterns'].append(gap_score)
+                        
+                        # Add other factors with simple estimations
+                        factor_scores['zone_distribution'].append(0.5)  # Placeholder
+                        factor_scores['even_odd_ratio'].append(0.5)
+                        factor_scores['cold_penalty'].append(0.5)
+                        factor_scores['decade_coverage'].append(0.5)
+                        factor_scores['pattern_fingerprint'].append(0.5)
+                        factor_scores['position_weighting'].append(0.5)
+                    
+                    # Update adaptive weights based on success
+                    adaptive_system.update_weights_from_success(
+                        winning_numbers=actual_results,
+                        top_predictions=top_predictions,
+                        factor_scores=factor_scores
+                    )
+                    
+                    # Track anti-patterns from worst predictions
+                    adaptive_system.track_anti_patterns(
+                        worst_predictions=worst_predictions,
+                        winning_numbers=actual_results
+                    )
+                    
+                    # Get updated intelligence stats
+                    total_cycles = adaptive_system.meta_learning_data.get('total_learning_cycles', 0)
+                    current_weights = adaptive_system.meta_learning_data['factor_weights']
+                    
                     # Save learning data
                     saved_path = _save_learning_data(game, selected_date, learning_data)
                     
                     st.success(f"✅ Learning data saved to: `{saved_path}`")
+                    st.success(f"🧬 **Adaptive Intelligence Updated!** Learning Cycle #{total_cycles} Complete")
+                    
+                    # Display adaptive intelligence summary
+                    st.markdown("#### 🧠 Adaptive Intelligence Status")
+                    
+                    col1, col2, col3 = st.columns(3)
+                    with col1:
+                        st.metric("Learning Cycles", total_cycles, delta="+1")
+                    with col2:
+                        anti_pattern_count = len(adaptive_system.meta_learning_data.get('anti_patterns', []))
+                        st.metric("Anti-Patterns Tracked", anti_pattern_count)
+                    with col3:
+                        interactions_count = len(adaptive_system.meta_learning_data.get('cross_factor_interactions', {}))
+                        st.metric("Factor Interactions", interactions_count)
+                    
+                    # Display evolved weights
+                    st.markdown("**🎯 Evolved Adaptive Factor Weights:**")
+                    top_factors = sorted(current_weights.items(), key=lambda x: x[1], reverse=True)[:5]
+                    
+                    weight_cols = st.columns(5)
+                    for idx, (factor, weight) in enumerate(top_factors):
+                        with weight_cols[idx]:
+                            st.metric(
+                                factor.replace('_', ' ').title()[:15],
+                                f"{weight:.1%}",
+                                help=f"Current adaptive weight for {factor}"
+                            )
                     
                     # Display learning insights
                     st.markdown("#### 📈 Learning Insights")
@@ -5892,92 +6725,207 @@ def _regenerate_predictions_with_learning(
     keep_top_n: int,
     learning_weight: float,
     game: str,
-    analyzer: SuperIntelligentAIAnalyzer
+    analyzer: SuperIntelligentAIAnalyzer,
+    use_advanced_learning: bool = True
 ) -> Tuple[List, str]:
-    """Regenerate predictions using learning insights."""
+    """
+    Regenerate predictions using learning insights.
+    
+    Args:
+        use_advanced_learning: If True, use genetic algorithm and adaptive weights (DEFAULT)
+                              If False, use legacy simple swapping method
+    """
     
     regenerated = []
     report_lines = []
     
+    # Initialize adaptive learning system
+    adaptive_system = AdaptiveLearningSystem(game) if use_advanced_learning else None
+    
     report_lines.append("### 📋 Regeneration Report\n")
     report_lines.append(f"**Strategy:** {strategy}")
+    if use_advanced_learning:
+        report_lines.append(f"**Engine:** Advanced Learning with Genetic Optimization 🧬")
+        total_cycles = adaptive_system.meta_learning_data.get('total_learning_cycles', 0)
+        report_lines.append(f"**Adaptive Intelligence:** {total_cycles} learning cycles completed")
+    else:
+        report_lines.append(f"**Engine:** Legacy Learning (static weights)")
     report_lines.append(f"**Learning Weight:** {learning_weight:.0%}")
     report_lines.append(f"**Original Sets:** {len(predictions)}")
     report_lines.append(f"**Learning Sources:** {len(learning_data.get('source_files', []))}\n")
     
-    # Extract ENHANCED learning insights (10 factors)
+    # Extract learning insights
     analysis = learning_data.get('analysis', {})
     
-    # Factor 1: Hot numbers
+    # Hot numbers
     number_freq = analysis.get('number_frequency', {})
     hot_numbers_data = number_freq.get('hot_numbers', [])
-    # Handle different formats: dict, tuple (number, count), or bare int
     hot_numbers = []
     for item in hot_numbers_data:
         if isinstance(item, dict):
             hot_numbers.append(int(item['number']))
         elif isinstance(item, tuple):
-            hot_numbers.append(int(item[0]))  # (number, count) tuple
+            hot_numbers.append(int(item[0]))
         else:
             hot_numbers.append(int(item))
     
-    # Factor 2: Sum target
+    # Other factors
     sum_analysis = analysis.get('sum_analysis', {})
     target_sum = sum_analysis.get('winning_sum', 0)
     sum_range = {'min': target_sum - 30, 'max': target_sum + 30}
-    
-    # Factor 3: Position accuracy
     position_accuracy = analysis.get('position_accuracy', {})
-    
-    # Factor 4: Gap patterns
     gap_patterns = analysis.get('gap_patterns', {})
     avg_winning_gap = gap_patterns.get('avg_winning_gap', 7)
-    
-    # Factor 5: Zone distribution
     zone_distribution = analysis.get('zone_distribution', {})
     winning_zones = zone_distribution.get('winning_distribution', {'low': 2, 'mid': 3, 'high': 2})
-    
-    # Factor 6: Even/odd ratio
     even_odd_ratio = analysis.get('even_odd_ratio', {})
     target_even_ratio = even_odd_ratio.get('winning_ratio', 0.5)
-    
-    # Factor 7: Cold numbers (to avoid)
     cold_numbers = analysis.get('cold_numbers', [])
     
-    # Factor 8: Decade coverage
-    decade_coverage = analysis.get('decade_coverage', {})
-    target_decades = decade_coverage.get('winning_decade_count', 4)
+    # Determine max_number
+    max_number = 50 if 'max' in game.lower() else 49
+    draw_size = 7 if 'max' in game.lower() else 6
     
-    # Factor 9: Pattern fingerprint
-    winning_pattern = analysis.get('winning_pattern_fingerprint', '')
-    
-    if strategy == "Learning-Guided":
-        # Apply learning patterns to existing predictions
-        report_lines.append("**Approach:** Adjusting existing sets based on learning patterns\n")
+    if use_advanced_learning:
+        # ADVANCED: Use Genetic Algorithm for optimization
+        genetic_optimizer = GeneticSetOptimizer(
+            draw_size=draw_size,
+            max_number=max_number,
+            learning_data=learning_data,
+            adaptive_system=adaptive_system
+        )
         
-        for pred in predictions:
-            if isinstance(pred, dict):
-                numbers = [int(n) for n in pred.get('numbers', [])]
-            else:
-                numbers = [int(n) for n in pred]
+        if strategy == "Learning-Guided":
+            report_lines.append("**Approach:** Genetic optimization of existing sets\n")
             
-            # Apply learning-guided adjustments
-            adjusted_numbers = _apply_learning_adjustments(
-                numbers, hot_numbers, position_accuracy, target_sum, learning_weight
-            )
-            regenerated.append(adjusted_numbers)
+            for pred in predictions:
+                if isinstance(pred, dict):
+                    numbers = [int(n) for n in pred.get('numbers', [])]
+                else:
+                    numbers = [int(n) for n in pred]
+                
+                # Use genetic algorithm to optimize this set
+                optimized = genetic_optimizer.optimize_set(numbers)
+                regenerated.append(optimized)
+            
+            report_lines.append(f"- Evolved {len(regenerated)} sets using genetic algorithm")
+            report_lines.append(f"- Population size: {genetic_optimizer.population_size}")
+            report_lines.append(f"- Maximum generations: {genetic_optimizer.generations}")
         
-        report_lines.append(f"- Applied learning patterns to {len(regenerated)} sets")
-        report_lines.append(f"- Hot numbers emphasized: {hot_numbers[:5]}")
-    
-    elif strategy == "Learning-Optimized":
-        # Rebuild sets from scratch using learning
-        report_lines.append("**Approach:** Generating new sets from learning patterns\n")
+        elif strategy == "Learning-Optimized":
+            report_lines.append("**Approach:** New sets via genetic optimization\n")
+            
+            # Keep top N based on ADAPTIVE scores
+            if keep_top_n > 0:
+                scored_predictions = []
+                for idx, pred in enumerate(predictions):
+                    if isinstance(pred, dict):
+                        numbers = [int(n) for n in pred.get('numbers', [])]
+                    else:
+                        numbers = [int(n) for n in pred]
+                    score = _calculate_learning_score_advanced(numbers, learning_data, adaptive_system)
+                    scored_predictions.append((score, numbers))
+                
+                scored_predictions.sort(key=lambda x: x[0], reverse=True)
+                regenerated.extend([nums for score, nums in scored_predictions[:keep_top_n]])
+                report_lines.append(f"- Preserved top {keep_top_n} adaptive-scored sets")
+            
+            # Generate new sets using genetic algorithm from random starting points
+            num_new_sets = len(predictions) - keep_top_n
+            for _ in range(num_new_sets):
+                new_set = genetic_optimizer.optimize_set()  # Start from random
+                regenerated.append(new_set)
+            
+            report_lines.append(f"- Evolved {num_new_sets} new sets via genetic optimization")
         
-        # Keep top N original sets
-        if keep_top_n > 0:
+        else:  # Hybrid
+            report_lines.append("**Approach:** Hybrid adaptive learning + genetic evolution\n")
+            
+            mid_point = len(predictions) // 2
+            
+            # Score with ADAPTIVE system
             scored_predictions = []
-            for idx, pred in enumerate(predictions):
+            for pred in predictions:
+                if isinstance(pred, dict):
+                    numbers = [int(n) for n in pred.get('numbers', [])]
+                else:
+                    numbers = [int(n) for n in pred]
+                score = _calculate_learning_score_advanced(numbers, learning_data, adaptive_system)
+                scored_predictions.append((score, numbers))
+            
+            scored_predictions.sort(key=lambda x: x[0], reverse=True)
+            
+            # Keep top half
+            regenerated.extend([nums for score, nums in scored_predictions[:mid_point]])
+            
+            # Evolve new sets for bottom half
+            for _ in range(len(predictions) - mid_point):
+                new_set = genetic_optimizer.optimize_set()
+                regenerated.append(new_set)
+            
+            report_lines.append(f"- Kept top {mid_point} adaptive-scored sets")
+            report_lines.append(f"- Evolved {len(predictions) - mid_point} new sets")
+        
+        # Display adaptive insights
+        weights = adaptive_system.get_adaptive_weights()
+        top_factors = sorted(weights.items(), key=lambda x: x[1], reverse=True)[:3]
+        report_lines.append(f"\n**Top Adaptive Factors:**")
+        for factor, weight in top_factors:
+            report_lines.append(f"- {factor}: {weight:.1%}")
+        
+    else:
+        # LEGACY: Original simple learning method
+        if strategy == "Learning-Guided":
+            report_lines.append("**Approach:** Adjusting existing sets (legacy method)\n")
+            
+            for pred in predictions:
+                if isinstance(pred, dict):
+                    numbers = [int(n) for n in pred.get('numbers', [])]
+                else:
+                    numbers = [int(n) for n in pred]
+                
+                adjusted_numbers = _apply_learning_adjustments(
+                    numbers, hot_numbers, position_accuracy, target_sum, learning_weight
+                )
+                regenerated.append(adjusted_numbers)
+            
+            report_lines.append(f"- Applied learning patterns to {len(regenerated)} sets")
+            report_lines.append(f"- Hot numbers emphasized: {hot_numbers[:5]}")
+        
+        elif strategy == "Learning-Optimized":
+            report_lines.append("**Approach:** Generating new sets (legacy method)\n")
+            
+            if keep_top_n > 0:
+                scored_predictions = []
+                for idx, pred in enumerate(predictions):
+                    if isinstance(pred, dict):
+                        numbers = [int(n) for n in pred.get('numbers', [])]
+                    else:
+                        numbers = [int(n) for n in pred]
+                    score = _calculate_learning_score(numbers, learning_data)
+                    scored_predictions.append((score, numbers))
+                
+                scored_predictions.sort(key=lambda x: x[0], reverse=True)
+                regenerated.extend([nums for score, nums in scored_predictions[:keep_top_n]])
+                report_lines.append(f"- Preserved top {keep_top_n} original sets")
+            
+            num_new_sets = len(predictions) - keep_top_n
+            new_sets = _generate_learning_based_sets(
+                num_new_sets, hot_numbers, position_accuracy, target_sum, sum_range, analyzer,
+                cold_numbers=cold_numbers, target_zones=winning_zones, 
+                target_even_ratio=target_even_ratio, avg_gap=avg_winning_gap
+            )
+            regenerated.extend(new_sets)
+            
+            report_lines.append(f"- Generated {num_new_sets} new learning-optimized sets")
+        
+        else:  # Hybrid
+            report_lines.append("**Approach:** Combining original models with learning (legacy)\n")
+            
+            mid_point = len(predictions) // 2
+            
+            scored_predictions = []
+            for pred in predictions:
                 if isinstance(pred, dict):
                     numbers = [int(n) for n in pred.get('numbers', [])]
                 else:
@@ -5986,49 +6934,17 @@ def _regenerate_predictions_with_learning(
                 scored_predictions.append((score, numbers))
             
             scored_predictions.sort(key=lambda x: x[0], reverse=True)
-            regenerated.extend([nums for score, nums in scored_predictions[:keep_top_n]])
-            report_lines.append(f"- Preserved top {keep_top_n} original sets")
-        
-        # Generate new learning-based sets
-        num_new_sets = len(predictions) - keep_top_n
-        new_sets = _generate_learning_based_sets(
-            num_new_sets, hot_numbers, position_accuracy, target_sum, sum_range, analyzer,
-            cold_numbers=cold_numbers, target_zones=winning_zones, 
-            target_even_ratio=target_even_ratio, avg_gap=avg_winning_gap
-        )
-        regenerated.extend(new_sets)
-        
-        report_lines.append(f"- Generated {num_new_sets} new learning-optimized sets")
-    
-    else:  # Hybrid
-        report_lines.append("**Approach:** Combining original models with learning insights\n")
-        
-        # 50% from original (top performers), 50% new learning-based
-        mid_point = len(predictions) // 2
-        
-        # Score and keep top half of originals
-        scored_predictions = []
-        for pred in predictions:
-            if isinstance(pred, dict):
-                numbers = [int(n) for n in pred.get('numbers', [])]
-            else:
-                numbers = [int(n) for n in pred]
-            score = _calculate_learning_score(numbers, learning_data)
-            scored_predictions.append((score, numbers))
-        
-        scored_predictions.sort(key=lambda x: x[0], reverse=True)
-        regenerated.extend([nums for score, nums in scored_predictions[:mid_point]])
-        
-        # Generate new learning-based sets for other half
-        new_sets = _generate_learning_based_sets(
-            len(predictions) - mid_point, hot_numbers, position_accuracy, target_sum, sum_range, analyzer,
-            cold_numbers=cold_numbers, target_zones=winning_zones,
-            target_even_ratio=target_even_ratio, avg_gap=avg_winning_gap
-        )
-        regenerated.extend(new_sets)
-        
-        report_lines.append(f"- Kept top {mid_point} original sets")
-        report_lines.append(f"- Generated {len(new_sets)} new learning-based sets")
+            regenerated.extend([nums for score, nums in scored_predictions[:mid_point]])
+            
+            new_sets = _generate_learning_based_sets(
+                len(predictions) - mid_point, hot_numbers, position_accuracy, target_sum, sum_range, analyzer,
+                cold_numbers=cold_numbers, target_zones=winning_zones,
+                target_even_ratio=target_even_ratio, avg_gap=avg_winning_gap
+            )
+            regenerated.extend(new_sets)
+            
+            report_lines.append(f"- Kept top {mid_point} original sets")
+            report_lines.append(f"- Generated {len(new_sets)} new learning-based sets")
     
     report_lines.append(f"\n**Total Regenerated Sets:** {len(regenerated)}")
     report_lines.append(f"\n✨ Learning insights from {len(learning_data.get('source_files', []))} historical draws applied")
@@ -6040,14 +6956,31 @@ def _rank_predictions_by_learning(
     predictions: List,
     pred_data: Dict,
     learning_data: Dict,
-    analyzer: SuperIntelligentAIAnalyzer
+    analyzer: SuperIntelligentAIAnalyzer,
+    use_advanced_learning: bool = True
 ) -> Tuple[List[Tuple[float, List[int]]], str]:
-    """Rank existing predictions by learning score without regenerating."""
+    """
+    Rank existing predictions by learning score without regenerating.
+    
+    Args:
+        use_advanced_learning: If True, use adaptive weights (DEFAULT). If False, use static weights.
+    """
     
     report_lines = []
     report_lines.append("### 📊 Learning-Based Ranking Report\n")
     report_lines.append(f"**Total Predictions:** {len(predictions)}")
     report_lines.append(f"**Learning Sources:** {len(learning_data.get('source_files', []))}\n")
+    
+    # Initialize adaptive system if using advanced mode
+    game = learning_data.get('game', pred_data.get('game', 'Lotto Max'))
+    adaptive_system = AdaptiveLearningSystem(game) if use_advanced_learning else None
+    
+    if use_advanced_learning:
+        report_lines.append("**Scoring Engine:** Adaptive Learning (evolving weights) 🧬\n")
+        total_cycles = adaptive_system.meta_learning_data.get('total_learning_cycles', 0)
+        report_lines.append(f"**Intelligence Level:** {total_cycles} learning cycles completed\n")
+    else:
+        report_lines.append("**Scoring Engine:** Legacy (static weights)\n")
     
     # Score each prediction
     scored_predictions = []
@@ -6057,7 +6990,11 @@ def _rank_predictions_by_learning(
         else:
             numbers = [int(n) for n in pred]
         
-        score = _calculate_learning_score(numbers, learning_data)
+        if use_advanced_learning:
+            score = _calculate_learning_score_advanced(numbers, learning_data, adaptive_system)
+        else:
+            score = _calculate_learning_score(numbers, learning_data)
+        
         scored_predictions.append((score, numbers, idx))
     
     # Sort by score (descending)
@@ -6084,7 +7021,17 @@ def _rank_predictions_by_learning(
     if unique_scores < len(scores) * 0.5:
         report_lines.append("⚠️ Warning: Low score diversity detected. Consider regenerating with learning.")
     
-    report_lines.append(f"\n✨ Ranked using 10-factor learning analysis")
+    if use_advanced_learning:
+        # Show adaptive factor weights
+        weights = adaptive_system.get_adaptive_weights()
+        top_factors = sorted(weights.items(), key=lambda x: x[1], reverse=True)[:5]
+        report_lines.append(f"\n**Current Adaptive Factor Weights:**")
+        for factor, weight in top_factors:
+            report_lines.append(f"- {factor.replace('_', ' ').title()}: {weight:.1%}")
+        
+        report_lines.append(f"\n✨ Ranked using adaptive 10-factor learning analysis")
+    else:
+        report_lines.append(f"\n✨ Ranked using static 10-factor learning analysis")
     
     # Return ranked predictions (score, numbers) and report
     ranked = [(score, numbers) for score, numbers, _ in scored_predictions]
@@ -6121,7 +7068,7 @@ def _apply_learning_adjustments(
 
 
 def _calculate_learning_score(numbers: List[int], learning_data: Dict) -> float:
-    """Calculate how well a set aligns with learning patterns using 10 comprehensive factors."""
+    """Calculate how well a set aligns with learning patterns using 10 comprehensive factors (LEGACY - static weights)."""
     score = 0.0
     analysis = learning_data.get('analysis', {})
     
@@ -6234,6 +7181,181 @@ def _calculate_learning_score(numbers: List[int], learning_data: Dict) -> float:
             score += position_score * 0.15
     
     # Normalize to 0-1 range (score can be negative due to cold penalty)
+    return max(0.0, min(1.0, score))
+
+
+def _calculate_learning_score_advanced(
+    numbers: List[int], 
+    learning_data: Dict, 
+    adaptive_system: AdaptiveLearningSystem,
+    draw_age: int = 0
+) -> float:
+    """
+    ADVANCED learning score using:
+    1. Adaptive weights that evolve based on success
+    2. Temporal decay for recent pattern emphasis
+    3. Cross-factor interaction bonuses
+    4. Anti-pattern penalties
+    """
+    score = 0.0
+    analysis = learning_data.get('analysis', {})
+    
+    # Determine max_number from game context
+    game = learning_data.get('game', 'Lotto Max')
+    max_number = 50 if 'max' in game.lower() else 49
+    
+    # Get adaptive weights with temporal decay
+    weights = adaptive_system.get_adaptive_weights(draw_age)
+    
+    # Factor scores dictionary for interaction analysis
+    factor_scores = {}
+    
+    # FACTOR 1: Hot number alignment
+    number_freq = analysis.get('number_frequency', {})
+    hot_numbers_data = number_freq.get('hot_numbers', [])
+    hot_numbers = [item['number'] if isinstance(item, dict) else item for item in hot_numbers_data[:10]]
+    hot_matches = sum(1 for n in numbers if n in hot_numbers)
+    factor_scores['hot_numbers'] = (hot_matches / 10.0)
+    score += factor_scores['hot_numbers'] * weights.get('hot_numbers', 0.12)
+    
+    # FACTOR 2: Sum alignment
+    sum_analysis = analysis.get('sum_analysis', {})
+    target_sum = sum_analysis.get('winning_sum', 0)
+    if target_sum:
+        sum_diff = abs(sum(numbers) - target_sum)
+        sum_score = max(0, 1.0 - (sum_diff / 100.0))
+        factor_scores['sum_alignment'] = sum_score
+        score += sum_score * weights.get('sum_alignment', 0.15)
+    else:
+        factor_scores['sum_alignment'] = 0
+    
+    # FACTOR 3: Diversity/spread
+    num_range = max(numbers) - min(numbers)
+    max_possible_range = max_number - 1
+    diversity_score = num_range / max_possible_range
+    factor_scores['diversity'] = diversity_score
+    score += diversity_score * weights.get('diversity', 0.10)
+    
+    # FACTOR 4: Gap pattern match
+    gap_patterns = analysis.get('gap_patterns', {})
+    avg_winning_gap = gap_patterns.get('avg_winning_gap', 0)
+    if avg_winning_gap:
+        sorted_nums = sorted(numbers)
+        gaps = [sorted_nums[i+1] - sorted_nums[i] for i in range(len(sorted_nums)-1)]
+        avg_gap = np.mean(gaps) if gaps else 0
+        gap_diff = abs(avg_winning_gap - avg_gap)
+        gap_score = max(0, 1.0 - (gap_diff / 10.0))
+        factor_scores['gap_patterns'] = gap_score
+        score += gap_score * weights.get('gap_patterns', 0.12)
+    else:
+        factor_scores['gap_patterns'] = 0
+    
+    # FACTOR 5: Zone distribution
+    zone_dist = analysis.get('zone_distribution', {})
+    winning_zones = zone_dist.get('winning_distribution', {})
+    if winning_zones:
+        low_boundary = max_number // 3
+        mid_boundary = (max_number * 2) // 3
+        
+        predicted_zones = {'low': 0, 'mid': 0, 'high': 0}
+        for num in numbers:
+            if num <= low_boundary:
+                predicted_zones['low'] += 1
+            elif num <= mid_boundary:
+                predicted_zones['mid'] += 1
+            else:
+                predicted_zones['high'] += 1
+        
+        zone_diff = sum(abs(winning_zones.get(z, 0) - predicted_zones[z]) for z in ['low', 'mid', 'high'])
+        zone_score = max(0, 1.0 - (zone_diff / len(numbers)))
+        factor_scores['zone_distribution'] = zone_score
+        score += zone_score * weights.get('zone_distribution', 0.10)
+    else:
+        factor_scores['zone_distribution'] = 0
+    
+    # FACTOR 6: Even/odd ratio
+    even_odd = analysis.get('even_odd_ratio', {})
+    winning_ratio = even_odd.get('winning_ratio', 0.5)
+    if winning_ratio:
+        even_count = sum(1 for n in numbers if n % 2 == 0)
+        predicted_ratio = even_count / len(numbers)
+        ratio_diff = abs(winning_ratio - predicted_ratio)
+        ratio_score = max(0, 1.0 - ratio_diff)
+        factor_scores['even_odd_ratio'] = ratio_score
+        score += ratio_score * weights.get('even_odd_ratio', 0.08)
+    else:
+        factor_scores['even_odd_ratio'] = 0
+    
+    # FACTOR 7: Cold number penalty
+    cold_numbers = analysis.get('cold_numbers', [])
+    if cold_numbers:
+        cold_matches = sum(1 for n in numbers if n in cold_numbers)
+        cold_penalty = (cold_matches / len(numbers))
+        factor_scores['cold_penalty'] = cold_penalty
+        score -= cold_penalty * weights.get('cold_penalty', 0.10)
+    else:
+        factor_scores['cold_penalty'] = 0
+    
+    # FACTOR 8: Decade coverage
+    decade_coverage = analysis.get('decade_coverage', {})
+    winning_decade_count = decade_coverage.get('winning_decade_count', 0)
+    if winning_decade_count:
+        predicted_decades = set((n - 1) // 10 for n in numbers)
+        decade_diff = abs(winning_decade_count - len(predicted_decades))
+        decade_score = max(0, 1.0 - (decade_diff / 5.0))
+        factor_scores['decade_coverage'] = decade_score
+        score += decade_score * weights.get('decade_coverage', 0.10)
+    else:
+        factor_scores['decade_coverage'] = 0
+    
+    # FACTOR 9: Pattern fingerprint similarity
+    winning_pattern = analysis.get('winning_pattern_fingerprint', '')
+    if winning_pattern:
+        predicted_pattern = _create_pattern_fingerprint(numbers)
+        min_len = min(len(winning_pattern), len(predicted_pattern))
+        if min_len > 0:
+            matches = sum(1 for i in range(min_len) if winning_pattern[i] == predicted_pattern[i])
+            pattern_score = matches / min_len
+            factor_scores['pattern_fingerprint'] = pattern_score
+            score += pattern_score * weights.get('pattern_fingerprint', 0.08)
+        else:
+            factor_scores['pattern_fingerprint'] = 0
+    else:
+        factor_scores['pattern_fingerprint'] = 0
+    
+    # FACTOR 10: Position-based weighting
+    position_accuracy = analysis.get('position_accuracy', {})
+    if position_accuracy:
+        sorted_nums = sorted(numbers)
+        position_score = 0.0
+        for i, num in enumerate(sorted_nums, 1):
+            pos_key = f'position_{i}'
+            if pos_key in position_accuracy:
+                accuracy = position_accuracy[pos_key].get('accuracy', 0)
+                position_score += accuracy
+        if len(sorted_nums) > 0:
+            position_score /= len(sorted_nums)
+            factor_scores['position_weighting'] = position_score
+            score += position_score * weights.get('position_weighting', 0.15)
+    else:
+        factor_scores['position_weighting'] = 0
+    
+    # ADVANCED: Cross-factor interaction bonuses
+    interactions = adaptive_system.meta_learning_data.get('cross_factor_interactions', {})
+    for pair_key, interaction_strength in interactions.items():
+        factors = pair_key.split('+')
+        if len(factors) == 2:
+            f1, f2 = factors
+            if f1 in factor_scores and f2 in factor_scores:
+                # Bonus when both factors are strong
+                interaction_bonus = factor_scores[f1] * factor_scores[f2] * interaction_strength * 0.05
+                score += interaction_bonus
+    
+    # ADVANCED: Anti-pattern penalty
+    anti_penalty = adaptive_system.penalize_anti_patterns(numbers)
+    score -= anti_penalty * 0.15  # 15% penalty for matching anti-patterns
+    
+    # Normalize to 0-1 range
     return max(0.0, min(1.0, score))
 
 

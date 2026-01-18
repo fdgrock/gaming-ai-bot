@@ -265,6 +265,9 @@ def render_page(services_registry: Optional[Dict[str, Any]] = None,
         if 'prediction_mode' not in st.session_state:
             set_session_value('prediction_mode', 'Champion Model')
         
+        if 'ml_no_repeat_numbers' not in st.session_state:
+            st.session_state.ml_no_repeat_numbers = False
+        
         # Page header
         st.title("🎯 AI Prediction Generator")
         st.markdown("Generate intelligent lottery predictions using advanced AI models and mathematical analysis")
@@ -568,6 +571,16 @@ def _render_ml_predictions() -> None:
             help="Store random seed with predictions for exact reproducibility",
             key="ml_save_seed"
         )
+        
+        no_repeat_numbers = st.checkbox(
+            "🔢 No Repeat Numbers Across Sets",
+            value=st.session_state.ml_no_repeat_numbers,
+            key="ml_no_repeat_numbers_checkbox",
+            help="Maximize number diversity by minimizing repetition across prediction sets. "
+                 "When enabled, the AI will intelligently reduce the likelihood of selecting "
+                 "numbers that have already appeared in previous sets, creating more diverse predictions."
+        )
+        st.session_state.ml_no_repeat_numbers = no_repeat_numbers
     
     # Generate button
     col1, col2, col3 = st.columns([1, 2, 1])
@@ -622,7 +635,8 @@ def _render_ml_predictions() -> None:
                             model_name=selected_model,
                             health_score=health_score,
                             num_predictions=1,
-                            seed=current_seed
+                            seed=current_seed,
+                            no_repeat_numbers=no_repeat_numbers
                         )
                         
                         if result_list:
@@ -662,7 +676,8 @@ def _render_ml_predictions() -> None:
                         result_list = engine.predict_ensemble(
                             model_weights=model_weights,
                             num_predictions=1,
-                            seed=current_seed
+                            seed=current_seed,
+                            no_repeat_numbers=no_repeat_numbers
                         )
                         
                         if result_list:
@@ -1365,11 +1380,24 @@ def _render_prediction_generator() -> None:
                 help="Correct for overrepresented/underrepresented numbers"
             )
         
+        st.divider()
+        st.markdown("### Number Diversity")
+        
+        no_repeat_numbers = st.checkbox(
+            "🔢 No Repeat Numbers Across Sets",
+            value=st.session_state.get('pred_no_repeat_numbers', False),
+            key="pred_no_repeat_numbers",
+            help="Maximize number diversity by minimizing repetition across prediction sets. "
+                 "When enabled, the AI will intelligently reduce the likelihood of selecting "
+                 "numbers that have already appeared in previous sets, creating more diverse predictions."
+        )
+        
         st.info("""
         **Advanced Techniques:**
         - 🌡️ **Temperature Scaling**: Uses softmax temperature adjustment to regulate entropy, ensuring predictions are neither too deterministic nor too random
         - 🎲 **Diversity Penalty**: Applies weighted penalties to ensure multiple prediction sets are truly different (not just slight variations)
         - 📊 **Historical Bias Correction**: Prevents overreliance on frequently-drawn numbers; encourages underrepresented numbers when appropriate
+        - 🔢 **No Repeat Numbers**: Intelligently minimizes number repetition across sets using exponential penalties
         """)
     
     st.divider()
@@ -1500,7 +1528,8 @@ def _render_prediction_generator() -> None:
                             result_list = engine.predict_ensemble(
                                 model_weights=model_weights,
                                 num_predictions=num_predictions,
-                                seed=random_seed
+                                seed=random_seed,
+                                no_repeat_numbers=no_repeat_numbers
                             )
                             
                             if result_list:
@@ -1599,7 +1628,8 @@ def _render_prediction_generator() -> None:
                             model_name=selected_model_name,
                             health_score=health_score,
                             num_predictions=num_predictions,
-                            seed=random_seed
+                            seed=random_seed,
+                            no_repeat_numbers=no_repeat_numbers
                         )
                         
                         if result_list:

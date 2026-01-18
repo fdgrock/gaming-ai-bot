@@ -1118,7 +1118,8 @@ class PredictionEngine:
         model_name: str,
         health_score: float,
         num_predictions: int = 1,
-        seed: int = None
+        seed: int = None,
+        no_repeat_numbers: bool = False
     ) -> List[PredictionResult]:
         """
         Generate predictions using a single model with detailed logging.
@@ -1127,10 +1128,31 @@ class PredictionEngine:
         1. Generate raw probabilities from model
         2. Apply bias correction based on health score
         3. Enforce range constraints
-        4. Sample using Gumbel-Top-K
+        4. Apply diversity penalties (if enabled)
+        5. Sample using Gumbel-Top-K
+        
+        Args:
+            model_name: Name of the model to use
+            health_score: Model health score for bias correction
+            num_predictions: Number of prediction sets to generate
+            seed: Random seed for reproducibility
+            no_repeat_numbers: If True, minimize number repetition across sets
         """
         results = []
         trace = TraceLog()
+        
+        # Initialize number usage tracking for diversity
+        number_usage_count = {}
+        max_number = self.prob_gen.num_numbers
+        draw_size = self.game_config["main_numbers"]
+        total_possible_unique_sets = max_number // draw_size
+        
+        if no_repeat_numbers:
+            if num_predictions <= total_possible_unique_sets:
+                diversity_mode = "pure_unique"
+            else:
+                diversity_mode = "calibrated_diversity"
+            trace.log('INFO', 'DIVERSITY', f'Number diversity mode enabled: {diversity_mode}')
         
         trace.log('INFO', 'STARTED', f'Single model prediction: {model_name}, health_score={health_score:.3f}')
         trace.log('INFO', 'CONFIG', f'Game: {self.game}, Predictions: {num_predictions}')
@@ -1175,9 +1197,39 @@ class PredictionEngine:
             safeguarded_probs = self.prob_gen.enforce_range(corrected_probs)
             trace.log('INFO', 'RANGE_ENFORCE', f'Enforced number range [1, {self.prob_gen.num_numbers}]')
             
+            # 3.5. Apply diversity penalties (if enabled)
+            final_probs = safeguarded_probs.copy()
+            if no_repeat_numbers and number_usage_count:
+                diversity_adjusted_probs = safeguarded_probs.copy()
+                
+                for num in range(1, max_number + 1):
+                    usage_count = number_usage_count.get(num, 0)
+                    
+                    if diversity_mode == "pure_unique":
+                        # Pure uniqueness: Eliminate already-used numbers
+                        if usage_count > 0:
+                            diversity_adjusted_probs[num - 1] = 0.0
+                    
+                    elif diversity_mode == "calibrated_diversity":
+                        # Calibrated diversity: Apply exponential penalty
+                        penalty_factor = 1.0 / (1.0 + usage_count ** 2)
+                        diversity_adjusted_probs[num - 1] *= penalty_factor
+                
+                # Re-normalize to ensure valid probability distribution
+                if np.sum(diversity_adjusted_probs) > 0:
+                    final_probs = diversity_adjusted_probs / np.sum(diversity_adjusted_probs)
+                    trace.log('INFO', 'DIVERSITY_PENALTY', f'Applied {diversity_mode} penalties', {
+                        'unique_numbers_used': len([k for k, v in number_usage_count.items() if v > 0]),
+                        'total_numbers': max_number
+                    })
+                else:
+                    # Fallback: Use least-used numbers if all eliminated
+                    trace.log('WARNING', 'DIVERSITY_FALLBACK', 'All numbers eliminated, using least-used')
+                    final_probs = safeguarded_probs.copy()
+            
             # 4. Sample using Gumbel-Top-K
             sampled_numbers, selected_probs = self.sampling.gumbel_top_k(
-                safeguarded_probs,
+                final_probs,
                 k=self.game_config["main_numbers"],
                 seed=current_seed
             )
@@ -1187,6 +1239,11 @@ class PredictionEngine:
                 'probabilities': [float(f'{p:.6f}') for p in selected_probs],
                 'method': 'Gumbel-Top-K'
             })
+            
+            # Update number usage tracking for diversity
+            if no_repeat_numbers:
+                for number in sampled_numbers:
+                    number_usage_count[number] = number_usage_count.get(number, 0) + 1
             
             # Calculate confidence (average probability of selected numbers)
             confidence = float(np.mean(selected_probs))
@@ -1236,7 +1293,8 @@ class PredictionEngine:
         self,
         model_weights: Dict[str, float],  # {model_name: health_score}
         num_predictions: int = 1,
-        seed: int = None
+        seed: int = None,
+        no_repeat_numbers: bool = False
     ) -> List[PredictionResult]:
         """
         Generate predictions using an ensemble of models with detailed logging.
@@ -1246,13 +1304,33 @@ class PredictionEngine:
         2. Fuse using weighted average (weights = health scores)
         3. Check KL divergence
         4. Apply divergence correction if needed
-        5. Sample using Gumbel-Top-K
+        5. Apply diversity penalties (if enabled)
+        6. Sample using Gumbel-Top-K
+        
+        Args:
+            model_weights: Dictionary of {model_name: health_score}
+            num_predictions: Number of prediction sets to generate
+            seed: Random seed for reproducibility
+            no_repeat_numbers: If True, minimize number repetition across sets
         """
         results = []
         trace = TraceLog()
         
         if not model_weights:
             raise ValueError("No models provided for ensemble")
+        
+        # Initialize number usage tracking for diversity
+        number_usage_count = {}
+        max_number = self.prob_gen.num_numbers
+        draw_size = self.game_config["main_numbers"]
+        total_possible_unique_sets = max_number // draw_size
+        
+        if no_repeat_numbers:
+            if num_predictions <= total_possible_unique_sets:
+                diversity_mode = "pure_unique"
+            else:
+                diversity_mode = "calibrated_diversity"
+            trace.log('INFO', 'DIVERSITY', f'Number diversity mode enabled: {diversity_mode}')
         
         trace.log('INFO', 'STARTED', f'Ensemble prediction with {len(model_weights)} models')
         trace.log('INFO', 'CONFIG', f'Game: {self.game}, Predictions: {num_predictions}', {
@@ -1337,9 +1415,39 @@ class PredictionEngine:
             safeguarded_probs = self.prob_gen.enforce_range(ensemble_probs)
             trace.log('INFO', 'RANGE_ENFORCE', f'Enforced number range [1, {self.prob_gen.num_numbers}]')
             
+            # 5.5. Apply diversity penalties (if enabled)
+            final_probs = safeguarded_probs.copy()
+            if no_repeat_numbers and number_usage_count:
+                diversity_adjusted_probs = safeguarded_probs.copy()
+                
+                for num in range(1, max_number + 1):
+                    usage_count = number_usage_count.get(num, 0)
+                    
+                    if diversity_mode == "pure_unique":
+                        # Pure uniqueness: Eliminate already-used numbers
+                        if usage_count > 0:
+                            diversity_adjusted_probs[num - 1] = 0.0
+                    
+                    elif diversity_mode == "calibrated_diversity":
+                        # Calibrated diversity: Apply exponential penalty
+                        penalty_factor = 1.0 / (1.0 + usage_count ** 2)
+                        diversity_adjusted_probs[num - 1] *= penalty_factor
+                
+                # Re-normalize to ensure valid probability distribution
+                if np.sum(diversity_adjusted_probs) > 0:
+                    final_probs = diversity_adjusted_probs / np.sum(diversity_adjusted_probs)
+                    trace.log('INFO', 'DIVERSITY_PENALTY', f'Applied {diversity_mode} penalties', {
+                        'unique_numbers_used': len([k for k, v in number_usage_count.items() if v > 0]),
+                        'total_numbers': max_number
+                    })
+                else:
+                    # Fallback: Use least-used numbers if all eliminated
+                    trace.log('WARNING', 'DIVERSITY_FALLBACK', 'All numbers eliminated, using least-used')
+                    final_probs = safeguarded_probs.copy()
+            
             # 6. Sample using Gumbel-Top-K
             sampled_numbers, selected_probs = self.sampling.gumbel_top_k(
-                safeguarded_probs,
+                final_probs,
                 k=self.game_config["main_numbers"],
                 seed=current_seed
             )
@@ -1348,6 +1456,11 @@ class PredictionEngine:
                 'numbers': sorted(sampled_numbers),
                 'probabilities': [float(f'{p:.6f}') for p in selected_probs]
             })
+            
+            # Update number usage tracking for diversity
+            if no_repeat_numbers:
+                for number in sampled_numbers:
+                    number_usage_count[number] = number_usage_count.get(number, 0) + 1
             
             # Calculate confidence
             confidence = float(np.mean(selected_probs))
