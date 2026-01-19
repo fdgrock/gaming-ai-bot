@@ -1119,7 +1119,8 @@ class PredictionEngine:
         health_score: float,
         num_predictions: int = 1,
         seed: int = None,
-        no_repeat_numbers: bool = False
+        no_repeat_numbers: bool = False,
+        learning_data: dict = None
     ) -> List[PredictionResult]:
         """
         Generate predictions using a single model with detailed logging.
@@ -1128,8 +1129,9 @@ class PredictionEngine:
         1. Generate raw probabilities from model
         2. Apply bias correction based on health score
         3. Enforce range constraints
-        4. Apply diversity penalties (if enabled)
-        5. Sample using Gumbel-Top-K
+        4. Apply learning data adjustments (if provided)
+        5. Apply diversity penalties (if enabled)
+        6. Sample using Gumbel-Top-K
         
         Args:
             model_name: Name of the model to use
@@ -1137,6 +1139,7 @@ class PredictionEngine:
             num_predictions: Number of prediction sets to generate
             seed: Random seed for reproducibility
             no_repeat_numbers: If True, minimize number repetition across sets
+            learning_data: Optional dict with learning insights to boost/penalize numbers
         """
         results = []
         trace = TraceLog()
@@ -1196,6 +1199,102 @@ class PredictionEngine:
             # 3. Enforce range
             safeguarded_probs = self.prob_gen.enforce_range(corrected_probs)
             trace.log('INFO', 'RANGE_ENFORCE', f'Enforced number range [1, {self.prob_gen.num_numbers}]')
+            
+            # 3.3. Apply learning data adjustments (if provided)
+            if learning_data:
+                learning_adjusted_probs = safeguarded_probs.copy()
+                
+                # Extract learning insights
+                hot_numbers_learning = learning_data.get('analysis', {}).get('number_frequency', {})
+                cold_numbers_learning = learning_data.get('analysis', {}).get('cold_numbers', [])
+                position_accuracy = learning_data.get('analysis', {}).get('position_accuracy', {})
+                target_sum = learning_data.get('avg_sum', 0)
+                sum_range = learning_data.get('sum_range', {'min': 0, 'max': 999})
+                
+                # 1. Boost probabilities for hot numbers from learning
+                hot_numbers_weight = 0.15  # Learning boost strength
+                hot_count = 0
+                if hot_numbers_learning:
+                    for num_str, freq_data in hot_numbers_learning.items():
+                        try:
+                            num_idx = int(num_str) - 1
+                            if 0 <= num_idx < max_number:
+                                freq = freq_data.get('frequency', freq_data) if isinstance(freq_data, dict) else freq_data
+                                boost_factor = 1.0 + (float(freq) * hot_numbers_weight)
+                                learning_adjusted_probs[num_idx] *= boost_factor
+                                hot_count += 1
+                        except (ValueError, KeyError, TypeError):
+                            continue
+                
+                # 2. Penalize cold numbers from learning
+                cold_penalty_weight = 0.12
+                cold_count = 0
+                if cold_numbers_learning:
+                    for num in cold_numbers_learning:
+                        try:
+                            num_idx = int(num) - 1
+                            if 0 <= num_idx < max_number:
+                                penalty_factor = 1.0 - cold_penalty_weight
+                                learning_adjusted_probs[num_idx] *= penalty_factor
+                                cold_count += 1
+                        except (ValueError, TypeError):
+                            continue
+                
+                # 3. Apply position accuracy weighting
+                position_weight = 0.10
+                position_adjustments = 0
+                if position_accuracy:
+                    # Calculate average position accuracy as an overall boost indicator
+                    total_accuracy = 0
+                    accuracy_count = 0
+                    for pos_key, pos_data in position_accuracy.items():
+                        if isinstance(pos_data, dict):
+                            accuracy = pos_data.get('accuracy', 0)
+                            if accuracy > 0:
+                                total_accuracy += accuracy
+                                accuracy_count += 1
+                    
+                    # If we have good overall position accuracy, apply a modest global boost
+                    if accuracy_count > 0:
+                        avg_accuracy = total_accuracy / accuracy_count
+                        if avg_accuracy > 0.05:  # Above 5% average accuracy
+                            position_boost = 1.0 + (avg_accuracy * position_weight)
+                            learning_adjusted_probs = learning_adjusted_probs * position_boost
+                            position_adjustments = accuracy_count
+                
+                # 4. Sum-based probability adjustment
+                # Favor numbers that are more likely to produce sums near the target
+                sum_weight = 0.08
+                if target_sum > 0 and sum_range.get('min', 0) > 0:
+                    # Calculate expected contribution of each number to the target sum
+                    expected_per_number = target_sum / draw_size
+                    sum_adjustments = 0
+                    
+                    for num in range(1, max_number + 1):
+                        num_idx = num - 1
+                        # Numbers close to expected contribution get slight boost
+                        deviation = abs(num - expected_per_number) / expected_per_number
+                        if deviation < 0.5:  # Within 50% of expected contribution
+                            sum_boost = 1.0 + (sum_weight * (1 - deviation))
+                            learning_adjusted_probs[num_idx] *= sum_boost
+                            sum_adjustments += 1
+                
+                # Re-normalize after learning adjustments
+                if np.sum(learning_adjusted_probs) > 0:
+                    safeguarded_probs = learning_adjusted_probs / np.sum(learning_adjusted_probs)
+                    trace.log('INFO', 'LEARNING_APPLIED', f'Applied comprehensive learning data adjustments', {
+                        'hot_numbers_boosted': hot_count,
+                        'cold_numbers_penalized': cold_count,
+                        'position_adjustments': position_adjustments,
+                        'sum_target': float(f'{target_sum:.1f}') if target_sum > 0 else None,
+                        'sum_range': f"{sum_range.get('min', 0):.0f}-{sum_range.get('max', 999):.0f}",
+                        'weights': {
+                            'hot_boost': float(f'{hot_numbers_weight:.2f}'),
+                            'cold_penalty': float(f'{cold_penalty_weight:.2f}'),
+                            'position_weight': float(f'{position_weight:.2f}'),
+                            'sum_weight': float(f'{sum_weight:.2f}')
+                        }
+                    })
             
             # 3.5. Apply diversity penalties (if enabled)
             final_probs = safeguarded_probs.copy()
@@ -1294,7 +1393,8 @@ class PredictionEngine:
         model_weights: Dict[str, float],  # {model_name: health_score}
         num_predictions: int = 1,
         seed: int = None,
-        no_repeat_numbers: bool = False
+        no_repeat_numbers: bool = False,
+        learning_data: dict = None
     ) -> List[PredictionResult]:
         """
         Generate predictions using an ensemble of models with detailed logging.
@@ -1304,14 +1404,16 @@ class PredictionEngine:
         2. Fuse using weighted average (weights = health scores)
         3. Check KL divergence
         4. Apply divergence correction if needed
-        5. Apply diversity penalties (if enabled)
-        6. Sample using Gumbel-Top-K
+        5. Apply learning data adjustments (if provided)
+        6. Apply diversity penalties (if enabled)
+        7. Sample using Gumbel-Top-K
         
         Args:
             model_weights: Dictionary of {model_name: health_score}
             num_predictions: Number of prediction sets to generate
             seed: Random seed for reproducibility
             no_repeat_numbers: If True, minimize number repetition across sets
+            learning_data: Optional dict with learning insights to boost/penalize numbers
         """
         results = []
         trace = TraceLog()
@@ -1414,6 +1516,102 @@ class PredictionEngine:
             # 5. Enforce range
             safeguarded_probs = self.prob_gen.enforce_range(ensemble_probs)
             trace.log('INFO', 'RANGE_ENFORCE', f'Enforced number range [1, {self.prob_gen.num_numbers}]')
+            
+            # 5.3. Apply learning data adjustments (if provided)
+            if learning_data:
+                learning_adjusted_probs = safeguarded_probs.copy()
+                
+                # Extract learning insights
+                hot_numbers_learning = learning_data.get('analysis', {}).get('number_frequency', {})
+                cold_numbers_learning = learning_data.get('analysis', {}).get('cold_numbers', [])
+                position_accuracy = learning_data.get('analysis', {}).get('position_accuracy', {})
+                target_sum = learning_data.get('avg_sum', 0)
+                sum_range = learning_data.get('sum_range', {'min': 0, 'max': 999})
+                
+                # 1. Boost probabilities for hot numbers from learning
+                hot_numbers_weight = 0.15  # Learning boost strength
+                hot_count = 0
+                if hot_numbers_learning:
+                    for num_str, freq_data in hot_numbers_learning.items():
+                        try:
+                            num_idx = int(num_str) - 1
+                            if 0 <= num_idx < max_number:
+                                freq = freq_data.get('frequency', freq_data) if isinstance(freq_data, dict) else freq_data
+                                boost_factor = 1.0 + (float(freq) * hot_numbers_weight)
+                                learning_adjusted_probs[num_idx] *= boost_factor
+                                hot_count += 1
+                        except (ValueError, KeyError, TypeError):
+                            continue
+                
+                # 2. Penalize cold numbers from learning
+                cold_penalty_weight = 0.12
+                cold_count = 0
+                if cold_numbers_learning:
+                    for num in cold_numbers_learning:
+                        try:
+                            num_idx = int(num) - 1
+                            if 0 <= num_idx < max_number:
+                                penalty_factor = 1.0 - cold_penalty_weight
+                                learning_adjusted_probs[num_idx] *= penalty_factor
+                                cold_count += 1
+                        except (ValueError, TypeError):
+                            continue
+                
+                # 3. Apply position accuracy weighting
+                position_weight = 0.10
+                position_adjustments = 0
+                if position_accuracy:
+                    # Calculate average position accuracy as an overall boost indicator
+                    total_accuracy = 0
+                    accuracy_count = 0
+                    for pos_key, pos_data in position_accuracy.items():
+                        if isinstance(pos_data, dict):
+                            accuracy = pos_data.get('accuracy', 0)
+                            if accuracy > 0:
+                                total_accuracy += accuracy
+                                accuracy_count += 1
+                    
+                    # If we have good overall position accuracy, apply a modest global boost
+                    if accuracy_count > 0:
+                        avg_accuracy = total_accuracy / accuracy_count
+                        if avg_accuracy > 0.05:  # Above 5% average accuracy
+                            position_boost = 1.0 + (avg_accuracy * position_weight)
+                            learning_adjusted_probs = learning_adjusted_probs * position_boost
+                            position_adjustments = accuracy_count
+                
+                # 4. Sum-based probability adjustment
+                # Favor numbers that are more likely to produce sums near the target
+                sum_weight = 0.08
+                if target_sum > 0 and sum_range.get('min', 0) > 0:
+                    # Calculate expected contribution of each number to the target sum
+                    expected_per_number = target_sum / draw_size
+                    sum_adjustments = 0
+                    
+                    for num in range(1, max_number + 1):
+                        num_idx = num - 1
+                        # Numbers close to expected contribution get slight boost
+                        deviation = abs(num - expected_per_number) / expected_per_number
+                        if deviation < 0.5:  # Within 50% of expected contribution
+                            sum_boost = 1.0 + (sum_weight * (1 - deviation))
+                            learning_adjusted_probs[num_idx] *= sum_boost
+                            sum_adjustments += 1
+                
+                # Re-normalize after learning adjustments
+                if np.sum(learning_adjusted_probs) > 0:
+                    safeguarded_probs = learning_adjusted_probs / np.sum(learning_adjusted_probs)
+                    trace.log('INFO', 'LEARNING_APPLIED', f'Applied comprehensive learning data adjustments', {
+                        'hot_numbers_boosted': hot_count,
+                        'cold_numbers_penalized': cold_count,
+                        'position_adjustments': position_adjustments,
+                        'sum_target': float(f'{target_sum:.1f}') if target_sum > 0 else None,
+                        'sum_range': f"{sum_range.get('min', 0):.0f}-{sum_range.get('max', 999):.0f}",
+                        'weights': {
+                            'hot_boost': float(f'{hot_numbers_weight:.2f}'),
+                            'cold_penalty': float(f'{cold_penalty_weight:.2f}'),
+                            'position_weight': float(f'{position_weight:.2f}'),
+                            'sum_weight': float(f'{sum_weight:.2f}')
+                        }
+                    })
             
             # 5.5. Apply diversity penalties (if enabled)
             final_probs = safeguarded_probs.copy()

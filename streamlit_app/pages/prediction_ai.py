@@ -1945,6 +1945,9 @@ understanding that lottery outcomes remain random and unpredictable.
         # ===== GENERATE EACH SET WITH ADVANCED REASONING =====
         predictions_with_attribution = []
         
+        # Get list of all selected models for coverage verification
+        selected_model_names = list(model_probabilities.keys())
+        
         for set_idx in range(num_sets):
             # Apply progressive temperature to ensemble probabilities for diversity
             # Early sets: use exact ensemble probs; Late sets: more uniform/diverse
@@ -1993,90 +1996,123 @@ understanding that lottery outcomes remain random and unpredictable.
             strategy_used = None
             model_attribution = {}
             
-            # ===== STRATEGY 1: GUMBEL-TOP-K WITH ENTROPY OPTIMIZATION =====
-            try:
-                # Gumbel noise injection for deterministic yet diverse selection
-                gumbel_noise = -np.log(-np.log(np.random.uniform(0, 1, max_number) + 1e-10) + 1e-10)
-                gumbel_scores = np.log(adjusted_probs + 1e-10) + gumbel_noise
-                
-                # Select top-k indices based on Gumbel-modified scores
-                top_k_indices = np.argsort(gumbel_scores)[-draw_size:]
-                selected_numbers = sorted([i + 1 for i in top_k_indices])
-                strategy_used = "Gumbel-Top-K with Entropy Optimization"
-                strategy_log["strategy_1_gumbel"] += 1
-                
-            except Exception as gumbel_error:
-                # ===== STRATEGY 2: HOT/COLD BALANCED SELECTION =====
-                # Fallback using explicit hot/cold analysis
-                try:
-                    # Sample hot numbers with higher probability
-                    hot_probs = prob_values[hot_numbers - 1]
-                    hot_probs = hot_probs / np.sum(hot_probs)  # Normalize
-                    selected_hot = np.random.choice(
-                        hot_numbers,
-                        size=min(hot_count, len(hot_numbers)),
-                        replace=False,
-                        p=hot_probs
-                    )
-                    
-                    # Sample warm/cold numbers for diversity
-                    remaining_count = draw_size - len(selected_hot)
-                    available_warm = [n for n in warm_numbers if n not in selected_hot]
-                    if len(available_warm) >= remaining_count:
-                        warm_probs = prob_values[np.array(available_warm) - 1]
-                        warm_probs = warm_probs / np.sum(warm_probs)
-                        selected_warm = np.random.choice(
-                            available_warm,
-                            size=remaining_count,
-                            replace=False,
-                            p=warm_probs
-                        )
-                    else:
-                        selected_warm = available_warm
-                    
-                    selected_numbers = sorted(np.concatenate([selected_hot, selected_warm]).astype(int).tolist())
-                    strategy_used = "Hot/Cold Balanced Selection"
-                    strategy_log["strategy_2_hotcold"] += 1
-                    
-                except Exception:
-                    # ===== STRATEGY 3: CONFIDENCE-WEIGHTED SELECTION =====
-                    # Final fallback: use confidence-weighted random choice
-                    try:
-                        selected_indices = np.random.choice(
-                            max_number,
-                            size=draw_size,
-                            replace=False,
-                            p=adjusted_probs
-                        )
-                        selected_numbers = sorted([i + 1 for i in selected_indices])
-                        strategy_used = "Confidence-Weighted Random Selection"
-                        strategy_log["strategy_3_confidence_weighted"] += 1
-                    except Exception:
-                        # ===== STRATEGY 4: TOP-K FROM ENSEMBLE PROBABILITIES =====
-                        # Last resort: deterministic top-k from ensemble probabilities
-                        top_k_indices = np.argsort(prob_values)[-draw_size:]
-                        selected_numbers = sorted([i + 1 for i in top_k_indices])
-                        strategy_used = "Deterministic Top-K from Ensemble"
-                        strategy_log["strategy_4_topk"] += 1
+            # ===== RETRY LOOP: ENSURE ALL MODELS CONTRIBUTE TO SET =====
+            max_attempts = 50  # Maximum retry attempts to ensure model coverage
+            attempt = 0
+            all_models_contributed = False
             
-            # ===== TRACK MODEL ATTRIBUTION FOR SELECTED NUMBERS =====
-            # Determine which models "voted" for each selected number based on their probabilities
-            for number in selected_numbers:
-                number_str = str(number)
-                model_attribution[number_str] = []  # Use string key for JSON compatibility
+            while attempt < max_attempts and not all_models_contributed:
+                attempt += 1
                 
-                # Check each model's probability for this number
-                for model_key, model_probs in model_probabilities.items():
-                    if isinstance(model_probs, dict):
-                        number_prob = float(model_probs.get(number_str, 0))
-                        # If model gave this number above-average probability, it "voted" for it
-                        avg_prob = 1.0 / max_number  # Uniform baseline
-                        if number_prob > avg_prob * 1.5:  # 50% above average = vote
-                            model_attribution[number_str].append({
-                                'model': model_key,
-                                'probability': float(number_prob),  # Ensure native Python float
-                                'confidence': float(number_prob / avg_prob)  # Relative confidence
-                            })
+                # ===== STRATEGY 1: GUMBEL-TOP-K WITH ENTROPY OPTIMIZATION =====
+                try:
+                    # Gumbel noise injection for deterministic yet diverse selection
+                    # Add attempt-based noise variation for retries
+                    gumbel_noise = -np.log(-np.log(np.random.uniform(0, 1, max_number) + 1e-10) + 1e-10)
+                    if attempt > 1:
+                        # Add extra randomness for retries
+                        gumbel_noise += np.random.normal(0, 0.1 * attempt, max_number)
+                    
+                    gumbel_scores = np.log(adjusted_probs + 1e-10) + gumbel_noise
+                    
+                    # Select top-k indices based on Gumbel-modified scores
+                    top_k_indices = np.argsort(gumbel_scores)[-draw_size:]
+                    selected_numbers = sorted([i + 1 for i in top_k_indices])
+                    strategy_used = "Gumbel-Top-K with Entropy Optimization"
+                    if attempt == 1:
+                        strategy_log["strategy_1_gumbel"] += 1
+                    
+                except Exception as gumbel_error:
+                    # ===== STRATEGY 2: HOT/COLD BALANCED SELECTION =====
+                    # Fallback using explicit hot/cold analysis
+                    try:
+                        # Sample hot numbers with higher probability
+                        hot_probs = prob_values[hot_numbers - 1]
+                        hot_probs = hot_probs / np.sum(hot_probs)  # Normalize
+                        selected_hot = np.random.choice(
+                            hot_numbers,
+                            size=min(hot_count, len(hot_numbers)),
+                            replace=False,
+                            p=hot_probs
+                        )
+                    
+                        # Sample warm/cold numbers for diversity
+                        remaining_count = draw_size - len(selected_hot)
+                        available_warm = [n for n in warm_numbers if n not in selected_hot]
+                        if len(available_warm) >= remaining_count:
+                            warm_probs = prob_values[np.array(available_warm) - 1]
+                            warm_probs = warm_probs / np.sum(warm_probs)
+                            selected_warm = np.random.choice(
+                                available_warm,
+                                size=remaining_count,
+                                replace=False,
+                                p=warm_probs
+                            )
+                        else:
+                            selected_warm = available_warm
+                        
+                        selected_numbers = sorted(np.concatenate([selected_hot, selected_warm]).astype(int).tolist())
+                        strategy_used = "Hot/Cold Balanced Selection"
+                        strategy_log["strategy_2_hotcold"] += 1
+                        
+                    except Exception:
+                        # ===== STRATEGY 3: CONFIDENCE-WEIGHTED SELECTION =====
+                        # Final fallback: use confidence-weighted random choice
+                        try:
+                            selected_indices = np.random.choice(
+                                max_number,
+                                size=draw_size,
+                                replace=False,
+                                p=adjusted_probs
+                            )
+                            selected_numbers = sorted([i + 1 for i in selected_indices])
+                            strategy_used = "Confidence-Weighted Random Selection"
+                            strategy_log["strategy_3_confidence_weighted"] += 1
+                        except Exception:
+                            # ===== STRATEGY 4: TOP-K FROM ENSEMBLE PROBABILITIES =====
+                            # Last resort: deterministic top-k from ensemble probabilities
+                            top_k_indices = np.argsort(prob_values)[-draw_size:]
+                            selected_numbers = sorted([i + 1 for i in top_k_indices])
+                            strategy_used = "Deterministic Top-K from Ensemble"
+                            strategy_log["strategy_4_topk"] += 1
+            
+                # ===== TRACK MODEL ATTRIBUTION FOR SELECTED NUMBERS =====
+                # Determine which models "voted" for each selected number based on their probabilities
+                model_attribution = {}
+                for number in selected_numbers:
+                    number_str = str(number)
+                    model_attribution[number_str] = []  # Use string key for JSON compatibility
+                    
+                    # Check each model's probability for this number
+                    for model_key, model_probs in model_probabilities.items():
+                        if isinstance(model_probs, dict):
+                            number_prob = float(model_probs.get(number_str, 0))
+                            # If model gave this number above-average probability, it "voted" for it
+                            avg_prob = 1.0 / max_number  # Uniform baseline
+                            # Lower threshold for retries to increase model coverage
+                            vote_threshold = 1.5 - (0.02 * attempt)  # Gradually lower threshold
+                            if number_prob > avg_prob * vote_threshold:
+                                model_attribution[number_str].append({
+                                    'model': model_key,
+                                    'probability': float(number_prob),  # Ensure native Python float
+                                    'confidence': float(number_prob / avg_prob)  # Relative confidence
+                                })
+                
+                # ===== VERIFY ALL MODELS CONTRIBUTED TO THIS SET =====
+                contributing_models = set()
+                for number_str, voters in model_attribution.items():
+                    for voter in voters:
+                        contributing_models.add(voter['model'])
+                
+                # Check if all selected models contributed at least one vote
+                if len(selected_model_names) == 0 or len(contributing_models) >= len(selected_model_names):
+                    all_models_contributed = True
+                elif attempt >= max_attempts:
+                    # After max attempts, accept what we have
+                    all_models_contributed = True
+                    if attempt > 1:
+                        strategy_used += f" (Coverage: {len(contributing_models)}/{len(selected_model_names)} models after {attempt} attempts)"
+                # Otherwise, retry the loop
             
             # ===== UPDATE NUMBER USAGE TRACKING =====
             if no_repeat_numbers:
@@ -4729,6 +4765,9 @@ def _render_next_draw_mode(analyzer: SuperIntelligentAIAnalyzer, game: str) -> N
                     # Display preview of regenerated sets - ranked by learning score
                     st.markdown("#### 🎲 Preview: Top 10 Learning-Ranked Sets")
                     
+                    # Get predictions with attribution if available
+                    predictions_with_attribution = pred_data.get('predictions_with_attribution', [])
+                    
                     # Rank regenerated sets by learning score
                     ranked_regenerated = []
                     for idx, pred_set in enumerate(regenerated_predictions):
@@ -4741,6 +4780,30 @@ def _render_next_draw_mode(analyzer: SuperIntelligentAIAnalyzer, game: str) -> N
                     for rank, (score, original_idx, pred_set) in enumerate(ranked_regenerated[:10], 1):
                         with st.container(border=True):
                             st.markdown(f"**Rank #{rank}** (Learning Score: {score:.3f}) - Original Set #{original_idx}")
+                            
+                            # Display model attribution if available
+                            if predictions_with_attribution:
+                                # Find matching prediction in attribution data
+                                matching_attr = None
+                                for attr in predictions_with_attribution:
+                                    attr_numbers = attr.get('numbers', [])
+                                    if sorted(attr_numbers) == sorted(pred_set):
+                                        matching_attr = attr
+                                        break
+                                
+                                if matching_attr:
+                                    model_attribution = matching_attr.get('model_attribution', {})
+                                    if model_attribution:
+                                        # Collect all unique models that contributed
+                                        contributing_models = set()
+                                        for num, voters in model_attribution.items():
+                                            for voter in voters:
+                                                contributing_models.add(voter.get('model', 'Unknown'))
+                                        
+                                        if contributing_models:
+                                            st.markdown(f"**🤖 Models:** {', '.join(sorted(contributing_models))}")
+                            
+                            # Display numbers
                             cols = st.columns(len(pred_set))
                             for col, num in zip(cols, sorted(pred_set)):
                                 with col:
@@ -4770,9 +4833,36 @@ def _render_next_draw_mode(analyzer: SuperIntelligentAIAnalyzer, game: str) -> N
                     # Display ranked predictions
                     st.markdown("#### 🎯 Learning-Ranked Predictions (Top 20)")
                     
+                    # Get predictions with attribution if available
+                    predictions_with_attribution = pred_data.get('predictions_with_attribution', [])
+                    
                     for rank, (score, pred_set) in enumerate(ranked_predictions[:20], 1):
                         with st.container(border=True):
                             st.markdown(f"**Rank #{rank}** - Learning Score: {score:.3f}")
+                            
+                            # Display model attribution if available
+                            if predictions_with_attribution:
+                                # Find matching prediction in attribution data
+                                matching_attr = None
+                                for attr in predictions_with_attribution:
+                                    attr_numbers = attr.get('numbers', [])
+                                    if sorted(attr_numbers) == sorted(pred_set):
+                                        matching_attr = attr
+                                        break
+                                
+                                if matching_attr:
+                                    model_attribution = matching_attr.get('model_attribution', {})
+                                    if model_attribution:
+                                        # Collect all unique models that contributed
+                                        contributing_models = set()
+                                        for num, voters in model_attribution.items():
+                                            for voter in voters:
+                                                contributing_models.add(voter.get('model', 'Unknown'))
+                                        
+                                        if contributing_models:
+                                            st.markdown(f"**🤖 Models:** {', '.join(sorted(contributing_models))}")
+                            
+                            # Display numbers
                             cols = st.columns(len(pred_set))
                             for col, num in zip(cols, sorted(pred_set)):
                                 with col:
@@ -4938,6 +5028,42 @@ def _render_previous_draw_mode(analyzer: SuperIntelligentAIAnalyzer, game: str) 
                 
                 legend = "🟢 Correct | 🟡 Bonus | 🔵 Miss"
                 st.caption(legend)
+        
+        # Display model attribution in a separate expander
+        predictions_with_attribution = pred_data.get('predictions_with_attribution', [])
+        
+        with st.expander("🤖 **Model Attribution for All Predictions**", expanded=False):
+            if not predictions_with_attribution:
+                st.info("ℹ️ Model attribution data is not available for this prediction file. Attribution data is only saved when predictions are generated using the AI Prediction Engine with deep learning models.")
+            else:
+                st.markdown("This shows which AI models contributed to each prediction set:")
+                
+                for rank, pred in enumerate(sorted_predictions, 1):
+                    # Get the prediction numbers (convert to strings for comparison)
+                    pred_numbers = [str(num_data['number']) for num_data in pred['numbers']]
+                    
+                    # Find matching prediction in attribution data
+                    matching_attr = None
+                    for attr in predictions_with_attribution:
+                        attr_numbers = attr.get('numbers', [])
+                        if sorted(attr_numbers) == sorted(pred_numbers):
+                            matching_attr = attr
+                            break
+                    
+                    if matching_attr:
+                        model_attribution = matching_attr.get('model_attribution', {})
+                        if model_attribution:
+                            # Collect all unique models that contributed
+                            contributing_models = set()
+                            for num, voters in model_attribution.items():
+                                if voters:  # Only count if there are actual voters
+                                    for voter in voters:
+                                        contributing_models.add(voter.get('model', 'Unknown'))
+                            
+                            if contributing_models:
+                                st.markdown(f"**Set #{pred['original_index'] + 1}:** {', '.join(sorted(contributing_models))}")
+                            else:
+                                st.markdown(f"**Set #{pred['original_index'] + 1}:** No model attribution (random selection)")
         
         st.divider()
         

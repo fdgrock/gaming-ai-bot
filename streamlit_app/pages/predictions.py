@@ -582,6 +582,50 @@ def _render_ml_predictions() -> None:
         )
         st.session_state.ml_no_repeat_numbers = no_repeat_numbers
     
+    # ==================== LEARNING DATA SECTION ====================
+    st.markdown("#### 📚 Learning Data (Optional)")
+    
+    use_learning_data = st.checkbox(
+        "📖 Use Learning Data",
+        value=False,
+        help="Incorporate historical learning insights from AI Prediction Engine to enhance predictions",
+        key="ml_use_learning"
+    )
+    
+    learning_files_to_use = []
+    if use_learning_data:
+        from pathlib import Path
+        from streamlit_app.core import sanitize_game_name
+        import json
+        
+        game_lower = sanitize_game_name(game_name)
+        learning_dir = Path("data") / "learning" / game_lower
+        
+        if learning_dir.exists():
+            available_learning_files = sorted(
+                [f.name for f in learning_dir.glob("*.json")],
+                reverse=True
+            )
+            
+            if available_learning_files:
+                st.markdown("**Select Learning Files:**")
+                learning_files_to_use = st.multiselect(
+                    "Choose one or more learning files to apply",
+                    available_learning_files,
+                    default=[available_learning_files[0]] if available_learning_files else [],
+                    help="Select multiple files to combine their learning insights",
+                    key="ml_learning_files"
+                )
+                
+                if learning_files_to_use:
+                    st.success(f"✅ {len(learning_files_to_use)} learning file(s) selected")
+                else:
+                    st.info("ℹ️ No learning files selected")
+            else:
+                st.warning(f"⚠️ No learning files found in {learning_dir}")
+        else:
+            st.warning(f"⚠️ Learning directory not found: {learning_dir}")
+    
     # Generate button
     col1, col2, col3 = st.columns([1, 2, 1])
     with col2:
@@ -594,6 +638,75 @@ def _render_ml_predictions() -> None:
         
         with st.spinner("🔄 Generating predictions..."):
             try:
+                # Load and combine learning data if selected
+                combined_learning_data = None
+                if use_learning_data and learning_files_to_use:
+                    from pathlib import Path
+                    from streamlit_app.core import sanitize_game_name
+                    import json
+                    import numpy as np
+                    
+                    st.info(f"📖 Loading {len(learning_files_to_use)} learning file(s)...")
+                    
+                    game_lower = sanitize_game_name(game_name)
+                    learning_dir = Path("data") / "learning" / game_lower
+                    
+                    learning_data_list = []
+                    for filename in learning_files_to_use:
+                        try:
+                            with open(learning_dir / filename, 'r') as f:
+                                learning_data_list.append(json.load(f))
+                        except Exception as e:
+                            st.warning(f"⚠️ Could not load {filename}: {e}")
+                    
+                    if learning_data_list:
+                        # Combine multiple learning files
+                        combined_learning_data = {
+                            'analysis': {
+                                'number_frequency': {},
+                                'cold_numbers': [],
+                                'position_accuracy': {}
+                            },
+                            'avg_sum': 0,
+                            'sum_range': {'min': 0, 'max': 999}
+                        }
+                        
+                        # Average number frequencies across all files
+                        all_number_freqs = {}
+                        for data in learning_data_list:
+                            num_freq = data.get('analysis', {}).get('number_frequency', {})
+                            for num_str, freq_data in num_freq.items():
+                                if num_str not in all_number_freqs:
+                                    all_number_freqs[num_str] = []
+                                # Extract the frequency value, handling different formats
+                                try:
+                                    if isinstance(freq_data, dict):
+                                        freq_val = float(freq_data.get('frequency', 0))
+                                    else:
+                                        freq_val = float(freq_data)
+                                    all_number_freqs[num_str].append(freq_val)
+                                except (ValueError, TypeError):
+                                    continue
+                        
+                        # Average the frequencies
+                        for num_str, freq_list in all_number_freqs.items():
+                            if freq_list:  # Only if we have valid values
+                                combined_learning_data['analysis']['number_frequency'][num_str] = float(np.mean(freq_list))
+                        
+                        # Combine cold numbers (union of all)
+                        cold_nums_set = set()
+                        for data in learning_data_list:
+                            cold_nums = data.get('analysis', {}).get('cold_numbers', [])
+                            cold_nums_set.update(cold_nums)
+                        combined_learning_data['analysis']['cold_numbers'] = list(cold_nums_set)
+                        
+                        # Average sum statistics
+                        avg_sums = [d.get('avg_sum', 0) for d in learning_data_list if d.get('avg_sum', 0) > 0]
+                        if avg_sums:
+                            combined_learning_data['avg_sum'] = np.mean(avg_sums)
+                        
+                        st.success(f"✅ Combined {len(learning_data_list)} learning file(s) successfully")
+                
                 # Initialize engine with game
                 engine = PredictionEngine(game=game_name)
                 
@@ -618,42 +731,41 @@ def _render_ml_predictions() -> None:
                     # Get health score for bias correction
                     health_score = model_data.get("health_score", 0.75)
                     
-                    for i in range(num_predictions):
-                        # Get automatic seed from seed manager
-                        if SeedManager and 'seed_manager' in st.session_state:
-                            if model_type in SeedManager.SEED_RANGES:
-                                current_seed = st.session_state.seed_manager.get_next_seed(model_type)
-                            else:
-                                current_seed = None
-                                st.warning(f"⚠️ Unknown model type '{model_type}', using random seed")
+                    # Get automatic seed from seed manager
+                    current_seed = None
+                    if SeedManager and 'seed_manager' in st.session_state:
+                        if model_type in SeedManager.SEED_RANGES:
+                            current_seed = st.session_state.seed_manager.get_next_seed(model_type)
                         else:
-                            current_seed = None
-                        
-                        st.write(f"**Generating Prediction {i+1}/{num_predictions}** - Model: `{selected_model}`, Seed: {current_seed}")
-                        
-                        result_list = engine.predict_single_model(
-                            model_name=selected_model,
-                            health_score=health_score,
-                            num_predictions=1,
-                            seed=current_seed,
-                            no_repeat_numbers=no_repeat_numbers
-                        )
-                        
-                        if result_list:
-                            result = result_list[0]
-                            # Add metadata for saving
-                            result_dict = {
-                                'numbers': result.numbers,
-                                'confidence': result.confidence,
-                                'model_name': result.model_name,
-                                'prediction_type': result.prediction_type,
-                                'reasoning': result.reasoning,
-                                'generated_at': result.generated_at,
-                                'game': result.game,
-                                'variability_factor': variability_factor,
-                                'seed': current_seed if save_seed_with_predictions else None
-                            }
-                            results.append(result_dict)
+                            st.warning(f"⚠️ Unknown model type '{model_type}', using random seed")
+                    
+                    st.write(f"**Generating {num_predictions} Prediction(s)** - Model: `{selected_model}`, Seed: {current_seed}")
+                    
+                    # Generate all predictions in one call to maintain diversity tracking
+                    result_list = engine.predict_single_model(
+                        model_name=selected_model,
+                        health_score=health_score,
+                        num_predictions=num_predictions,
+                        seed=current_seed,
+                        no_repeat_numbers=no_repeat_numbers,
+                        learning_data=combined_learning_data
+                    )
+                    
+                    # Process all results
+                    for i, result in enumerate(result_list):
+                        # Add metadata for saving
+                        result_dict = {
+                            'numbers': result.numbers,
+                            'confidence': result.confidence,
+                            'model_name': result.model_name,
+                            'prediction_type': result.prediction_type,
+                            'reasoning': result.reasoning,
+                            'generated_at': result.generated_at,
+                            'game': result.game,
+                            'variability_factor': variability_factor,
+                            'seed': current_seed if save_seed_with_predictions else None
+                        }
+                        results.append(result_dict)
                 
                 else:  # Ensemble mode
                     # Prepare ensemble weights (model_name: health_score)
@@ -664,38 +776,38 @@ def _render_ml_predictions() -> None:
                     
                     st.write(f"📊 **Ensemble Mode**: {len(model_weights)} models")
                     
-                    for i in range(num_predictions):
-                        # Get automatic seed for ensemble
-                        if SeedManager and 'seed_manager' in st.session_state:
-                            current_seed = st.session_state.seed_manager.get_next_seed("ensemble")
-                        else:
-                            current_seed = None
-                        
-                        st.write(f"**Generating Ensemble Prediction {i+1}/{num_predictions}** - Seed: {current_seed}")
-                        
-                        result_list = engine.predict_ensemble(
-                            model_weights=model_weights,
-                            num_predictions=1,
-                            seed=current_seed,
-                            no_repeat_numbers=no_repeat_numbers
-                        )
-                        
-                        if result_list:
-                            result = result_list[0]
-                            # Add metadata for saving
-                            result_dict = {
-                                'numbers': result.numbers,
-                                'confidence': result.confidence,
-                                'model_name': f"Ensemble ({len(model_weights)} models)",
-                                'prediction_type': result.prediction_type,
-                                'reasoning': result.reasoning,
-                                'generated_at': result.generated_at,
-                                'game': result.game,
-                                'models_used': model_weights,
-                                'variability_factor': variability_factor,
-                                'seed': current_seed if save_seed_with_predictions else None
-                            }
-                            results.append(result_dict)
+                    # Get automatic seed for ensemble
+                    current_seed = None
+                    if SeedManager and 'seed_manager' in st.session_state:
+                        current_seed = st.session_state.seed_manager.get_next_seed("ensemble")
+                    
+                    st.write(f"**Generating {num_predictions} Ensemble Prediction(s)** - Seed: {current_seed}")
+                    
+                    # Generate all predictions in one call to maintain diversity tracking
+                    result_list = engine.predict_ensemble(
+                        model_weights=model_weights,
+                        num_predictions=num_predictions,
+                        seed=current_seed,
+                        no_repeat_numbers=no_repeat_numbers,
+                        learning_data=combined_learning_data
+                    )
+                    
+                    # Process all results
+                    for i, result in enumerate(result_list):
+                        # Add metadata for saving
+                        result_dict = {
+                            'numbers': result.numbers,
+                            'confidence': result.confidence,
+                            'model_name': f"Ensemble ({len(model_weights)} models)",
+                            'prediction_type': result.prediction_type,
+                            'reasoning': result.reasoning,
+                            'generated_at': result.generated_at,
+                            'game': result.game,
+                            'models_used': model_weights,
+                            'variability_factor': variability_factor,
+                            'seed': current_seed if save_seed_with_predictions else None
+                        }
+                        results.append(result_dict)
                 
                 # Save predictions to disk
                 if results:
