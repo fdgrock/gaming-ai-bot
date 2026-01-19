@@ -748,7 +748,8 @@ def _render_ml_predictions() -> None:
                         num_predictions=num_predictions,
                         seed=current_seed,
                         no_repeat_numbers=no_repeat_numbers,
-                        learning_data=combined_learning_data
+                        learning_data=combined_learning_data,
+                        variability_factor=variability_factor
                     )
                     
                     # Process all results
@@ -789,7 +790,8 @@ def _render_ml_predictions() -> None:
                         num_predictions=num_predictions,
                         seed=current_seed,
                         no_repeat_numbers=no_repeat_numbers,
-                        learning_data=combined_learning_data
+                        learning_data=combined_learning_data,
+                        variability_factor=variability_factor
                     )
                     
                     # Process all results

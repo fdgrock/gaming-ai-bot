@@ -933,7 +933,7 @@ class SamplingStrategy:
     """Advanced sampling techniques for probability distributions."""
     
     @staticmethod
-    def gumbel_top_k(probs: np.ndarray, k: int, seed: int = None) -> Tuple[List[int], np.ndarray]:
+    def gumbel_top_k(probs: np.ndarray, k: int, seed: int = None, temperature: float = 1.0) -> Tuple[List[int], np.ndarray]:
         """
         Gumbel-Top-K Trick: Sample k unique items from a probability distribution.
         
@@ -941,10 +941,21 @@ class SamplingStrategy:
         This is the correct way to sample unique items from a categorical distribution.
         
         Algorithm:
-        1. For each number, compute: g_i = log(p_i) - log(-log(u_i))
+        1. For each number, compute: g_i = log(p_i) / temperature - log(-log(u_i))
            where u_i is uniform random in (0,1)
         2. Select the k numbers with highest g_i values
         3. These k numbers are guaranteed to be unique
+        
+        Temperature controls exploration vs exploitation:
+        - temperature = 1.0: Standard Gumbel sampling (balanced)
+        - temperature < 1.0: More greedy (exploitation, less diversity)
+        - temperature > 1.0: More random (exploration, more diversity)
+        
+        Args:
+            probs: Probability distribution over items
+            k: Number of items to sample
+            seed: Random seed for reproducibility
+            temperature: Controls exploration/exploitation (default 1.0)
         
         Returns:
             tuple: (sampled_numbers, sorted_probabilities_of_selected)
@@ -959,12 +970,15 @@ class SamplingStrategy:
         probs = np.array(probs).astype(float)
         probs = probs / probs.sum()
         
+        # Temperature clamping for numerical stability
+        temperature = max(0.1, min(10.0, temperature))  # Clamp to [0.1, 10.0]
+        
         # Gumbel noise
         uniform_noise = np.random.uniform(0, 1, len(probs))
         gumbel_noise = -np.log(-np.log(uniform_noise + 1e-10) + 1e-10)
         
-        # Log probabilities + Gumbel noise
-        log_probs = np.log(probs + 1e-10)
+        # Log probabilities + Gumbel noise (scaled by temperature)
+        log_probs = np.log(probs + 1e-10) / temperature
         scores = log_probs + gumbel_noise
         
         # Get top-k indices (numbers)
@@ -1120,7 +1134,8 @@ class PredictionEngine:
         num_predictions: int = 1,
         seed: int = None,
         no_repeat_numbers: bool = False,
-        learning_data: dict = None
+        learning_data: dict = None,
+        variability_factor: float = 10.0
     ) -> List[PredictionResult]:
         """
         Generate predictions using a single model with detailed logging.
@@ -1131,7 +1146,7 @@ class PredictionEngine:
         3. Enforce range constraints
         4. Apply learning data adjustments (if provided)
         5. Apply diversity penalties (if enabled)
-        6. Sample using Gumbel-Top-K
+        6. Sample using Gumbel-Top-K with temperature control
         
         Args:
             model_name: Name of the model to use
@@ -1140,9 +1155,18 @@ class PredictionEngine:
             seed: Random seed for reproducibility
             no_repeat_numbers: If True, minimize number repetition across sets
             learning_data: Optional dict with learning insights to boost/penalize numbers
+            variability_factor: Controls prediction diversity (0-30%). Higher = more variation.
+                              Maps to temperature: 0% → 0.7 (exploitation), 30% → 1.5 (exploration)
         """
         results = []
         trace = TraceLog()
+        
+        # Calculate temperature from variability_factor
+        # variability_factor: 0-30% maps to temperature: 0.7-1.5
+        # 0% = 0.7 (more greedy/exploitation)
+        # 10% = 1.0 (balanced, standard sampling)
+        # 30% = 1.5 (more random/exploration)
+        temperature = 0.7 + (variability_factor / 30.0) * 0.8
         
         # Initialize number usage tracking for diversity
         number_usage_count = {}
@@ -1158,7 +1182,7 @@ class PredictionEngine:
             trace.log('INFO', 'DIVERSITY', f'Number diversity mode enabled: {diversity_mode}')
         
         trace.log('INFO', 'STARTED', f'Single model prediction: {model_name}, health_score={health_score:.3f}')
-        trace.log('INFO', 'CONFIG', f'Game: {self.game}, Predictions: {num_predictions}')
+        trace.log('INFO', 'CONFIG', f'Game: {self.game}, Predictions: {num_predictions}, Variability: {variability_factor:.1f}%, Temperature: {temperature:.2f}')
         
         for pred_idx in range(num_predictions):
             # Use different seed for each prediction
@@ -1326,17 +1350,20 @@ class PredictionEngine:
                     trace.log('WARNING', 'DIVERSITY_FALLBACK', 'All numbers eliminated, using least-used')
                     final_probs = safeguarded_probs.copy()
             
-            # 4. Sample using Gumbel-Top-K
+            # 4. Sample using Gumbel-Top-K with temperature control
             sampled_numbers, selected_probs = self.sampling.gumbel_top_k(
                 final_probs,
                 k=self.game_config["main_numbers"],
-                seed=current_seed
+                seed=current_seed,
+                temperature=temperature
             )
             
-            trace.log('INFO', 'SAMPLING', f'Gumbel-Top-K sampling', {
+            trace.log('INFO', 'SAMPLING', f'Gumbel-Top-K sampling with temperature control', {
                 'numbers': sorted(sampled_numbers),
                 'probabilities': [float(f'{p:.6f}') for p in selected_probs],
-                'method': 'Gumbel-Top-K'
+                'method': 'Gumbel-Top-K',
+                'temperature': float(f'{temperature:.2f}'),
+                'variability_factor': float(f'{variability_factor:.1f}')
             })
             
             # Update number usage tracking for diversity
@@ -1394,7 +1421,8 @@ class PredictionEngine:
         num_predictions: int = 1,
         seed: int = None,
         no_repeat_numbers: bool = False,
-        learning_data: dict = None
+        learning_data: dict = None,
+        variability_factor: float = 10.0
     ) -> List[PredictionResult]:
         """
         Generate predictions using an ensemble of models with detailed logging.
@@ -1406,7 +1434,7 @@ class PredictionEngine:
         4. Apply divergence correction if needed
         5. Apply learning data adjustments (if provided)
         6. Apply diversity penalties (if enabled)
-        7. Sample using Gumbel-Top-K
+        7. Sample using Gumbel-Top-K with temperature control
         
         Args:
             model_weights: Dictionary of {model_name: health_score}
@@ -1414,12 +1442,21 @@ class PredictionEngine:
             seed: Random seed for reproducibility
             no_repeat_numbers: If True, minimize number repetition across sets
             learning_data: Optional dict with learning insights to boost/penalize numbers
+            variability_factor: Controls prediction diversity (0-30%). Higher = more variation.
+                              Maps to temperature: 0% → 0.7 (exploitation), 30% → 1.5 (exploration)
         """
         results = []
         trace = TraceLog()
         
         if not model_weights:
             raise ValueError("No models provided for ensemble")
+        
+        # Calculate temperature from variability_factor
+        # variability_factor: 0-30% maps to temperature: 0.7-1.5
+        # 0% = 0.7 (more greedy/exploitation)
+        # 10% = 1.0 (balanced, standard sampling)
+        # 30% = 1.5 (more random/exploration)
+        temperature = 0.7 + (variability_factor / 30.0) * 0.8
         
         # Initialize number usage tracking for diversity
         number_usage_count = {}
@@ -1435,7 +1472,7 @@ class PredictionEngine:
             trace.log('INFO', 'DIVERSITY', f'Number diversity mode enabled: {diversity_mode}')
         
         trace.log('INFO', 'STARTED', f'Ensemble prediction with {len(model_weights)} models')
-        trace.log('INFO', 'CONFIG', f'Game: {self.game}, Predictions: {num_predictions}', {
+        trace.log('INFO', 'CONFIG', f'Game: {self.game}, Predictions: {num_predictions}, Variability: {variability_factor:.1f}%, Temperature: {temperature:.2f}', {
             'models': list(model_weights.keys()),
             'health_scores': {k: float(f'{v:.3f}') for k, v in model_weights.items()}
         })
