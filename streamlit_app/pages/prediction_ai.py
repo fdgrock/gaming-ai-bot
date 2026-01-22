@@ -92,7 +92,8 @@ class AdaptiveLearningSystem:
                 'cold_penalty': 0.10,
                 'decade_coverage': 0.10,
                 'pattern_fingerprint': 0.08,
-                'position_weighting': 0.15
+                'position_weighting': 0.15,
+                'cluster_concentration': 0.00  # Phase 2: Starts at 0, grows with successful clusters
             },
             'weight_history': [],
             'factor_success_rates': {},
@@ -100,6 +101,9 @@ class AdaptiveLearningSystem:
             'anti_patterns': [],
             'strategy_performance': {},
             'file_combination_performance': {},
+            'number_cooccurrence': {},  # Phase 1: Track which numbers appear together in successful clusters
+            'cluster_history': [],  # Phase 1: Track detected winning number clusters
+            'cluster_success_rate': 0.0,  # Phase 2: Track success rate of cluster-based predictions
             'temporal_decay_rate': 0.95,  # 5% decay per draw age
             'last_updated': datetime.now().isoformat(),
             'total_learning_cycles': 0
@@ -287,6 +291,370 @@ class AdaptiveLearningSystem:
             else:
                 zones['high'] += 1
         return zones
+    
+    def detect_winning_clusters(self, ranked_predictions: List[Tuple[float, List[int]]], 
+                                winning_numbers: List[int], 
+                                top_n: int = 5) -> Dict[str, Any]:
+        """
+        Phase 1: Detect when top-N predictions collectively contain all/most winning numbers.
+        This identifies 'near-perfect clusters' where the AI got close but fragmented.
+        
+        Args:
+            ranked_predictions: List of (score, numbers) tuples sorted by score
+            winning_numbers: Actual winning numbers from draw
+            top_n: Number of top predictions to analyze for clusters
+        
+        Returns:
+            Dictionary with cluster detection results and co-occurrence data
+        """
+        if not ranked_predictions or not winning_numbers:
+            return {'cluster_detected': False}
+        
+        # Analyze top N predictions
+        top_predictions = ranked_predictions[:top_n]
+        
+        # Collect all unique numbers from top predictions
+        combined_numbers = set()
+        for score, numbers in top_predictions:
+            combined_numbers.update(numbers)
+        
+        # Calculate coverage
+        winning_set = set(winning_numbers)
+        covered_winners = combined_numbers & winning_set
+        coverage_count = len(covered_winners)
+        coverage_percent = (coverage_count / len(winning_numbers)) * 100
+        
+        # Detect cluster: 85%+ coverage (6/7 for Lotto Max, 5/6 for Lotto 649)
+        cluster_threshold = int(len(winning_numbers) * 0.85)
+        is_cluster = coverage_count >= cluster_threshold
+        
+        cluster_result = {
+            'cluster_detected': is_cluster,
+            'cluster_threshold': cluster_threshold,
+            'total_winners': len(winning_numbers),
+            'top_n': top_n,
+            'coverage_count': coverage_count,
+            'coverage_percent': coverage_percent,
+            'covered_winners': sorted(list(covered_winners)),
+            'missing_winners': sorted(list(winning_set - covered_winners)),
+            'timestamp': datetime.now().isoformat(),
+            'individual_matches': []
+        }
+        
+        # Track individual set matches
+        for idx, (score, numbers) in enumerate(top_predictions, 1):
+            matches = set(numbers) & winning_set
+            cluster_result['individual_matches'].append({
+                'rank': idx,
+                'match_count': len(matches),
+                'matched_numbers': sorted(list(matches)),
+                'score': float(score)
+            })
+        
+        # If cluster detected, update co-occurrence matrix
+        if is_cluster:
+            self._update_cooccurrence_matrix(covered_winners)
+            
+            # Store cluster in history
+            self.meta_learning_data['cluster_history'].append(cluster_result)
+            
+            # Keep only last 100 clusters
+            if len(self.meta_learning_data['cluster_history']) > 100:
+                self.meta_learning_data['cluster_history'] = \
+                    self.meta_learning_data['cluster_history'][-100:]
+            
+            self._save_meta_learning()
+        
+        return cluster_result
+    
+    def update_cluster_concentration_weight(self, cluster_coverage: int, total_winners: int = 7):
+        """
+        Phase 2: Update cluster_concentration weight based on cluster detection success.
+        The more winners covered in clusters, the higher this weight becomes.
+        
+        Args:
+            cluster_coverage: Number of winning numbers found in top-N cluster
+            total_winners: Total winning numbers (7 for Lotto Max, 6 for Lotto 649)
+        """
+        # Ensure Phase 2 keys exist
+        if 'cluster_concentration' not in self.meta_learning_data['factor_weights']:
+            self.meta_learning_data['factor_weights']['cluster_concentration'] = 0.0
+        if 'cluster_success_rate' not in self.meta_learning_data:
+            self.meta_learning_data['cluster_success_rate'] = 0.0
+        
+        # Calculate success rate for this cluster
+        coverage_rate = cluster_coverage / total_winners
+        
+        # Update rolling success rate (exponential moving average)
+        current_success = self.meta_learning_data['cluster_success_rate']
+        alpha = 0.2  # Learning rate
+        new_success = (alpha * coverage_rate) + ((1 - alpha) * current_success)
+        self.meta_learning_data['cluster_success_rate'] = new_success
+        
+        # Update cluster_concentration weight based on success rate
+        # Starts at 0.0, can grow to max 0.20 (20%) based on consistent cluster success
+        max_weight = 0.20
+        new_weight = min(max_weight, new_success * max_weight)
+        
+        self.meta_learning_data['factor_weights']['cluster_concentration'] = new_weight
+        self._save_meta_learning()
+        
+        return new_weight
+    
+    def get_number_cooccurrence_boost(self, current_set: List[int], candidate_num: int) -> float:
+        """
+        Phase 2: Calculate boost factor for a candidate number based on co-occurrence
+        with numbers already in the current set.
+        
+        Args:
+            current_set: Numbers already selected for this set
+            candidate_num: Number being considered for addition
+            
+        Returns:
+            Boost multiplier (1.0 = no boost, >1.0 = boost)
+        """
+        # Ensure Phase 1/2 keys exist
+        if 'number_cooccurrence' not in self.meta_learning_data:
+            return 1.0
+        if 'cluster_concentration' not in self.meta_learning_data['factor_weights']:
+            return 1.0
+        
+        concentration_weight = self.meta_learning_data['factor_weights']['cluster_concentration']
+        
+        # If weight is zero, no boosting
+        if concentration_weight == 0.0:
+            return 1.0
+        
+        # Calculate average co-occurrence strength with numbers in current set
+        total_strength = 0.0
+        count = 0
+        
+        for num in current_set:
+            strength = self.get_cooccurrence_strength(num, candidate_num)
+            if strength > 0:
+                total_strength += strength
+                count += 1
+        
+        if count == 0:
+            return 1.0
+        
+        avg_strength = total_strength / count
+        
+        # Convert strength to boost multiplier scaled by concentration weight
+        # avg_strength ranges 0-1, concentration_weight ranges 0-0.20
+        # Result: boost ranges from 1.0 (no boost) to 1.5 (50% boost at max)
+        boost = 1.0 + (avg_strength * concentration_weight * 2.5)
+        
+        return boost
+    
+    def generate_fusion_sets(self, predictions: List[List[int]], 
+                            prob_values: np.ndarray,
+                            draw_size: int,
+                            num_fusion_sets: int = 2,
+                            top_n_to_analyze: int = 5) -> List[Dict[str, Any]]:
+        """
+        Phase 3: Generate fusion sets by intelligently combining numbers from top-ranked predictions.
+        
+        This creates concentrated sets that merge the best numbers from multiple high-scoring
+        predictions, addressing the fragmentation problem.
+        
+        Args:
+            predictions: All generated prediction sets
+            prob_values: Ensemble probability values for all numbers
+            draw_size: How many numbers per set
+            num_fusion_sets: Number of fusion sets to generate
+            top_n_to_analyze: Number of top predictions to analyze for fusion
+            
+        Returns:
+            List of fusion set dictionaries with numbers and metadata
+        """
+        from collections import Counter
+        
+        # Ensure cluster concentration is meaningful before generating fusion sets
+        concentration_weight = self.meta_learning_data['factor_weights'].get('cluster_concentration', 0.0)
+        
+        if concentration_weight < 0.05:  # Less than 5% - not enough evidence yet
+            return []
+        
+        fusion_sets = []
+        
+        # Analyze top N predictions
+        top_predictions = predictions[:min(top_n_to_analyze, len(predictions))]
+        
+        for fusion_idx in range(num_fusion_sets):
+            # Strategy varies by fusion set index
+            if fusion_idx == 0:
+                # Fusion Set 1: Highest co-occurrence numbers from top predictions
+                fusion_set = self._create_cooccurrence_fusion(top_predictions, prob_values, draw_size)
+                strategy = "Co-occurrence Fusion"
+            else:
+                # Fusion Set 2+: Frequency-based fusion with diversity
+                fusion_set = self._create_frequency_fusion(top_predictions, prob_values, draw_size, fusion_sets)
+                strategy = "Frequency-Diversity Fusion"
+            
+            if fusion_set and len(fusion_set) == draw_size:
+                fusion_sets.append({
+                    'numbers': fusion_set,
+                    'fusion_strategy': strategy,
+                    'source_sets': top_n_to_analyze,
+                    'concentration_weight': concentration_weight
+                })
+        
+        return fusion_sets
+    
+    def _create_cooccurrence_fusion(self, top_predictions: List[List[int]], 
+                                     prob_values: np.ndarray, 
+                                     draw_size: int) -> List[int]:
+        """
+        Phase 3: Create fusion set prioritizing numbers with highest co-occurrence.
+        """
+        from collections import defaultdict
+        
+        # Score each number by its total co-occurrence strength with others in top predictions
+        number_scores = defaultdict(float)
+        all_numbers = set()
+        
+        for pred in top_predictions:
+            all_numbers.update(pred)
+        
+        for num in all_numbers:
+            # Calculate total co-occurrence score
+            total_cooccurrence = 0.0
+            
+            for pred in top_predictions:
+                if num in pred:
+                    # Add co-occurrence strength with all other numbers in this prediction
+                    for other_num in pred:
+                        if other_num != num:
+                            strength = self.get_cooccurrence_strength(num, other_num)
+                            total_cooccurrence += strength
+            
+            # Also factor in ensemble probability
+            prob = prob_values[num - 1] if 0 <= num - 1 < len(prob_values) else 0.0
+            
+            # Combined score: 70% co-occurrence, 30% probability
+            number_scores[num] = (total_cooccurrence * 0.7) + (prob * 0.3)
+        
+        # Select top draw_size numbers by score
+        sorted_numbers = sorted(number_scores.items(), key=lambda x: x[1], reverse=True)
+        fusion_set = [num for num, score in sorted_numbers[:draw_size]]
+        
+        return sorted(fusion_set)
+    
+    def _create_frequency_fusion(self, top_predictions: List[List[int]], 
+                                  prob_values: np.ndarray, 
+                                  draw_size: int,
+                                  existing_fusion_sets: List[Dict]) -> List[int]:
+        """
+        Phase 3: Create fusion set using frequency in top predictions plus diversity.
+        """
+        from collections import Counter
+        
+        # Count frequency of each number in top predictions
+        all_numbers = []
+        for pred in top_predictions:
+            all_numbers.extend(pred)
+        
+        number_frequency = Counter(all_numbers)
+        
+        # Remove numbers already used in existing fusion sets to ensure diversity
+        for fusion_dict in existing_fusion_sets:
+            for num in fusion_dict['numbers']:
+                if num in number_frequency:
+                    del number_frequency[num]
+        
+        if len(number_frequency) < draw_size:
+            # Not enough diverse numbers, return empty
+            return []
+        
+        # Score by frequency and probability
+        number_scores = {}
+        max_freq = max(number_frequency.values()) if number_frequency else 1
+        
+        for num, freq in number_frequency.items():
+            freq_score = freq / max_freq
+            prob = prob_values[num - 1] if 0 <= num - 1 < len(prob_values) else 0.0
+            
+            # Combined score: 60% frequency, 40% probability
+            number_scores[num] = (freq_score * 0.6) + (prob * 0.4)
+        
+        # Select top draw_size numbers
+        sorted_numbers = sorted(number_scores.items(), key=lambda x: x[1], reverse=True)
+        fusion_set = [num for num, score in sorted_numbers[:draw_size]]
+        
+        return sorted(fusion_set)
+    
+    def _update_cooccurrence_matrix(self, numbers: set):
+        """
+        Phase 1: Update number co-occurrence matrix.
+        Tracks which numbers appear together in successful clusters.
+        
+        Args:
+            numbers: Set of numbers that appeared together in a successful cluster
+        """
+        # Ensure Phase 1 keys exist (backward compatibility with legacy meta-learning files)
+        if 'number_cooccurrence' not in self.meta_learning_data:
+            self.meta_learning_data['number_cooccurrence'] = {}
+        if 'cluster_history' not in self.meta_learning_data:
+            self.meta_learning_data['cluster_history'] = []
+        
+        numbers_list = sorted(list(numbers))
+        
+        # Update pairwise co-occurrence
+        for i, num1 in enumerate(numbers_list):
+            for num2 in numbers_list[i+1:]:
+                # Create symmetric keys
+                key1 = f"{num1}_{num2}"
+                key2 = f"{num2}_{num1}"
+                
+                # Increment co-occurrence count
+                if key1 not in self.meta_learning_data['number_cooccurrence']:
+                    self.meta_learning_data['number_cooccurrence'][key1] = 0
+                
+                self.meta_learning_data['number_cooccurrence'][key1] += 1
+                
+                # Ensure symmetric entry exists
+                if key2 not in self.meta_learning_data['number_cooccurrence']:
+                    self.meta_learning_data['number_cooccurrence'][key2] = \
+                        self.meta_learning_data['number_cooccurrence'][key1]
+    
+    def get_cooccurrence_strength(self, num1: int, num2: int) -> float:
+        """
+        Phase 1: Get co-occurrence strength between two numbers.
+        
+        Returns:
+            Float between 0.0 and 1.0 indicating how often these numbers
+            appear together in successful clusters (normalized)
+        """
+        # Ensure Phase 1 keys exist (backward compatibility)
+        if 'number_cooccurrence' not in self.meta_learning_data:
+            return 0.0
+        
+        key = f"{min(num1, num2)}_{max(num1, num2)}"
+        count = self.meta_learning_data['number_cooccurrence'].get(key, 0)
+        
+        # Normalize by total clusters
+        total_clusters = len(self.meta_learning_data.get('cluster_history', []))
+        if total_clusters == 0:
+            return 0.0
+        
+        # Return normalized strength (capped at 1.0)
+        return min(1.0, count / max(1, total_clusters))
+    
+    def get_top_cooccurrences(self, top_n: int = 20) -> List[Tuple[str, int]]:
+        """
+        Phase 1: Get top N number pairs by co-occurrence count.
+        
+        Returns:
+            List of (number_pair_key, count) tuples sorted by count
+        """
+        # Ensure Phase 1 keys exist (backward compatibility)
+        if 'number_cooccurrence' not in self.meta_learning_data:
+            return []
+        
+        cooccurrence = self.meta_learning_data.get('number_cooccurrence', {})
+        sorted_pairs = sorted(cooccurrence.items(), key=lambda x: x[1], reverse=True)
+        return sorted_pairs[:top_n]
     
     def penalize_anti_patterns(self, prediction: List[int]) -> float:
         """
@@ -1767,7 +2135,7 @@ understanding that lottery outcomes remain random and unpredictable.
     
     def generate_prediction_sets_advanced(self, num_sets: int, optimal_analysis: Dict[str, Any],
                                         model_analysis: Dict[str, Any], learning_data: Dict[str, Any] = None,
-                                        no_repeat_numbers: bool = False) -> tuple:
+                                        no_repeat_numbers: bool = False, use_adaptive_learning: bool = True) -> tuple:
         """
         Generate AI-optimized prediction sets using REAL MODEL PROBABILITIES from ensemble inference.
         
@@ -1777,12 +2145,14 @@ understanding that lottery outcomes remain random and unpredictable.
             model_analysis: Model analysis results
             learning_data: Optional learning data to enhance predictions with historical insights
             no_repeat_numbers: If True, minimize number repetition across sets for maximum diversity
+            use_adaptive_learning: If True, use AdaptiveLearningSystem with evolved weights (default: True)
         
         Returns:
-            Tuple of (predictions, strategy_report, predictions_with_attribution) where:
+            Tuple of (predictions, strategy_report, predictions_with_attribution, strategy_log) where:
             - predictions: List of prediction sets
             - strategy_report: Description of strategies used
             - predictions_with_attribution: Detailed model attribution per set
+            - strategy_log: Dictionary with detailed strategy execution data
         
         This method:
         1. Uses real ensemble probabilities from model inference
@@ -1834,16 +2204,11 @@ understanding that lottery outcomes remain random and unpredictable.
         number_usage_count = {}  # Track how many times each number has been used
         total_possible_unique_sets = max_number // draw_size  # Rough estimate
         
-        # Determine diversity strategy based on num_sets
+        # Determine initial diversity strategy - will be dynamically updated per set
         if no_repeat_numbers:
-            if num_sets <= total_possible_unique_sets:
-                # Phase 1: Pure uniqueness - no repeats at all
-                diversity_mode = "pure_unique"
-                strategy_log["diversity_mode"] = "Pure Uniqueness (no number repeats)"
-            else:
-                # Phase 2: Intelligent calibration - minimize repeats, prioritize unused numbers
-                diversity_mode = "calibrated_diversity"
-                strategy_log["diversity_mode"] = "Calibrated Diversity (minimize repeats)"
+            # Start with pure uniqueness, will transition to calibrated when needed
+            diversity_mode = "pure_unique"
+            strategy_log["diversity_mode"] = "Dynamic (Pure Uniqueness → Calibrated Diversity)"
         else:
             diversity_mode = "standard"
             strategy_log["diversity_mode"] = "Standard (probability-based)"
@@ -1866,45 +2231,52 @@ understanding that lottery outcomes remain random and unpredictable.
         # ===== ENHANCE WITH LEARNING DATA IF AVAILABLE =====
         adaptive_system = None
         if learning_data:
-            # Initialize adaptive learning system for this game
-            adaptive_system = AdaptiveLearningSystem(self.game)
-            
-            # Get current adaptive weights
-            adaptive_weights = adaptive_system.get_adaptive_weights(draw_age=0)
-            total_cycles = adaptive_system.meta_learning_data.get('total_learning_cycles', 0)
-            
-            # Add to strategy log
-            strategy_log['adaptive_learning_enabled'] = True
-            strategy_log['learning_cycles'] = total_cycles
-            strategy_log['adaptive_weights'] = adaptive_weights
-            
-            # Extract learning insights
+            # Extract learning insights (used by both adaptive and static)
             hot_numbers_learning = learning_data.get('analysis', {}).get('number_frequency', {})
             position_accuracy = learning_data.get('analysis', {}).get('position_accuracy', {})
             cold_numbers_learning = learning_data.get('analysis', {}).get('cold_numbers', [])
             target_sum = learning_data.get('avg_sum', 0)
             sum_range = learning_data.get('sum_range', {'min': 0, 'max': 999})
             
-            # Apply ADAPTIVE weight boosting based on hot_numbers factor weight
-            hot_numbers_weight = adaptive_weights.get('hot_numbers', 0.12)
+            if use_adaptive_learning:
+                # Initialize adaptive learning system for this game
+                adaptive_system = AdaptiveLearningSystem(self.game)
+                
+                # Get current adaptive weights
+                adaptive_weights = adaptive_system.get_adaptive_weights(draw_age=0)
+                total_cycles = adaptive_system.meta_learning_data.get('total_learning_cycles', 0)
+                
+                # Add to strategy log
+                strategy_log['adaptive_learning_enabled'] = True
+                strategy_log['learning_cycles'] = total_cycles
+                strategy_log['adaptive_weights'] = adaptive_weights
+                
+                # Apply ADAPTIVE weight boosting based on hot_numbers factor weight
+                hot_numbers_weight = adaptive_weights.get('hot_numbers', 0.12)
+                cold_penalty_weight = adaptive_weights.get('cold_penalty', 0.10)
+            else:
+                # Use static learning weights when adaptive is disabled
+                strategy_log['adaptive_learning_enabled'] = False
+                strategy_log['static_learning_used'] = True
+                
+                # Use fixed default weights
+                hot_numbers_weight = 0.15
+                cold_penalty_weight = 0.12
             
-            # Boost probabilities for hot numbers from learning with ADAPTIVE strength
+            # Boost probabilities for hot numbers from learning
             if hot_numbers_learning:
                 for num_str, freq_data in hot_numbers_learning.items():
                     try:
                         num_idx = int(num_str) - 1
                         if 0 <= num_idx < max_number:
                             freq = freq_data.get('frequency', freq_data) if isinstance(freq_data, dict) else freq_data
-                            # Use adaptive weight to determine boost strength
-                            boost_factor = 1.0 + (float(freq) * hot_numbers_weight)  # Scaled by adaptive weight
+                            # Use learning weight to determine boost strength
+                            boost_factor = 1.0 + (float(freq) * hot_numbers_weight)
                             prob_values[num_idx] *= boost_factor
                     except (ValueError, KeyError, TypeError):
                         continue
             
-            # Apply ADAPTIVE cold number penalty based on cold_penalty factor weight
-            cold_penalty_weight = adaptive_weights.get('cold_penalty', 0.10)
-            
-            # Penalize cold numbers with ADAPTIVE strength
+            # Penalize cold numbers with learning strength
             if cold_numbers_learning:
                 for num in cold_numbers_learning:
                     try:
@@ -1962,7 +2334,17 @@ understanding that lottery outcomes remain random and unpredictable.
             adjusted_probs = softmax(scaled_log_probs)
             
             # ===== APPLY NUMBER DIVERSITY PENALTY IF ENABLED =====
-            if no_repeat_numbers and number_usage_count:
+            if no_repeat_numbers:
+                # Dynamically determine diversity mode based on available unused numbers
+                unused_numbers_count = max_number - len(number_usage_count)
+                
+                if unused_numbers_count >= draw_size:
+                    # Still have enough unused numbers for a complete unique set
+                    diversity_mode = "pure_unique"
+                else:
+                    # Not enough unused numbers, switch to calibrated diversity
+                    diversity_mode = "calibrated_diversity"
+                
                 # Calculate penalty for each number based on usage
                 diversity_adjusted_probs = adjusted_probs.copy()
                 
@@ -1991,6 +2373,36 @@ understanding that lottery outcomes remain random and unpredictable.
                         if number_usage_count.get(num, 0) == min_usage:
                             adjusted_probs[num - 1] = prob_values[num - 1]
                     adjusted_probs = adjusted_probs / np.sum(adjusted_probs)
+            
+            # ===== PHASE 2: APPLY CO-OCCURRENCE CONCENTRATION BOOSTING =====
+            # If adaptive learning is enabled and we have cluster history, boost co-occurring numbers
+            if adaptive_system and set_idx > 0:  # Skip first set, no prior numbers to correlate
+                concentration_applied = False
+                concentration_weight = adaptive_system.meta_learning_data['factor_weights'].get('cluster_concentration', 0.0)
+                
+                if concentration_weight > 0.01:  # Only apply if weight is meaningful
+                    # Get numbers from previous sets to build correlation context
+                    recent_numbers = []
+                    lookback = min(3, set_idx)  # Look at last 3 sets
+                    for prev_idx in range(max(0, set_idx - lookback), set_idx):
+                        recent_numbers.extend(predictions[prev_idx])
+                    
+                    if recent_numbers:
+                        # Apply co-occurrence boost to probabilities
+                        cooccurrence_adjusted_probs = adjusted_probs.copy()
+                        
+                        for num in range(1, max_number + 1):
+                            boost = adaptive_system.get_number_cooccurrence_boost(recent_numbers, num)
+                            if boost > 1.0:
+                                cooccurrence_adjusted_probs[num - 1] *= boost
+                                concentration_applied = True
+                        
+                        # Re-normalize after co-occurrence boosting
+                        if concentration_applied:
+                            prob_sum = np.sum(cooccurrence_adjusted_probs)
+                            if prob_sum > 0:
+                                adjusted_probs = cooccurrence_adjusted_probs / prob_sum
+                                strategy_log['phase2_concentration_applied'] = strategy_log.get('phase2_concentration_applied', 0) + 1
             
             selected_numbers = None
             strategy_used = None
@@ -2027,7 +2439,7 @@ understanding that lottery outcomes remain random and unpredictable.
                     # Fallback using explicit hot/cold analysis
                     try:
                         # Sample hot numbers with higher probability
-                        hot_probs = prob_values[hot_numbers - 1]
+                        hot_probs = adjusted_probs[hot_numbers - 1]
                         hot_probs = hot_probs / np.sum(hot_probs)  # Normalize
                         selected_hot = np.random.choice(
                             hot_numbers,
@@ -2040,7 +2452,7 @@ understanding that lottery outcomes remain random and unpredictable.
                         remaining_count = draw_size - len(selected_hot)
                         available_warm = [n for n in warm_numbers if n not in selected_hot]
                         if len(available_warm) >= remaining_count:
-                            warm_probs = prob_values[np.array(available_warm) - 1]
+                            warm_probs = adjusted_probs[np.array(available_warm) - 1]
                             warm_probs = warm_probs / np.sum(warm_probs)
                             selected_warm = np.random.choice(
                                 available_warm,
@@ -2071,7 +2483,7 @@ understanding that lottery outcomes remain random and unpredictable.
                         except Exception:
                             # ===== STRATEGY 4: TOP-K FROM ENSEMBLE PROBABILITIES =====
                             # Last resort: deterministic top-k from ensemble probabilities
-                            top_k_indices = np.argsort(prob_values)[-draw_size:]
+                            top_k_indices = np.argsort(adjusted_probs)[-draw_size:]
                             selected_numbers = sorted([i + 1 for i in top_k_indices])
                             strategy_used = "Deterministic Top-K from Ensemble"
                             strategy_log["strategy_4_topk"] += 1
@@ -2136,7 +2548,65 @@ understanding that lottery outcomes remain random and unpredictable.
         # Generate comprehensive strategy report
         strategy_report = self._generate_strategy_report(strategy_log, distribution_method)
         
-        return predictions, strategy_report, predictions_with_attribution
+        # ===== PHASE 3: CLUSTER FUSION STRATEGY =====
+        # Generate fusion sets from top-ranked predictions if adaptive learning is active
+        if adaptive_system and len(predictions) >= 5:
+            concentration_weight = adaptive_system.meta_learning_data['factor_weights'].get('cluster_concentration', 0.0)
+            
+            if concentration_weight >= 0.05:  # Only if we have enough cluster learning (5%+)
+                # Rank predictions by learning score to identify top performers
+                if learning_data:
+                    ranked_predictions = []
+                    for idx, pred_set in enumerate(predictions):
+                        score = _calculate_learning_score_advanced(
+                            pred_set, learning_data, adaptive_system, draw_age=0
+                        )
+                        ranked_predictions.append((score, pred_set, idx))
+                    
+                    # Sort by score descending
+                    ranked_predictions.sort(key=lambda x: x[0], reverse=True)
+                    ranked_numbers = [pred_set for score, pred_set, idx in ranked_predictions]
+                else:
+                    # No learning data, use original order
+                    ranked_numbers = predictions
+                
+                # Generate fusion sets
+                fusion_sets = adaptive_system.generate_fusion_sets(
+                    predictions=ranked_numbers,
+                    prob_values=prob_values,
+                    draw_size=draw_size,
+                    num_fusion_sets=min(2, num_sets // 10),  # Generate 1-2 fusion sets based on total
+                    top_n_to_analyze=5
+                )
+                
+                if fusion_sets:
+                    # Insert fusion sets at the top of predictions
+                    for fusion_dict in reversed(fusion_sets):  # Reversed to maintain order
+                        fusion_numbers = fusion_dict['numbers']
+                        
+                        # Add to predictions at the beginning
+                        predictions.insert(0, fusion_numbers)
+                        
+                        # Add to attribution
+                        predictions_with_attribution.insert(0, {
+                            'numbers': fusion_numbers,
+                            'model_attribution': {},  # Fusion sets don't have direct model attribution
+                            'strategy': f"Phase 3 Cluster Fusion: {fusion_dict['fusion_strategy']}",
+                            'fusion_metadata': fusion_dict
+                        })
+                    
+                    # Update strategy log
+                    strategy_log['phase3_fusion_sets_generated'] = len(fusion_sets)
+                    strategy_log['fusion_concentration_weight'] = concentration_weight
+                    
+                    # Update strategy report
+                    fusion_report = f"\n\n🎯 **Phase 3: Cluster Fusion Strategy**\n"
+                    fusion_report += f"Generated {len(fusion_sets)} fusion set(s) from top 5 predictions\n"
+                    fusion_report += f"Concentration Weight: {concentration_weight:.1%}\n"
+                    fusion_report += f"These sets combine the most successful number patterns from multiple high-scoring predictions.\n"
+                    strategy_report += fusion_report
+        
+        return predictions, strategy_report, predictions_with_attribution, strategy_log
     
     def _generate_strategy_report(self, strategy_log: Dict[str, Any], distribution_method: str) -> str:
         """
@@ -3134,6 +3604,8 @@ def _render_prediction_generator(analyzer: SuperIntelligentAIAnalyzer) -> None:
     # Initialize session state for new controls
     if 'sia_use_learning' not in st.session_state:
         st.session_state.sia_use_learning = False
+    if 'sia_use_adaptive_learning' not in st.session_state:
+        st.session_state.sia_use_adaptive_learning = True  # Default to True
     if 'sia_selected_learning_files' not in st.session_state:
         st.session_state.sia_selected_learning_files = []
     if 'sia_use_custom_quantity' not in st.session_state:
@@ -3206,6 +3678,22 @@ def _render_prediction_generator(analyzer: SuperIntelligentAIAnalyzer) -> None:
                 st.info(f"✅ Selected {len(selected_learning_indices)} learning file(s) to incorporate into generation")
             else:
                 st.warning("⚠️ No learning files selected. Predictions will be generated without learning insights.")
+            
+            # Adaptive Learning Toggle (shown when learning files are selected)
+            if selected_learning_indices:
+                st.markdown("#### 🧬 Adaptive Learning Mode")
+                use_adaptive_learning = st.checkbox(
+                    "Enable Adaptive Learning",
+                    value=st.session_state.sia_use_adaptive_learning,
+                    key="sia_use_adaptive_learning_checkbox",
+                    help="Use evolved intelligence with adaptive weights based on historical success patterns. When disabled, uses static learning weights (15% hot, 12% cold)."
+                )
+                st.session_state.sia_use_adaptive_learning = use_adaptive_learning
+                
+                if use_adaptive_learning:
+                    st.success("🧬 Adaptive learning enabled - using evolved weights from meta-learning")
+                else:
+                    st.info("📊 Static learning enabled - using fixed weight values")
         else:
             st.warning(f"⚠️ No learning files found for {analyzer.game}. Generate predictions first and analyze them in the Deep Learning & Analytics tab to create learning data.")
             st.session_state.sia_use_learning = False
@@ -3300,6 +3788,9 @@ def _render_prediction_generator(analyzer: SuperIntelligentAIAnalyzer) -> None:
     if st.button("🚀 Generate AI-Optimized Prediction Sets", use_container_width=True, key="gen_pred_btn", help="Generate precisely calculated sets for maximum winning probability"):
         with st.spinner(f"🤖 Generating {final_sets} AI-optimized prediction sets using deep learning..."):
             try:
+                # Get adaptive learning setting (only relevant when learning is enabled)
+                use_adaptive_learning = st.session_state.get('sia_use_adaptive_learning', True)
+                
                 # ===== LOAD LEARNING FILES IF ENABLED =====
                 learning_data = None
                 learning_file_paths = []
@@ -3318,26 +3809,29 @@ def _render_prediction_generator(analyzer: SuperIntelligentAIAnalyzer) -> None:
                 # Pass learning data to generation if available
                 if learning_data:
                     # Generate with learning-enhanced algorithm
-                    predictions, strategy_report, predictions_with_attribution = analyzer.generate_prediction_sets_advanced(
+                    predictions, strategy_report, predictions_with_attribution, strategy_log = analyzer.generate_prediction_sets_advanced(
                         final_sets, 
                         optimal, 
                         analysis,
                         learning_data=learning_data,
-                        no_repeat_numbers=no_repeat_numbers
+                        no_repeat_numbers=no_repeat_numbers,
+                        use_adaptive_learning=use_adaptive_learning
                     )
                 else:
                     # Generate normally without learning
-                    predictions, strategy_report, predictions_with_attribution = analyzer.generate_prediction_sets_advanced(
+                    predictions, strategy_report, predictions_with_attribution, strategy_log = analyzer.generate_prediction_sets_advanced(
                         final_sets, 
                         optimal, 
                         analysis,
-                        no_repeat_numbers=no_repeat_numbers
+                        no_repeat_numbers=no_repeat_numbers,
+                        use_adaptive_learning=False
                     )
                 
                 # Save to session and file with attribution data
                 st.session_state.sia_predictions = predictions
                 st.session_state.sia_strategy_report = strategy_report
                 st.session_state.sia_predictions_with_attribution = predictions_with_attribution
+                st.session_state.sia_strategy_log = strategy_log
                 
                 # Add learning metadata to saved file
                 if learning_data:
@@ -3356,12 +3850,13 @@ def _render_prediction_generator(analyzer: SuperIntelligentAIAnalyzer) -> None:
                     st.balloons()
                     
                     # Check if adaptive learning was used
-                    if strategy_log.get('adaptive_learning_enabled'):
-                        learning_cycles = strategy_log.get('learning_cycles', 0)
+                    stored_strategy_log = st.session_state.get('sia_strategy_log', {})
+                    if stored_strategy_log.get('adaptive_learning_enabled'):
+                        learning_cycles = stored_strategy_log.get('learning_cycles', 0)
                         st.success(f"🧬 **Adaptive Learning Applied:** Using evolved intelligence from {learning_cycles} learning cycles")
                         
                         # Show adaptive weights summary
-                        adaptive_weights = strategy_log.get('adaptive_weights', {})
+                        adaptive_weights = stored_strategy_log.get('adaptive_weights', {})
                         if adaptive_weights:
                             top_3_factors = sorted(adaptive_weights.items(), key=lambda x: x[1], reverse=True)[:3]
                             factors_str = ", ".join([f"{name.replace('_', ' ').title()}: {weight:.1%}" for name, weight in top_3_factors])
@@ -4171,8 +4666,17 @@ def _display_main_numbers_comparison(prediction_data: Dict[str, Any], winning_nu
     # Sort by match count (highest first)
     matches_found.sort(key=lambda x: (x['match_count'], x['has_bonus']), reverse=True)
     
+    # === PHASE 1: CLUSTER DETECTION ===
+    # Analyze top 5 predictions for cluster patterns
+    top_5_numbers = set()
+    for match_data in matches_found[:5]:
+        top_5_numbers.update(match_data['numbers'])
+    
+    cluster_coverage = len(top_5_numbers & set(winning_numbers))
+    cluster_detected = cluster_coverage >= 6
+    
     # Display statistics
-    col1, col2, col3, col4 = st.columns(4)
+    col1, col2, col3, col4, col5 = st.columns(5)
     with col1:
         st.metric("Total Sets", len(predictions))
     with col2:
@@ -4184,6 +4688,31 @@ def _display_main_numbers_comparison(prediction_data: Dict[str, Any], winning_nu
     with col4:
         avg_match = sum(m['match_count'] for m in matches_found) / len(matches_found) if matches_found else 0
         st.metric("Avg Match", f"{avg_match:.1f}/7")
+    with col5:
+        if cluster_detected:
+            st.metric("🎯 Cluster", f"{cluster_coverage}/{len(winning_numbers)}", delta="Detected!", delta_color="normal")
+        else:
+            st.metric("Cluster", f"{cluster_coverage}/{len(winning_numbers)}")
+    
+    # === PHASE 1: DISPLAY CLUSTER ALERT ===
+    if cluster_detected:
+        st.success(f"""🎯 **Winning Number Cluster Detected!**  
+        Your top 5 predictions collectively contain **{cluster_coverage} out of {len(winning_numbers)}** winning numbers!  
+        The AI was very close but fragmented the numbers across multiple sets.  
+        📚 This pattern will be learned to improve concentration in future predictions.""")
+        
+        # Show which numbers were in the cluster
+        covered = sorted(list(top_5_numbers & set(winning_numbers)))
+        missing = sorted(list(set(winning_numbers) - top_5_numbers))
+        
+        col_covered, col_missing = st.columns(2)
+        with col_covered:
+            st.markdown(f"**✅ Covered in Top 5:** {', '.join(map(str, covered))}")
+        with col_missing:
+            if missing:
+                st.markdown(f"**❌ Missing:** {', '.join(map(str, missing))}")
+            else:
+                st.markdown("**✅ All numbers covered!**")
     
     st.divider()
     
@@ -5171,6 +5700,33 @@ def _render_previous_draw_mode(analyzer: SuperIntelligentAIAnalyzer, game: str) 
                         winning_numbers=actual_results
                     )
                     
+                    # === PHASE 1: CLUSTER DETECTION ===
+                    # Detect if top predictions collectively contain winning numbers
+                    # Convert sorted_predictions to the format expected by detect_winning_clusters
+                    ranked_for_cluster = []
+                    for pred in sorted_predictions:
+                        # Extract just the numbers (not the metadata)
+                        numbers = [n['number'] for n in pred['numbers']]
+                        # Create (score, numbers) tuple - use correct_count as score
+                        score = pred['correct_count'] / len(actual_results['numbers'])
+                        ranked_for_cluster.append((score, numbers))
+                    
+                    cluster_result = adaptive_system.detect_winning_clusters(
+                        ranked_predictions=ranked_for_cluster,
+                        winning_numbers=actual_results['numbers'],
+                        top_n=5
+                    )
+                    
+                    # === PHASE 2: UPDATE CLUSTER CONCENTRATION WEIGHT ===
+                    # Automatically adjust concentration weight based on cluster success
+                    if cluster_result.get('cluster_detected'):
+                        coverage_count = cluster_result.get('coverage_count', 0)
+                        new_concentration_weight = adaptive_system.update_cluster_concentration_weight(
+                            cluster_coverage=coverage_count,
+                            total_winners=len(actual_results['numbers'])
+                        )
+                        cluster_result['concentration_weight_updated'] = new_concentration_weight
+                    
                     # Get updated intelligence stats
                     total_cycles = adaptive_system.meta_learning_data.get('total_learning_cycles', 0)
                     current_weights = adaptive_system.meta_learning_data['factor_weights']
@@ -5184,7 +5740,7 @@ def _render_previous_draw_mode(analyzer: SuperIntelligentAIAnalyzer, game: str) 
                     # Display adaptive intelligence summary
                     st.markdown("#### 🧠 Adaptive Intelligence Status")
                     
-                    col1, col2, col3 = st.columns(3)
+                    col1, col2, col3, col4 = st.columns(4)
                     with col1:
                         st.metric("Learning Cycles", total_cycles, delta="+1")
                     with col2:
@@ -5193,6 +5749,65 @@ def _render_previous_draw_mode(analyzer: SuperIntelligentAIAnalyzer, game: str) 
                     with col3:
                         interactions_count = len(adaptive_system.meta_learning_data.get('cross_factor_interactions', {}))
                         st.metric("Factor Interactions", interactions_count)
+                    with col4:
+                        cooccurrence_count = len(adaptive_system.meta_learning_data.get('number_cooccurrence', {}))
+                        st.metric("Number Pairs Tracked", cooccurrence_count)
+                    
+                    # === PHASE 1: DISPLAY CLUSTER DETECTION RESULTS ===
+                    if cluster_result.get('cluster_detected'):
+                        total_winners = len(actual_results['numbers'])
+                        st.success(f"""🎯 **Winning Number Cluster Detected!**  
+                        Your top {cluster_result['top_n']} predictions collectively contain **{cluster_result['coverage_count']} out of {total_winners}** winning numbers ({cluster_result['coverage_percent']:.1f}% coverage)!  
+                        The AI was very close but fragmented the numbers across multiple sets.  
+                        📚 **This pattern has been learned and will improve number concentration in future predictions.**""")
+                        
+                        # Show cluster breakdown
+                        with st.expander("🔍 Cluster Analysis Details", expanded=True):
+                            col_covered, col_missing = st.columns(2)
+                            with col_covered:
+                                st.markdown(f"**✅ Covered Winners:** {', '.join(map(str, cluster_result['covered_winners']))}")
+                            with col_missing:
+                                if cluster_result['missing_winners']:
+                                    st.markdown(f"**❌ Missing Winners:** {', '.join(map(str, cluster_result['missing_winners']))}")
+                                else:
+                                    st.markdown("**🎉 All 7 winning numbers covered in top predictions!**")
+                            
+                            # Show individual set contributions
+                            st.markdown("**📊 Individual Set Contributions:**")
+                            total_winners = len(actual_results['numbers'])
+                            for match_info in cluster_result['individual_matches']:
+                                rank = match_info['rank']
+                                match_count = match_info['match_count']
+                                matched = ', '.join(map(str, match_info['matched_numbers']))
+                                score = match_info['score']
+                                st.markdown(f"• **Rank #{rank}**: {match_count}/{total_winners} matches - Numbers: {matched} (Score: {score:.3f})")
+                            
+                            # Show top co-occurring number pairs
+                            top_pairs = adaptive_system.get_top_cooccurrences(top_n=10)
+                            if top_pairs:
+                                st.markdown("**🔗 Top Number Co-occurrence Patterns:**")
+                                pair_text = []
+                                for pair_key, count in top_pairs[:10]:
+                                    nums = pair_key.split('_')
+                                    if len(nums) == 2:
+                                        pair_text.append(f"{nums[0]}-{nums[1]} ({count}x)")
+                                st.markdown(", ".join(pair_text))
+                            
+                            # === PHASE 2: SHOW CONCENTRATION WEIGHT UPDATE ===
+                            if 'concentration_weight_updated' in cluster_result:
+                                new_weight = cluster_result['concentration_weight_updated']
+                                success_rate = adaptive_system.meta_learning_data.get('cluster_success_rate', 0.0)
+                                st.markdown(f"**🎯 Phase 2 - Concentration Weight Updated:**")
+                                st.info(f"""
+                                📈 **Cluster Concentration Weight:** {new_weight:.1%}  
+                                📊 **Cluster Success Rate:** {success_rate:.1%}  
+                                
+                                This weight controls how much future predictions will concentrate co-occurring numbers together.
+                                As more successful clusters are detected, this weight increases (max 20%).
+                                """)
+                    else:
+                        total_winners = len(actual_results['numbers'])
+                        st.info(f"ℹ️ No significant cluster detected. Top {cluster_result.get('top_n', 5)} predictions covered {cluster_result.get('coverage_count', 0)}/{total_winners} winning numbers.")
                     
                     # Display evolved weights
                     st.markdown("**🎯 Evolved Adaptive Factor Weights:**")
