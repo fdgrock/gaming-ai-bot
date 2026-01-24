@@ -7955,7 +7955,13 @@ def _calculate_learning_score_advanced(
     number_freq = analysis.get('number_frequency', {})
     hot_numbers_data = number_freq.get('hot_numbers', [])
     hot_numbers = [item['number'] if isinstance(item, dict) else item for item in hot_numbers_data[:10]]
-    hot_matches = sum(1 for n in numbers if n in hot_numbers)
+    # Ensure hot_numbers is a list/set, not numpy array (avoid ambiguous truth value error)
+    if hasattr(hot_numbers, 'tolist'):
+        hot_numbers = hot_numbers.tolist()
+    # Convert to set for efficient membership testing and ensure numbers is also iterable
+    hot_numbers_set = set(hot_numbers)
+    numbers_list = numbers.tolist() if hasattr(numbers, 'tolist') else list(numbers)
+    hot_matches = sum(1 for n in numbers_list if n in hot_numbers_set)
     factor_scores['hot_numbers'] = (hot_matches / 10.0)
     score += factor_scores['hot_numbers'] * weights.get('hot_numbers', 0.12)
     

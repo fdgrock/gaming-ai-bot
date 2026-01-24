@@ -1928,3 +1928,4 @@ streamlit.errors.StreamlitInvalidColumnSpecError: The `spec` argument to `st.col
 2025-12-23 21:14:18 - lottery_ai - ERROR - logger.py:138 - Error generating LightGBM features: Can only use .dt accessor with datetimelike values
 2025-12-23 21:14:20 - lottery_ai - ERROR - logger.py:138 - Error generating LightGBM features: Can only use .dt accessor with datetimelike values
 2026-01-11 10:17:09 - lottery_ai - ERROR - logger.py:138 - URL fetch error: Invalid URL 'Lotto Max Numbers for 2026 | Winning Numbers from 2026': No scheme supplied. Perhaps you meant https://Lotto Max Numbers for 2026 | Winning Numbers from 2026?
+2026-01-20 22:45:19 - lottery_ai - ERROR - logger.py:138 - Error saving FeatureSchema: [Errno 13] Permission denied: 'C:\\Users\\dian_\\OneDrive\\1 - My Documents\\9 - Rocket Innovations Inc\\gaming-ai-bot\\data\\features\\lstm\\lotto_max\\feature_schema.json'
