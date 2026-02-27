@@ -32,12 +32,10 @@ from sklearn.multioutput import MultiOutputClassifier
 # ML Prediction Engine imports
 try:
     from tools.prediction_engine import PredictionEngine, SamplingStrategy
-    from streamlit_app.services.seed_manager import SeedManager
 except ImportError:
     # Fallback if import fails
     PredictionEngine = None
     SamplingStrategy = None
-    SeedManager = None
 
 # Multi-output detection helper
 def _is_multi_output_model(model) -> bool:
@@ -487,35 +485,8 @@ def _render_ml_predictions() -> None:
         )
     
     with col2:
-        # Initialize seed manager
-        if SeedManager:
-            if 'seed_manager' not in st.session_state:
-                st.session_state.seed_manager = SeedManager()
-            
-            # Show next seed info for current model
-            if prediction_mode == "Single Model" and selected_model:
-                # Extract model type from model name (e.g., "xgboost_lotto_6_49_..." -> "xgboost")
-                model_type = selected_model.lower().split('_')[0]
-                if model_type in SeedManager.SEED_RANGES:
-                    next_seed = st.session_state.seed_manager.peek_next_seed(model_type)
-                    seed_info = st.session_state.seed_manager.get_seed_info(model_type)
-                    st.info(
-                        f"🎲 **Auto-Seed for {model_type.upper()}**: {next_seed}\n\n"
-                        f"Range: {seed_info['range_start']}-{seed_info['range_end']} | "
-                        f"Used: {seed_info['seeds_used']}/{seed_info['total_capacity']}"
-                    )
-                else:
-                    st.warning(f"Unknown model type: {model_type}")
-            elif prediction_mode == "Ensemble Voting":
-                next_seed = st.session_state.seed_manager.peek_next_seed("ensemble")
-                seed_info = st.session_state.seed_manager.get_seed_info("ensemble")
-                st.info(
-                    f"🎲 **Auto-Seed for ENSEMBLE**: {next_seed}\n\n"
-                    f"Range: {seed_info['range_start']}-{seed_info['range_end']} | "
-                    f"Used: {seed_info['seeds_used']}/{seed_info['total_capacity']}"
-                )
-        else:
-            st.info("🎲 Automatic seed management not available")
+        # Placeholder for future configuration options
+        st.write("")
     
     with col3:
         use_bias_correction = st.checkbox(
@@ -540,38 +511,10 @@ def _render_ml_predictions() -> None:
         )
     
     with col2:
-        # Seed management controls
-        if SeedManager and 'seed_manager' in st.session_state:
-            st.write("**Seed Management**")
-            seed_col1, seed_col2 = st.columns(2)
-            
-            with seed_col1:
-                if st.button("🔄 Reset Current Model", help="Reset seed counter for current model type", key="reset_current_seed"):
-                    if prediction_mode == "Single Model" and selected_model:
-                        model_type = selected_model.lower().split('_')[0]
-                        if model_type in SeedManager.SEED_RANGES:
-                            st.session_state.seed_manager.reset_model_seeds(model_type)
-                            st.success(f"✅ Reset {model_type.upper()} seeds to start")
-                            st.rerun()
-                    elif prediction_mode == "Ensemble Voting":
-                        st.session_state.seed_manager.reset_model_seeds("ensemble")
-                        st.success("✅ Reset ENSEMBLE seeds to start")
-                        st.rerun()
-            
-            with seed_col2:
-                if st.button("🔄 Reset All Seeds", help="Reset ALL model seed counters", key="reset_all_seeds"):
-                    st.session_state.seed_manager.reset_all_seeds()
-                    st.success("✅ Reset ALL model seeds to start")
-                    st.rerun()
+        # Placeholder for future configuration options
+        st.write("")
     
     with col3:
-        save_seed_with_predictions = st.checkbox(
-            "Save Seed with Predictions",
-            value=True,
-            help="Store random seed with predictions for exact reproducibility",
-            key="ml_save_seed"
-        )
-        
         no_repeat_numbers = st.checkbox(
             "🔢 No Repeat Numbers Across Sets",
             value=st.session_state.ml_no_repeat_numbers,
@@ -721,7 +664,7 @@ def _render_ml_predictions() -> None:
                         st.error("Selected model not found")
                         return
                     
-                    # Extract model type for seed management
+                    # Extract model type
                     model_type = selected_model.lower().split('_')[0]
                     
                     # Log which model is being used
@@ -731,15 +674,11 @@ def _render_ml_predictions() -> None:
                     # Get health score for bias correction
                     health_score = model_data.get("health_score", 0.75)
                     
-                    # Get automatic seed from seed manager
-                    current_seed = None
-                    if SeedManager and 'seed_manager' in st.session_state:
-                        if model_type in SeedManager.SEED_RANGES:
-                            current_seed = st.session_state.seed_manager.get_next_seed(model_type)
-                        else:
-                            st.warning(f"⚠️ Unknown model type '{model_type}', using random seed")
+                    # Generate truly random seed for each prediction
+                    import random
+                    current_seed = random.randint(1, 2**31 - 1)
                     
-                    st.write(f"**Generating {num_predictions} Prediction(s)** - Model: `{selected_model}`, Seed: {current_seed}")
+                    st.write(f"**Generating {num_predictions} Prediction(s)** - Model: `{selected_model}`")
                     
                     # Generate all predictions in one call to maintain diversity tracking
                     result_list = engine.predict_single_model(
@@ -763,26 +702,42 @@ def _render_ml_predictions() -> None:
                             'reasoning': result.reasoning,
                             'generated_at': result.generated_at,
                             'game': result.game,
-                            'variability_factor': variability_factor,
-                            'seed': current_seed if save_seed_with_predictions else None
+                            'variability_factor': variability_factor
                         }
                         results.append(result_dict)
                 
                 else:  # Ensemble mode
                     # Prepare ensemble weights (model_name: health_score)
-                    model_weights = {}
+                    raw_model_weights = {}
                     for model_data in selected_model_objs:
                         model_name = model_data.get("model_name")
-                        model_weights[model_name] = model_data.get("health_score", 0.75)
+                        raw_model_weights[model_name] = model_data.get("health_score", 0.75)
                     
-                    st.write(f"📊 **Ensemble Mode**: {len(model_weights)} models")
+                    # Apply balanced weighting to prevent model dominance
+                    # Strategy: Use square root of health scores to reduce disparity
+                    # Then normalize so all weights are more equal while respecting quality
+                    model_weights = {}
+                    sqrt_weights = {name: np.sqrt(score) for name, score in raw_model_weights.items()}
+                    total_sqrt = sum(sqrt_weights.values())
                     
-                    # Get automatic seed for ensemble
-                    current_seed = None
-                    if SeedManager and 'seed_manager' in st.session_state:
-                        current_seed = st.session_state.seed_manager.get_next_seed("ensemble")
+                    for name, sqrt_weight in sqrt_weights.items():
+                        # Balanced weight: 50% equal distribution + 50% quality-based
+                        equal_portion = 1.0 / len(sqrt_weights)
+                        quality_portion = sqrt_weight / total_sqrt
+                        model_weights[name] = 0.5 * equal_portion + 0.5 * quality_portion
                     
-                    st.write(f"**Generating {num_predictions} Ensemble Prediction(s)** - Seed: {current_seed}")
+                    st.write(f"📊 **Ensemble Mode**: {len(model_weights)} models (balanced voting)")
+                    
+                    # Show balanced weights
+                    with st.expander("🔍 Model Contribution Weights"):
+                        for name, weight in model_weights.items():
+                            st.write(f"  • {name}: {weight:.1%} voting power")
+                    
+                    # Generate truly random seed for each prediction
+                    import random
+                    current_seed = random.randint(1, 2**31 - 1)
+                    
+                    st.write(f"**Generating {num_predictions} Ensemble Prediction(s)**")
                     
                     # Generate all predictions in one call to maintain diversity tracking
                     result_list = engine.predict_ensemble(
@@ -806,8 +761,7 @@ def _render_ml_predictions() -> None:
                             'generated_at': result.generated_at,
                             'game': result.game,
                             'models_used': model_weights,
-                            'variability_factor': variability_factor,
-                            'seed': current_seed if save_seed_with_predictions else None
+                            'variability_factor': variability_factor
                         }
                         results.append(result_dict)
                 
@@ -839,10 +793,8 @@ def _render_ml_predictions() -> None:
                             "generated_at": datetime.now().isoformat(),
                             "parameters": {
                                 "num_predictions": num_predictions,
-                                "seed_management": "automatic" if (SeedManager and 'seed_manager' in st.session_state) else "manual",
                                 "variability_factor": variability_factor,
-                                "bias_correction_enabled": use_bias_correction,
-                                "save_seed_with_predictions": save_seed_with_predictions
+                                "bias_correction_enabled": use_bias_correction
                             },
                             "predictions": results
                         }
@@ -891,10 +843,6 @@ def _render_ml_predictions() -> None:
                         
                         st.markdown("**Reasoning:**")
                         st.info(result['reasoning'])
-                        
-                        # Show seed if saved
-                        if result.get('seed') is not None:
-                            st.caption(f"🔐 Seed: {result['seed']} | Variability: {result.get('variability_factor', 10)}%")
                 
                 # Export section
                 st.markdown("**📥 Export Results**")
@@ -938,8 +886,7 @@ def _render_ml_predictions() -> None:
                                 "type": r['prediction_type'],
                                 "reasoning": r['reasoning'],
                                 "generated_at": r['generated_at'],
-                                "variability_factor": r.get('variability_factor'),
-                                "seed": r.get('seed')
+                                "variability_factor": r.get('variability_factor')
                             }
                             for r in results
                         ],
@@ -991,33 +938,6 @@ def _render_ml_predictions() -> None:
                     Correction strength varies by divergence magnitude
                     ```
                     """)
-                
-                # Seed Status Display
-                if SeedManager and 'seed_manager' in st.session_state:
-                    st.markdown("---")
-                    st.markdown("#### 🎲 Seed Manager Status")
-                    
-                    # Get all seed info
-                    all_info = st.session_state.seed_manager.get_all_seed_info()
-                    
-                    # Display in columns
-                    seed_cols = st.columns(4)
-                    for idx, (model_type, info) in enumerate(all_info.items()):
-                        with seed_cols[idx % 4]:
-                            with st.container(border=True):
-                                st.markdown(f"**{model_type.upper()}**")
-                                st.metric(
-                                    "Current Seed",
-                                    info['current_seed'],
-                                    delta=None
-                                )
-                                st.progress(info['usage_percentage'] / 100)
-                                st.caption(f"{info['seeds_used']}/{info['total_capacity']} used ({info['usage_percentage']:.1f}%)")
-                    
-                    # Show export state option
-                    with st.expander("🔧 Advanced Seed Management"):
-                        st.code(st.session_state.seed_manager.export_state(), language="text")
-                        st.caption("This shows the current state of all seed counters across all model types.")
             
             except Exception as e:
                 st.error(f"❌ Error generating predictions: {e}")
@@ -1516,87 +1436,11 @@ def _render_prediction_generator() -> None:
     
     st.divider()
     
-    # Automatic Seed Management
-    st.markdown("#### 🎲 Seed Management")
-    
-    col1, col2, col3 = st.columns(3)
-    
-    with col1:
-        # Initialize seed manager
-        if SeedManager:
-            if 'seed_manager' not in st.session_state:
-                st.session_state.seed_manager = SeedManager()
-            
-            # Determine model type for seed
-            if normalized_model_type == "Hybrid Ensemble":
-                display_model_type = "ensemble"
-                seed_display_name = "ENSEMBLE"
-            else:
-                display_model_type = normalized_model_type.lower().replace(" ", "_")
-                seed_display_name = display_model_type.upper()
-            
-            # Show next seed
-            if display_model_type in SeedManager.SEED_RANGES:
-                next_seed = st.session_state.seed_manager.peek_next_seed(display_model_type)
-                seed_info = st.session_state.seed_manager.get_seed_info(display_model_type)
-                st.info(
-                    f"**Next Seed ({seed_display_name})**: {next_seed}\n\n"
-                    f"Range: {seed_info['range_start']}-{seed_info['range_end']} | "
-                    f"Used: {seed_info['seeds_used']}/{seed_info['total_capacity']}"
-                )
-            else:
-                st.warning(f"Model type '{normalized_model_type}' not in seed ranges. Using random seed.")
-                next_seed = None
-        else:
-            st.info("Automatic seed management not available")
-            next_seed = 42
-    
-    with col2:
-        save_seed_with_predictions = st.checkbox(
-            "Save Seed with Predictions",
-            value=True,
-            help="Store seed with predictions for exact reproducibility",
-            key="pred_save_seed"
-        )
-    
-    with col3:
-        # Seed reset controls
-        if SeedManager and 'seed_manager' in st.session_state:
-            if st.button("🔄 Reset Seeds", help="Reset current model type seeds", key="reset_pred_seeds"):
-                if normalized_model_type == "Hybrid Ensemble":
-                    st.session_state.seed_manager.reset_model_seeds("ensemble")
-                    st.success("✅ Reset ENSEMBLE seeds")
-                else:
-                    model_type_key = normalized_model_type.lower().replace(" ", "_")
-                    if model_type_key in SeedManager.SEED_RANGES:
-                        st.session_state.seed_manager.reset_model_seeds(model_type_key)
-                        st.success(f"✅ Reset {model_type_key.upper()} seeds")
-                st.rerun()
-    
-    st.divider()
-    
-    # Store the next seed for use in prediction generation
-    if 'pred_current_seed' not in st.session_state or st.session_state.get('pred_seed_needs_update', True):
-        st.session_state.pred_current_seed = next_seed
-        st.session_state.pred_seed_needs_update = False
-    
     # Generate predictions button
     if st.button("🎲 Generate Predictions", use_container_width=True, key="gen_pred_btn"):
-        # Get automatic seed
-        if SeedManager and 'seed_manager' in st.session_state:
-            if normalized_model_type == "Hybrid Ensemble":
-                random_seed = st.session_state.seed_manager.get_next_seed("ensemble")
-            else:
-                model_type_key = normalized_model_type.lower().replace(" ", "_")
-                if model_type_key in SeedManager.SEED_RANGES:
-                    random_seed = st.session_state.seed_manager.get_next_seed(model_type_key)
-                else:
-                    random_seed = None
-        else:
-            random_seed = 42
-        
-        # Mark that seed needs update for next display
-        st.session_state.pred_seed_needs_update = True
+        # Generate truly random seed for each prediction
+        import random
+        random_seed = random.randint(1, 2**31 - 1)
         
         # Use the normalized_model_type defined earlier on the page
         
@@ -1662,8 +1506,7 @@ def _render_prediction_generator() -> None:
                                         'generated_at': datetime.now().isoformat(),
                                         'game': selected_game,
                                         'models_used': model_weights,
-                                        'variability_factor': 0.0,  # Not used in hybrid ensemble
-                                        'seed': random_seed + idx if random_seed else None
+                                        'variability_factor': 0.0  # Not used in hybrid ensemble
                                     }
                                     detailed_predictions.append(prediction_dict)
                                 
@@ -1683,10 +1526,8 @@ def _render_prediction_generator() -> None:
                                         'prediction_type': 'Ensemble',
                                         'parameters': {
                                             'num_predictions': num_predictions,
-                                            'random_seed': random_seed,
                                             'variability_factor': 0.0,
-                                            'bias_correction_enabled': False,
-                                            'save_seed_with_predictions': True
+                                            'bias_correction_enabled': False
                                         },
                                         'predictions': detailed_predictions
                                     }
@@ -1736,7 +1577,6 @@ def _render_prediction_generator() -> None:
                         st.write(f"  **Game**: `{selected_game}`")
                         st.write(f"  **Health Score**: {health_score:.3f}")
                         st.write(f"  **Number of Predictions**: {num_predictions}")
-                        st.write(f"  **Seed**: {random_seed}")
                         
                         result_list = engine.predict_single_model(
                             model_name=selected_model_name,

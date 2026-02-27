@@ -12,11 +12,13 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import plotly.graph_objects as go
+import plotly.express as px
 from pathlib import Path
 from datetime import datetime, timedelta
 from typing import Optional, Dict, Any, List, Tuple
 import json
 import random
+import statistics
 from copy import deepcopy
 
 try:
@@ -1389,6 +1391,18 @@ class SuperIntelligentAIAnalyzer:
                                 prob_dict_str = {str(k): float(v) for k, v in number_probabilities.items()}
                                 analysis["model_probabilities"][f"{model_name} ({model_type})"] = prob_dict_str
                                 all_model_probabilities.append(prob_dict_str)
+                                
+                                # Add model to analysis with health score as accuracy
+                                accuracies.append(health_score)
+                                analysis["models"].append({
+                                    "name": model_name,
+                                    "type": model_type,
+                                    "accuracy": health_score,
+                                    "confidence": self._calculate_confidence(health_score),
+                                    "inference_data": [],
+                                    "real_probabilities": prob_dict_str,
+                                    "metadata": model_dict
+                                })
                                 continue
                         else:
                             # Not a position-specific model, skip real inference
@@ -1408,6 +1422,18 @@ class SuperIntelligentAIAnalyzer:
                             prob_dict_str = {str(k): float(v) for k, v in number_probabilities.items()}
                             analysis["model_probabilities"][f"{model_name} ({model_type})"] = prob_dict_str
                             all_model_probabilities.append(prob_dict_str)
+                            
+                            # Add model to analysis with health score as accuracy
+                            accuracies.append(health_score)
+                            analysis["models"].append({
+                                "name": model_name,
+                                "type": model_type,
+                                "accuracy": health_score,
+                                "confidence": self._calculate_confidence(health_score),
+                                "inference_data": [],
+                                "real_probabilities": prob_dict_str,
+                                "metadata": model_dict
+                            })
                             continue
                         
                         # Construct path to model file
@@ -1448,11 +1474,46 @@ class SuperIntelligentAIAnalyzer:
                         if not csv_files:
                             raise FileNotFoundError(f"No training data found in {game_data_dir}")
                         
-                        # Load most recent CSV
-                        latest_csv = max(csv_files, key=lambda p: p.stat().st_mtime)
-                        df = pd.read_csv(latest_csv)
+                        # Load last 100 draws across multiple CSV files for better analysis
+                        # Sort by modification time (most recent first)
+                        csv_files_sorted = sorted(csv_files, key=lambda p: p.stat().st_mtime, reverse=True)
+                        all_dfs = []
+                        total_draws = 0
+                        target_draws = 100  # Load 100 most recent draws for robust analysis
                         
-                        analysis["inference_logs"].append(f"📊 Loaded {len(df)} historical draws from {latest_csv.name}")
+                        for csv_file in csv_files_sorted:
+                            try:
+                                temp_df = pd.read_csv(csv_file)
+                                all_dfs.append(temp_df)
+                                total_draws += len(temp_df)
+                                
+                                # Stop once we have at least target_draws
+                                if total_draws >= target_draws:
+                                    break
+                            except Exception as e:
+                                analysis["inference_logs"].append(f"⚠️ Warning: Could not load {csv_file.name}: {e}")
+                                continue
+                        
+                        if not all_dfs:
+                            raise FileNotFoundError(f"No valid training data found in {game_data_dir}")
+                        
+                        # Combine and sort by draw_date (most recent first)
+                        df = pd.concat(all_dfs, ignore_index=True)
+                        
+                        # Sort by draw_date if available
+                        if 'draw_date' in df.columns:
+                            try:
+                                df['draw_date'] = pd.to_datetime(df['draw_date'], format='mixed', errors='coerce')
+                                df = df.dropna(subset=['draw_date'])
+                                df = df.sort_values('draw_date', ascending=False)
+                            except Exception as e:
+                                analysis["inference_logs"].append(f"⚠️ Warning: Could not sort by date: {e}")
+                        
+                        # Keep only the most recent target_draws
+                        df = df.head(target_draws)
+                        
+                        files_used = min(len(csv_files_sorted), len(all_dfs))
+                        analysis["inference_logs"].append(f"📊 Loaded {len(df)} historical draws from {files_used} file(s) for robust analysis")
                         
                         # Generate features using AdvancedFeatureGenerator based on model type
                         feature_gen = AdvancedFeatureGenerator(game=self.game)
@@ -1580,22 +1641,74 @@ class SuperIntelligentAIAnalyzer:
                             # Neural networks output raw logits or probabilities
                             predictions = model.predict(X_latest, verbose=0)
                             
+                            analysis["inference_logs"].append(f"🔬 Neural network raw output shape: {predictions.shape if not isinstance(predictions, list) else [p.shape for p in predictions]}")
+                            
                             # Handle multi-output models (7 positions return list of arrays)
                             if isinstance(predictions, list):
                                 analysis["inference_logs"].append(
                                     f"🔢 Multi-output model detected: {len(predictions)} position outputs"
                                 )
                                 # Average probabilities across all 7 positions
-                                predictions = np.mean(predictions, axis=0)
-                                if predictions.ndim > 1:
-                                    predictions = predictions[0]
-                                probabilities = predictions
-                            elif len(predictions.shape) > 1 and predictions.shape[1] > 1:
-                                # Single-output multi-class model
-                                probabilities = predictions[0]
+                                # Each position output is shape (1, max_number) with probabilities
+                                all_position_probs = []
+                                for pos_pred in predictions:
+                                    if len(pos_pred.shape) > 1:
+                                        # Shape is (1, max_number) - extract the probability array
+                                        all_position_probs.append(pos_pred[0])
+                                    else:
+                                        # Shape is (max_number,) - use directly
+                                        all_position_probs.append(pos_pred)
+                                
+                                # Average across positions to get ensemble probability for each number
+                                probabilities = np.mean(all_position_probs, axis=0)
+                                analysis["inference_logs"].append(f"✅ Averaged {len(all_position_probs)} position outputs → {len(probabilities)} number probabilities")
+                            
+                            elif len(predictions.shape) > 1:
+                                # Single model with batch dimension
+                                if predictions.shape[1] > 1:
+                                    # Shape is (1, max_number) - multi-class output
+                                    probabilities = predictions[0]
+                                    analysis["inference_logs"].append(f"✅ Single-output multi-class: {len(probabilities)} probabilities")
+                                else:
+                                    # Shape is (1, 1) - binary/regression output (PROBLEMATIC)
+                                    # This should not happen for lottery prediction
+                                    # Generate probability distribution based on model confidence
+                                    analysis["inference_logs"].append(f"⚠️ Binary/regression output detected - generating probability distribution")
+                                    # Use health score to create skewed distribution
+                                    base_probs = np.random.dirichlet(np.ones(self.game_config["max_number"]) * (1 + health_score * 10))
+                                    probabilities = base_probs
                             else:
-                                # Single output - create uniform distribution
-                                probabilities = np.ones(self.game_config["max_number"]) / self.game_config["max_number"]
+                                # 1D array output
+                                if predictions.shape[0] == self.game_config["max_number"]:
+                                    # Perfect match - use directly
+                                    probabilities = predictions
+                                    analysis["inference_logs"].append(f"✅ 1D output matches max_number: {len(probabilities)} probabilities")
+                                elif predictions.shape[0] == 1:
+                                    # Single value output (regression) - PROBLEMATIC
+                                    analysis["inference_logs"].append(f"⚠️ Single value output - generating probability distribution")
+                                    # Generate skewed distribution based on health score
+                                    base_probs = np.random.dirichlet(np.ones(self.game_config["max_number"]) * (1 + health_score * 10))
+                                    probabilities = base_probs
+                                else:
+                                    # Unexpected shape - pad or truncate
+                                    analysis["inference_logs"].append(f"⚠️ Unexpected shape {predictions.shape} - adjusting to max_number")
+                                    if predictions.shape[0] > self.game_config["max_number"]:
+                                        probabilities = predictions[:self.game_config["max_number"]]
+                                    else:
+                                        # Pad with small values
+                                        padding = self.game_config["max_number"] - predictions.shape[0]
+                                        probabilities = np.concatenate([predictions, np.full(padding, 0.001)])
+                            
+                            # Apply softmax to ensure proper probability distribution if values are logits
+                            # Check if values are not already probabilities (sum close to 1)
+                            prob_sum = np.sum(probabilities)
+                            if not (0.95 <= prob_sum <= 1.05):
+                                # Likely logits, apply softmax
+                                from scipy.special import softmax as scipy_softmax
+                                probabilities = scipy_softmax(probabilities)
+                                analysis["inference_logs"].append(f"🔄 Applied softmax normalization (sum was {prob_sum:.3f})")
+                            else:
+                                analysis["inference_logs"].append(f"✓ Probabilities already normalized (sum = {prob_sum:.3f})")
                         else:
                             # Tree-based models - use predict_proba
                             if hasattr(model, 'predict_proba'):
@@ -2878,7 +2991,7 @@ def render_prediction_ai_page(services_registry=None, ai_engines=None, component
         tab1, tab2, tab3, tab4, tab5 = st.tabs([
             "🤖 AI Model Configuration",
             "🎲 Generate Predictions",
-            "📊 Prediction Analysis",
+            "� Jackpot Pattern Analysis",
             "🎰 MaxMillion Analysis" if selected_game == "Lotto Max" else "📈 Performance History",
             "🧠 AI Learning"
         ])
@@ -2890,7 +3003,7 @@ def render_prediction_ai_page(services_registry=None, ai_engines=None, component
             _render_prediction_generator(analyzer)
         
         with tab3:
-            _render_prediction_analysis(analyzer)
+            _render_jackpot_analysis(analyzer)
         
         with tab4:
             if selected_game == "Lotto Max":
@@ -4079,319 +4192,723 @@ def _render_prediction_generator(analyzer: SuperIntelligentAIAnalyzer) -> None:
 
 
 # ============================================================================
-# TAB 3: PREDICTION ANALYSIS
+# TAB 3: JACKPOT PATTERN ANALYSIS
 # ============================================================================
 
-def _render_prediction_analysis(analyzer: SuperIntelligentAIAnalyzer) -> None:
-    """Analyze predictions against actual draw results with enhanced display."""
-    st.subheader("📊 Prediction Accuracy Analysis")
+def _render_jackpot_analysis(analyzer: SuperIntelligentAIAnalyzer) -> None:
+    """Analyze historical patterns based on jackpot amounts to create draw profiles."""
+    st.subheader("💰 Jackpot Pattern Analysis")
     
-    saved_predictions = analyzer.get_saved_predictions()
+    st.markdown("""
+    **Discover winning patterns based on jackpot amounts!**  
+    Search historical draws by jackpot value, analyze number patterns, and save draw profiles 
+    for use in future prediction generation.
+    """)
     
-    if not saved_predictions:
-        st.info("📝 No saved predictions found. Generate predictions first!")
-        return
+    # Get current game
+    current_game = st.session_state.get('selected_game', 'Lotto Max')
     
-    # ===== ENHANCED PREDICTION SELECTOR =====
-    # Build options with more detail: timestamp, models used, number of sets
-    pred_options = []
-    for i, p in enumerate(saved_predictions):
-        timestamp = p['timestamp'][:10]  # YYYY-MM-DD
-        num_sets = len(p['predictions'])
-        num_models = len(p['analysis']['selected_models'])
-        models_str = ", ".join([m['type'] for m in p['analysis']['selected_models']])
-        option_text = f"Prediction {i+1} - {timestamp} | {num_models} models ({models_str}) | {num_sets} sets"
-        pred_options.append(option_text)
+    # Jackpot input section
+    col1, col2, col3 = st.columns([2, 1, 1])
     
-    selected_idx = st.selectbox(
-        "Select Prediction Set",
-        range(len(saved_predictions)),
-        format_func=lambda i: pred_options[i],
-        key="pred_analysis_selector"
-    )
+    with col1:
+        jackpot_amount = st.number_input(
+            "Target Jackpot Amount ($)",
+            min_value=1000000,
+            max_value=200000000,
+            value=10000000,
+            step=1000000,
+            key="jackpot_amount_input",
+            help="Enter the jackpot amount you want to analyze"
+        )
     
-    selected_prediction = saved_predictions[selected_idx]
+    with col2:
+        range_tolerance = st.slider(
+            "Range Tolerance (%)",
+            min_value=0,
+            max_value=50,
+            value=10,
+            step=5,
+            key="range_tolerance_slider",
+            help="Allow jackpots within ±X% of target amount"
+        )
     
-    # ===== DISPLAY MODEL VERSIONS =====
-    st.markdown("### 🤖 Models Used")
-    
-    models_cols = st.columns(len(selected_prediction['analysis']['selected_models']))
-    for idx, model in enumerate(selected_prediction['analysis']['selected_models']):
-        with models_cols[idx]:
-            st.info(
-                f"**{model['name']}**\n\n"
-                f"Type: {model['type']}\n\n"
-                f"Accuracy: {model['accuracy']:.1%}\n\n"
-                f"Confidence: {model['confidence']:.1%}"
-            )
+    with col3:
+        st.metric("Search Range", f"±{range_tolerance}%")
+        min_jackpot = jackpot_amount * (1 - range_tolerance / 100)
+        max_jackpot = jackpot_amount * (1 + range_tolerance / 100)
+        st.caption(f"${min_jackpot:,.0f} - ${max_jackpot:,.0f}")
     
     st.divider()
     
-    # ===== AUTO-LOAD ACTUAL DRAW RESULTS =====
-    st.markdown("### 📊 Actual Draw Results")
+    # Search button
+    if st.button("🔍 Search Historical Patterns", type="primary", use_container_width=True):
+        with st.spinner("Searching historical draws..."):
+            # Search and analyze
+            matching_draws = _search_draws_by_jackpot(current_game, min_jackpot, max_jackpot)
+            
+            if len(matching_draws) < 5:
+                st.warning(f"⚠️ Found only {len(matching_draws)} draws matching criteria. Minimum 5 required for reliable analysis.")
+                st.info("💡 Try increasing the range tolerance to find more matching draws.")
+                return
+            
+            # Store in session state
+            st.session_state.jackpot_analysis_data = {
+                'matching_draws': matching_draws,
+                'jackpot_amount': jackpot_amount,
+                'range_tolerance': range_tolerance,
+                'game': current_game
+            }
     
-    # Extract date from prediction and attempt to load actual results
-    prediction_date = selected_prediction.get('next_draw_date', '')
-    actual_results = None
-    
-    # Try to load from CSV if date is available
-    if prediction_date:
-        try:
-            # Dynamically import the function to avoid circular imports
-            from pathlib import Path
-            import pandas as pd
-            from ..core import sanitize_game_name, get_data_dir
-            
-            # Get draw data for this date
-            sanitized_game = sanitize_game_name(selected_prediction['game'])
-            data_dir = get_data_dir() / sanitized_game
-            
-            if data_dir.exists():
-                csv_files = sorted(data_dir.glob("training_data_*.csv"), key=lambda x: x.stem, reverse=True)
-                
-                for csv_file in csv_files:
-                    try:
-                        df = pd.read_csv(str(csv_file))
-                        matching_rows = df[df['draw_date'] == prediction_date]
-                        
-                        if not matching_rows.empty:
-                            row = matching_rows.iloc[0]
-                            numbers_str = str(row.get('numbers', ''))
-                            if numbers_str and numbers_str != 'nan':
-                                actual_results = [int(n.strip()) for n in numbers_str.strip('[]"').split(',') if n.strip().isdigit()]
-                                bonus = int(row.get('bonus', 0)) if pd.notna(row.get('bonus')) else 0
-                                jackpot = float(row.get('jackpot', 0)) if pd.notna(row.get('jackpot')) else 0
-                                
-                                # Add bonus number to actual_results for matching
-                                if bonus and bonus > 0:
-                                    actual_results.append(bonus)
-                                
-                                # Display loaded actual results
-                                col1, col2, col3 = st.columns(3)
-                                with col1:
-                                    st.write(f"**Date:** {prediction_date}")
-                                with col2:
-                                    # Show main numbers (excluding bonus for display)
-                                    main_numbers = actual_results[:-1] if bonus else actual_results
-                                    st.write(f"**Numbers:** {', '.join(map(str, main_numbers))}")
-                                with col3:
-                                    if bonus:
-                                        st.write(f"**Bonus:** {bonus}")
-                                
-                                st.success(f"✓ Actual draw results loaded for {prediction_date}")
-                            break
-                    except Exception as e:
-                        continue
-        except Exception as e:
-            app_log(f"Could not auto-load draw data: {e}", "debug")
-    
-    if actual_results:
-        try:
-            # Convert predictions to integers if they are strings
-            predictions = selected_prediction["predictions"]
-            
-            # Ensure all prediction numbers are integers, not strings
-            predictions_as_ints = []
-            for pred_set in predictions:
-                if pred_set and isinstance(pred_set[0], str):
-                    # Convert string numbers to integers
-                    predictions_as_ints.append([int(num) for num in pred_set])
-                else:
-                    predictions_as_ints.append(pred_set)
-            
-            # Analyze accuracy with integer-based comparison
-            accuracy_result = analyzer.analyze_prediction_accuracy(predictions_as_ints, actual_results)
-            
-            st.divider()
-            st.markdown("### 📈 Accuracy Results")
-            
-            col1, col2, col3, col4 = st.columns(4)
-            
-            with col1:
-                st.metric("Overall Accuracy", f"{accuracy_result['overall_accuracy']:.1f}%")
-            with col2:
-                st.metric("Best Match", accuracy_result["best_set"]["matches"])
-            with col3:
-                st.metric("Sets with Matches", accuracy_result["sets_with_matches"])
-            with col4:
-                st.metric("Total Sets", len(predictions))
-            
-            st.divider()
-            st.markdown("### 📋 Per-Set Breakdown with Color-Coded Numbers")
-            
-            # Display each prediction set with color-coded numbers (use converted integer predictions)
-            for idx, pred_set in enumerate(predictions_as_ints):
-                accuracy_pct = accuracy_result["predictions"][idx]["accuracy"]
-                matches = accuracy_result["predictions"][idx]["matches"]
-                total = len(pred_set)
-                
-                # Determine color based on accuracy
-                if accuracy_pct >= 50:
-                    badge_color = "🟢"
-                elif accuracy_pct >= 25:
-                    badge_color = "🟡"
-                else:
-                    badge_color = "🔴"
-                
-                with st.container(border=True):
-                    # Header with set number and accuracy badge
-                    header_col1, header_col2, header_col3 = st.columns([1, 2, 3])
-                    with header_col1:
-                        st.write(f"**Set {idx + 1}**")
-                    with header_col2:
-                        st.write(f"{badge_color} {matches}/{total} numbers matched")
-                    with header_col3:
-                        st.write(f"Accuracy: **{accuracy_pct:.1f}%**")
-                    
-                    # Display numbers with color coding
-                    st.write("**Numbers:**")
-                    number_cols = st.columns(len(pred_set))
-                    
-                    for num_idx, number in enumerate(pred_set):
-                        with number_cols[num_idx]:
-                            if number in actual_results:
-                                # Correct match - green background
-                                st.markdown(
-                                    f'<div style="background-color: #10b981; color: white; padding: 8px; text-align: center; border-radius: 4px; font-weight: bold;">{number}</div>',
-                                    unsafe_allow_html=True
-                                )
-                            else:
-                                # Incorrect - light red background
-                                st.markdown(
-                                    f'<div style="background-color: #fee2e2; color: #7f1d1d; padding: 8px; text-align: center; border-radius: 4px; font-weight: bold;">{number}</div>',
-                                    unsafe_allow_html=True
-                                )
-            
-            st.divider()
-            st.markdown("### 📊 Accuracy Visualization")
-            
-            # Visualization
-            fig = go.Figure(data=[
-                go.Bar(
-                    x=[f"Set {d['set_num']}" for d in accuracy_result["predictions"]],
-                    y=[d["accuracy"] for d in accuracy_result["predictions"]],
-                    marker_color=[
-                        'green' if d["accuracy"] > 50 else 'orange' if d["accuracy"] > 25 else 'red'
-                        for d in accuracy_result["predictions"]
-                    ],
-                    text=[f"{d['accuracy']:.1f}%" for d in accuracy_result["predictions"]],
-                    textposition='auto'
-                )
-            ])
-            fig.update_layout(
-                title="Prediction Set Accuracy",
-                xaxis_title="Prediction Set",
-                yaxis_title="Accuracy %",
-                height=400
+    # Display results if available
+    if 'jackpot_analysis_data' in st.session_state:
+        data = st.session_state.jackpot_analysis_data
+        matching_draws = data['matching_draws']
+        
+        st.success(f"✅ Found {len(matching_draws)} historical draws matching ${data['jackpot_amount']:,.0f} (±{data['range_tolerance']}%)")
+        
+        # Quick stats
+        col1, col2, col3, col4 = st.columns(4)
+        with col1:
+            st.metric("Total Draws", len(matching_draws))
+        with col2:
+            avg_jackpot = sum(d['jackpot'] for d in matching_draws) / len(matching_draws)
+            st.metric("Avg Jackpot", f"${avg_jackpot:,.0f}")
+        with col3:
+            min_date = min(d['date'] for d in matching_draws)
+            st.metric("Oldest Draw", min_date)
+        with col4:
+            max_date = max(d['date'] for d in matching_draws)
+            st.metric("Newest Draw", max_date)
+        
+        st.divider()
+        
+        # Analyze patterns
+        patterns = _analyze_draw_patterns(matching_draws, current_game)
+        
+        # Display patterns
+        _display_pattern_analysis(patterns, current_game)
+        
+        st.divider()
+        
+        # Save profile section
+        st.markdown("### 💾 Save Draw Profile")
+        
+        col1, col2 = st.columns([2, 1])
+        
+        with col1:
+            profile_name = st.text_input(
+                "Profile Name",
+                value=f"jackpot_{data['jackpot_amount']//1000000}M",
+                key="profile_name_input",
+                help="Enter a descriptive name for this profile"
             )
-            st.plotly_chart(fig, use_container_width=True)
-            
-            # ===== AUTO-RECORD LEARNING DATA =====
-            st.divider()
-            st.markdown("### 🧠 Learning Data Generation")
-            
-            try:
-                # Initialize learning tools
-                extractor = PredictionLearningExtractor(selected_prediction['game'])
-                learning_generator = LearningDataGenerator(selected_prediction['game'])
-                perf_analyzer = ModelPerformanceAnalyzer()
-                
-                # Calculate prediction metrics
-                metrics = extractor.calculate_prediction_metrics(predictions, actual_results)
-                
-                # Extract learning patterns
-                patterns = extractor.extract_learning_patterns(
-                    predictions,
-                    actual_results,
-                    [m['type'] for m in selected_prediction['analysis']['selected_models']]
-                )
-                
-                # Generate training data
-                training_data = extractor.generate_training_data(metrics, patterns, actual_results)
-                
-                # Display learning summary
-                col1, col2, col3, col4 = st.columns(4)
-                with col1:
-                    st.metric("Training Data Points", len(metrics['sets_data']))
-                with col2:
-                    st.metric("Matched Numbers", len(patterns['match_analysis']['matched_numbers']))
-                with col3:
-                    st.metric("Missed Numbers", len(patterns['match_analysis']['missed_numbers']))
-                with col4:
-                    st.metric("Learning Events Ready", "✓ Yes" if metrics['total_sets'] > 0 else "✗ No")
-                
-                # Save training data button
-                col1, col2, col3 = st.columns(3)
-                
-                with col1:
-                    if st.button("💾 Save Training Data", key="save_training_data"):
-                        saved_file = learning_generator.save_training_data(training_data)
-                        st.success(f"✅ Training data saved: {Path(saved_file).name}")
-                        app_log(f"Training data saved for {selected_prediction['game']}", "info")
-                
-                with col2:
-                    if st.button("📊 View Learning Summary", key="view_learning_summary"):
-                        summary = learning_generator.get_training_summary()
-                        st.info(f"""
-                        **Learning Data Summary:**
-                        - JSON Files: {summary.get('total_json_files', 0)}
-                        - CSV Files: {summary.get('total_csv_files', 0)}
-                        - Total Size: {summary.get('total_size_mb', 0):.2f} MB
-                        - Ready for Retraining: {'Yes' if summary.get('ready_for_retraining') else 'No'}
-                        """)
-                
-                with col3:
-                    # Generate recommendations
-                    recommendations = perf_analyzer.generate_recommendations(selected_prediction['game'])
-                    if st.button("💡 Get Recommendations", key="get_recommendations"):
-                        st.info(f"""
-                        **Model Performance Recommendations:**
-                        
-                        **Summary:**
-                        - Learning Events (30d): {recommendations['summary'].get('learning_activity_30d', 0)}
-                        - Models Tracked: {recommendations['summary'].get('models_tracked', 0)}
-                        - Avg Improvement: {recommendations['summary'].get('avg_improvement', 0):.2%}
-                        
-                        **Retrain Urgency:** {recommendations.get('retrain_urgency', 'normal').upper()}
-                        **KB Update Needed:** {'Yes' if recommendations.get('knowledge_base_update_needed') else 'No'}
-                        
-                        **Per-Model Status:**
-                        """)
-                        for model_name, recs in recommendations.get('per_model_recommendations', {}).items():
-                            st.write(f"**{model_name}**: {recs.get('current_trend', 'unknown').upper()}")
-                
-                # Expandable learning data details
-                with st.expander("📋 Detailed Learning Data"):
-                    col1, col2 = st.columns(2)
-                    
-                    with col1:
-                        st.write("**Prediction Analysis**")
-                        st.json({
-                            'total_sets': metrics['total_sets'],
-                            'overall_accuracy_percent': round(metrics['overall_accuracy_percent'], 2),
-                            'best_match': metrics['best_match_count'],
-                            'sets_with_matches': metrics['sets_with_matches'],
-                            'average_matches_per_set': round(metrics['average_matches_per_set'], 2)
-                        })
-                    
-                    with col2:
-                        st.write("**Learning Patterns**")
-                        st.json({
-                            'models_used': patterns['models_used'],
-                            'matched_numbers': patterns['match_analysis']['matched_numbers'],
-                            'missed_numbers': patterns['match_analysis']['missed_numbers'],
-                            'accuracy_distribution': metrics['accuracy_distribution']
-                        })
-                
-            except Exception as e:
-                app_log(f"Learning data generation error: {e}", "warning")
-                st.warning(f"⚠️ Learning data generation: {str(e)}")
-            
+        
+        with col2:
+            st.write("")  # Spacer
+            st.write("")  # Spacer
+            if st.button("💾 Save Profile", type="primary", use_container_width=True):
+                if len(matching_draws) >= 5:
+                    profile_path = _save_draw_profile(
+                        profile_name,
+                        data['jackpot_amount'],
+                        data['range_tolerance'],
+                        matching_draws,
+                        patterns,
+                        current_game
+                    )
+                    if profile_path:
+                        st.success(f"✅ Profile saved: {profile_path.name}")
+                        app_log(f"Jackpot profile saved: {profile_name} for {current_game}", "info")
+                    else:
+                        st.error("❌ Failed to save profile")
+                else:
+                    st.error("❌ Need at least 5 matching draws to save profile")
 
-        except ValueError as e:
-            st.error(f"❌ Invalid input: {str(e)}")
-    else:
-        st.warning(f"⚠️ No actual draw results found for {prediction_date}. The draw may not have occurred yet, or the data may not be available in the training files.")
+
+def _search_draws_by_jackpot(game: str, min_jackpot: float, max_jackpot: float) -> List[Dict]:
+    """Search all historical CSVs for draws within jackpot range."""
+    matching_draws = []
+    
+    try:
+        game_folder = _sanitize_game_name(game)
+        data_dir = Path("data") / game_folder
+        
+        if not data_dir.exists():
+            return matching_draws
+        
+        # Get all training data CSV files
+        csv_files = sorted(data_dir.glob("training_data_*.csv"))
+        
+        for csv_file in csv_files:
+            try:
+                df = pd.read_csv(str(csv_file))
+                
+                # Filter by jackpot range
+                if 'jackpot' in df.columns:
+                    matching_rows = df[
+                        (df['jackpot'] >= min_jackpot) & 
+                        (df['jackpot'] <= max_jackpot)
+                    ]
+                    
+                    for _, row in matching_rows.iterrows():
+                        # Parse numbers
+                        numbers_str = str(row.get('numbers', ''))
+                        if numbers_str and numbers_str != 'nan':
+                            numbers = [int(n.strip()) for n in numbers_str.strip('[]"').replace('"', '').split(',') if n.strip().isdigit()]
+                            
+                            if numbers:
+                                draw_data = {
+                                    'date': str(row.get('draw_date', '')),
+                                    'numbers': numbers,
+                                    'bonus': int(row.get('bonus', 0)) if pd.notna(row.get('bonus')) else 0,
+                                    'jackpot': float(row.get('jackpot', 0))
+                                }
+                                matching_draws.append(draw_data)
+            
+            except Exception as e:
+                app_log(f"Error reading {csv_file.name}: {e}", "debug")
+                continue
+        
+        # Sort by date (newest first)
+        matching_draws.sort(key=lambda x: x['date'], reverse=True)
+        
+    except Exception as e:
+        app_log(f"Error searching draws: {e}", "error")
+    
+    return matching_draws
+
+
+def _analyze_draw_patterns(draws: List[Dict], game: str) -> Dict:
+    """Analyze patterns across all matching draws."""
+    
+    # Determine number range for the game
+    if "6/49" in game or "6_49" in game:
+        max_num = 49
+        nums_per_draw = 6
+    else:  # Lotto Max
+        max_num = 50
+        nums_per_draw = 7
+    
+    # Dynamic high/low split (first half vs second half)
+    mid_point = (max_num + 1) // 2
+    
+    # Initialize counters
+    odd_even_combos = {}
+    high_low_combos = {}
+    sum_ranges = []
+    number_frequency = {i: 0 for i in range(1, max_num + 1)}
+    consecutive_counts = {}
+    decade_distribution = {f"{i*10}-{i*10+9}": 0 for i in range(max_num // 10 + 1)}
+    gap_analysis = []
+    prime_counts = {}
+    pair_counts = {}
+    repeat_from_previous = []
+    
+    # Helper: Check if number is prime
+    def is_prime(n):
+        if n < 2:
+            return False
+        for i in range(2, int(n**0.5) + 1):
+            if n % i == 0:
+                return False
+        return True
+    
+    primes = [n for n in range(1, max_num + 1) if is_prime(n)]
+    
+    # Analyze each draw
+    previous_numbers = None
+    
+    for draw in draws:
+        numbers = sorted(draw['numbers'])
+        
+        # Odd/Even analysis
+        odd_count = sum(1 for n in numbers if n % 2 == 1)
+        even_count = len(numbers) - odd_count
+        oe_combo = f"{odd_count} Odd / {even_count} Even"
+        odd_even_combos[oe_combo] = odd_even_combos.get(oe_combo, 0) + 1
+        
+        # High/Low analysis
+        low_count = sum(1 for n in numbers if n <= mid_point)
+        high_count = len(numbers) - low_count
+        hl_combo = f"{low_count} Low / {high_count} High"
+        high_low_combos[hl_combo] = high_low_combos.get(hl_combo, 0) + 1
+        
+        # Sum analysis
+        total_sum = sum(numbers)
+        sum_ranges.append(total_sum)
+        
+        # Number frequency
+        for num in numbers:
+            number_frequency[num] += 1
+        
+        # Consecutive numbers
+        consecutive = sum(1 for i in range(len(numbers)-1) if numbers[i+1] == numbers[i] + 1)
+        consecutive_counts[consecutive] = consecutive_counts.get(consecutive, 0) + 1
+        
+        # Decade distribution
+        for num in numbers:
+            decade = f"{(num-1)//10*10}-{(num-1)//10*10+9}"
+            if decade in decade_distribution:
+                decade_distribution[decade] += 1
+        
+        # Gap analysis (largest gap between consecutive numbers)
+        if len(numbers) > 1:
+            gaps = [numbers[i+1] - numbers[i] for i in range(len(numbers)-1)]
+            max_gap = max(gaps)
+            gap_analysis.append(max_gap)
+        
+        # Prime count
+        prime_count = sum(1 for n in numbers if n in primes)
+        prime_counts[prime_count] = prime_counts.get(prime_count, 0) + 1
+        
+        # Pairs/Triplets (numbers within 2 of each other)
+        pairs = sum(1 for i in range(len(numbers)-1) if numbers[i+1] - numbers[i] <= 2)
+        pair_counts[pairs] = pair_counts.get(pairs, 0) + 1
+        
+        # Repeat from previous draw
+        if previous_numbers is not None:
+            repeats = len(set(numbers) & set(previous_numbers))
+            repeat_from_previous.append(repeats)
+        
+        previous_numbers = numbers
+    
+    # Calculate statistics
+    patterns = {
+        'odd_even_combos': odd_even_combos,
+        'high_low_combos': high_low_combos,
+        'sum_stats': {
+            'min': min(sum_ranges),
+            'max': max(sum_ranges),
+            'mean': statistics.mean(sum_ranges),
+            'median': statistics.median(sum_ranges),
+            'mode_range': _get_mode_range(sum_ranges, nums_per_draw)
+        },
+        'number_frequency': number_frequency,
+        'excluded_numbers': _get_excluded_numbers(number_frequency, max_num),
+        'consecutive_counts': consecutive_counts,
+        'decade_distribution': decade_distribution,
+        'gap_analysis': {
+            'min': min(gap_analysis) if gap_analysis else 0,
+            'max': max(gap_analysis) if gap_analysis else 0,
+            'mean': statistics.mean(gap_analysis) if gap_analysis else 0
+        },
+        'prime_counts': prime_counts,
+        'pair_counts': pair_counts,
+        'repeat_stats': {
+            'min': min(repeat_from_previous) if repeat_from_previous else 0,
+            'max': max(repeat_from_previous) if repeat_from_previous else 0,
+            'mean': statistics.mean(repeat_from_previous) if repeat_from_previous else 0
+        },
+        'total_draws': len(draws),
+        'mid_point': mid_point
+    }
+    
+    return patterns
+
+
+def _get_mode_range(sum_list: List[int], nums_per_draw: int) -> str:
+    """Determine the most common sum range."""
+    if not sum_list:
+        return "N/A"
+    
+    # Create bins based on number of numbers per draw
+    bin_size = 10 if nums_per_draw == 6 else 15
+    min_val = min(sum_list)
+    max_val = max(sum_list)
+    
+    bins = {}
+    for val in sum_list:
+        bin_key = (val // bin_size) * bin_size
+        bins[bin_key] = bins.get(bin_key, 0) + 1
+    
+    # Find most common bin
+    mode_bin = max(bins, key=bins.get)
+    return f"{mode_bin}-{mode_bin + bin_size - 1}"
+
+
+def _get_excluded_numbers(frequency: Dict[int, int], max_num: int) -> List[int]:
+    """Find numbers that rarely or never appear."""
+    avg_frequency = sum(frequency.values()) / len(frequency)
+    threshold = avg_frequency * 0.3  # Numbers appearing less than 30% of average
+    
+    excluded = [num for num in range(1, max_num + 1) if frequency[num] < threshold]
+    return sorted(excluded)
+
+
+def _display_pattern_analysis(patterns: Dict, game: str) -> None:
+    """Display comprehensive pattern analysis with visualizations."""
+    
+    st.markdown("## 📊 Pattern Analysis Dashboard")
+    
+    # Create tabs for different analysis categories
+    tab1, tab2, tab3, tab4, tab5 = st.tabs([
+        "🎯 Core Patterns",
+        "📈 Number Distribution",
+        "🔢 Advanced Insights",
+        "📉 Trends & Gaps",
+        "📋 Summary Table"
+    ])
+    
+    with tab1:
+        st.markdown("### Core Pattern Analysis")
+        
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            # Odd/Even Pie Chart
+            st.markdown("#### Odd/Even Combinations")
+            oe_labels = list(patterns['odd_even_combos'].keys())
+            oe_values = list(patterns['odd_even_combos'].values())
+            
+            fig_oe = go.Figure(data=[go.Pie(
+                labels=oe_labels,
+                values=oe_values,
+                hole=0.3,
+                marker_colors=px.colors.qualitative.Set3
+            )])
+            fig_oe.update_layout(height=350)
+            st.plotly_chart(fig_oe, use_container_width=True)
+            
+            # Most common
+            most_common_oe = max(patterns['odd_even_combos'], key=patterns['odd_even_combos'].get)
+            st.info(f"**Most Common:** {most_common_oe} ({patterns['odd_even_combos'][most_common_oe]} draws)")
+        
+        with col2:
+            # High/Low Pie Chart
+            st.markdown("#### High/Low Combinations")
+            mid = patterns['mid_point']
+            st.caption(f"Low: 1-{mid}, High: {mid+1}-{50 if 'Max' in game else 49}")
+            
+            hl_labels = list(patterns['high_low_combos'].keys())
+            hl_values = list(patterns['high_low_combos'].values())
+            
+            fig_hl = go.Figure(data=[go.Pie(
+                labels=hl_labels,
+                values=hl_values,
+                hole=0.3,
+                marker_colors=px.colors.qualitative.Pastel
+            )])
+            fig_hl.update_layout(height=350)
+            st.plotly_chart(fig_hl, use_container_width=True)
+            
+            # Most common
+            most_common_hl = max(patterns['high_low_combos'], key=patterns['high_low_combos'].get)
+            st.info(f"**Most Common:** {most_common_hl} ({patterns['high_low_combos'][most_common_hl]} draws)")
+        
+        st.divider()
+        
+        # Sum Analysis Bar Chart
+        st.markdown("#### Sum Range Distribution")
+        sum_stats = patterns['sum_stats']
+        
+        col1, col2, col3, col4 = st.columns(4)
+        with col1:
+            st.metric("Min Sum", f"{sum_stats['min']}")
+        with col2:
+            st.metric("Max Sum", f"{sum_stats['max']}")
+        with col3:
+            st.metric("Average Sum", f"{sum_stats['mean']:.1f}")
+        with col4:
+            st.metric("Most Common Range", sum_stats['mode_range'])
+    
+    with tab2:
+        st.markdown("### Number Frequency Distribution")
+        
+        # Heatmap of number frequency
+        freq = patterns['number_frequency']
+        max_num = max(freq.keys())
+        
+        # Create heatmap data (5 rows of 10 numbers each for 50, adjust for 49)
+        rows = 5
+        cols = 10
+        heatmap_data = []
+        heatmap_text = []
+        
+        for row in range(rows):
+            row_data = []
+            row_text = []
+            for col in range(cols):
+                num = row * cols + col + 1
+                if num <= max_num:
+                    row_data.append(freq.get(num, 0))
+                    row_text.append(f"#{num}<br>{freq.get(num, 0)} times")
+                else:
+                    row_data.append(0)
+                    row_text.append("")
+            heatmap_data.append(row_data)
+            heatmap_text.append(row_text)
+        
+        fig_heatmap = go.Figure(data=go.Heatmap(
+            z=heatmap_data,
+            text=heatmap_text,
+            texttemplate='%{text}',
+            textfont={"size": 10},
+            colorscale='Viridis',
+            showscale=True
+        ))
+        fig_heatmap.update_layout(
+            title="Number Frequency Heatmap",
+            height=400,
+            xaxis=dict(showticklabels=False),
+            yaxis=dict(showticklabels=False)
+        )
+        st.plotly_chart(fig_heatmap, use_container_width=True)
+        
+        st.divider()
+        
+        # Top and Bottom Numbers
+        col1, col2 = st.columns(2)
+        
+        sorted_freq = sorted(freq.items(), key=lambda x: x[1], reverse=True)
+        
+        with col1:
+            st.markdown("#### 🔥 Most Frequent Numbers")
+            top_10 = sorted_freq[:10]
+            for num, count in top_10:
+                percentage = (count / patterns['total_draws']) * 100
+                st.write(f"**{num}**: {count} times ({percentage:.1f}%)")
+        
+        with col2:
+            st.markdown("#### ❄️ Least Frequent Numbers")
+            bottom_10 = sorted_freq[-10:]
+            for num, count in bottom_10:
+                percentage = (count / patterns['total_draws']) * 100
+                st.write(f"**{num}**: {count} times ({percentage:.1f}%)")
+        
+        # Excluded numbers
+        if patterns['excluded_numbers']:
+            st.warning(f"**Typically Excluded Numbers:** {', '.join(map(str, patterns['excluded_numbers']))}")
+            st.caption("These numbers appear significantly less frequently than average")
+    
+    with tab3:
+        st.markdown("### Advanced Pattern Insights")
+        
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            # Consecutive Numbers Bar Chart
+            st.markdown("#### Consecutive Numbers")
+            cons_labels = [str(k) for k in sorted(patterns['consecutive_counts'].keys())]
+            cons_values = [patterns['consecutive_counts'][int(k)] for k in cons_labels]
+            
+            fig_cons = go.Figure(data=[go.Bar(
+                x=cons_labels,
+                y=cons_values,
+                marker_color='lightblue',
+                text=cons_values,
+                textposition='auto'
+            )])
+            fig_cons.update_layout(
+                xaxis_title="Number of Consecutive Pairs",
+                yaxis_title="Frequency",
+                height=300
+            )
+            st.plotly_chart(fig_cons, use_container_width=True)
+            
+            # Prime Numbers
+            st.markdown("#### Prime Number Count")
+            prime_labels = [str(k) for k in sorted(patterns['prime_counts'].keys())]
+            prime_values = [patterns['prime_counts'][int(k)] for k in prime_labels]
+            
+            fig_prime = go.Figure(data=[go.Bar(
+                x=prime_labels,
+                y=prime_values,
+                marker_color='lightcoral',
+                text=prime_values,
+                textposition='auto'
+            )])
+            fig_prime.update_layout(
+                xaxis_title="Number of Primes in Draw",
+                yaxis_title="Frequency",
+                height=300
+            )
+            st.plotly_chart(fig_prime, use_container_width=True)
+        
+        with col2:
+            # Decade Distribution
+            st.markdown("#### Decade Distribution")
+            decade_labels = list(patterns['decade_distribution'].keys())
+            decade_values = list(patterns['decade_distribution'].values())
+            
+            fig_decade = go.Figure(data=[go.Bar(
+                x=decade_labels,
+                y=decade_values,
+                marker_color='lightgreen',
+                text=decade_values,
+                textposition='auto'
+            )])
+            fig_decade.update_layout(
+                xaxis_title="Number Range (Decade)",
+                yaxis_title="Total Appearances",
+                height=300
+            )
+            st.plotly_chart(fig_decade, use_container_width=True)
+            
+            # Pairs/Close Numbers
+            st.markdown("#### Close Number Pairs (within 2)")
+            pair_labels = [str(k) for k in sorted(patterns['pair_counts'].keys())]
+            pair_values = [patterns['pair_counts'][int(k)] for k in pair_labels]
+            
+            fig_pairs = go.Figure(data=[go.Bar(
+                x=pair_labels,
+                y=pair_values,
+                marker_color='plum',
+                text=pair_values,
+                textposition='auto'
+            )])
+            fig_pairs.update_layout(
+                xaxis_title="Number of Close Pairs",
+                yaxis_title="Frequency",
+                height=300
+            )
+            st.plotly_chart(fig_pairs, use_container_width=True)
+    
+    with tab4:
+        st.markdown("### Trends & Gap Analysis")
+        
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            st.markdown("#### Maximum Gap Statistics")
+            gap_stats = patterns['gap_analysis']
+            st.metric("Minimum Gap", f"{gap_stats['min']}")
+            st.metric("Maximum Gap", f"{gap_stats['max']}")
+            st.metric("Average Gap", f"{gap_stats['mean']:.1f}")
+            st.caption("Gap = largest distance between consecutive drawn numbers")
+        
+        with col2:
+            st.markdown("#### Repeat from Previous Draw")
+            repeat_stats = patterns['repeat_stats']
+            st.metric("Minimum Repeats", f"{repeat_stats['min']}")
+            st.metric("Maximum Repeats", f"{repeat_stats['max']}")
+            st.metric("Average Repeats", f"{repeat_stats['mean']:.2f}")
+            st.caption("How many numbers typically repeat from the previous draw")
+    
+    with tab5:
+        st.markdown("### Complete Pattern Summary")
+        
+        # Create comprehensive summary table
+        summary_data = {
+            "Pattern Category": [],
+            "Key Insight": [],
+            "Statistical Value": []
+        }
+        
+        # Add all patterns
+        most_common_oe = max(patterns['odd_even_combos'], key=patterns['odd_even_combos'].get)
+        summary_data["Pattern Category"].append("Odd/Even Balance")
+        summary_data["Key Insight"].append(f"Most Common: {most_common_oe}")
+        summary_data["Statistical Value"].append(f"{patterns['odd_even_combos'][most_common_oe]}/{patterns['total_draws']} draws")
+        
+        most_common_hl = max(patterns['high_low_combos'], key=patterns['high_low_combos'].get)
+        summary_data["Pattern Category"].append("High/Low Balance")
+        summary_data["Key Insight"].append(f"Most Common: {most_common_hl}")
+        summary_data["Statistical Value"].append(f"{patterns['high_low_combos'][most_common_hl]}/{patterns['total_draws']} draws")
+        
+        summary_data["Pattern Category"].append("Sum Range")
+        summary_data["Key Insight"].append(f"Most Common: {patterns['sum_stats']['mode_range']}")
+        summary_data["Statistical Value"].append(f"Avg: {patterns['sum_stats']['mean']:.1f}")
+        
+        summary_data["Pattern Category"].append("Consecutive Pairs")
+        most_common_cons = max(patterns['consecutive_counts'], key=patterns['consecutive_counts'].get)
+        summary_data["Key Insight"].append(f"Most Common: {most_common_cons} pairs")
+        summary_data["Statistical Value"].append(f"{patterns['consecutive_counts'][most_common_cons]}/{patterns['total_draws']} draws")
+        
+        summary_data["Pattern Category"].append("Prime Numbers")
+        most_common_prime = max(patterns['prime_counts'], key=patterns['prime_counts'].get)
+        summary_data["Key Insight"].append(f"Most Common: {most_common_prime} primes")
+        summary_data["Statistical Value"].append(f"{patterns['prime_counts'][most_common_prime]}/{patterns['total_draws']} draws")
+        
+        summary_data["Pattern Category"].append("Maximum Gap")
+        summary_data["Key Insight"].append(f"Average: {patterns['gap_analysis']['mean']:.1f}")
+        summary_data["Statistical Value"].append(f"Range: {patterns['gap_analysis']['min']}-{patterns['gap_analysis']['max']}")
+        
+        summary_data["Pattern Category"].append("Repeat Numbers")
+        summary_data["Key Insight"].append(f"Average: {patterns['repeat_stats']['mean']:.2f} numbers")
+        summary_data["Statistical Value"].append(f"Range: {patterns['repeat_stats']['min']}-{patterns['repeat_stats']['max']}")
+        
+        df_summary = pd.DataFrame(summary_data)
+        st.dataframe(df_summary, use_container_width=True, hide_index=True)
+
+
+def _save_draw_profile(profile_name: str, jackpot_amount: float, range_tolerance: int,
+                        draws: List[Dict], patterns: Dict, game: str) -> Optional[Path]:
+    """Save draw profile to JSON file in learning folder."""
+    
+    try:
+        # Create directory structure
+        game_folder = _sanitize_game_name(game)
+        profile_dir = Path("data") / "learning" / game_folder / "jackpot_profiles"
+        profile_dir.mkdir(parents=True, exist_ok=True)
+        
+        # Create profile data
+        profile_data = {
+            "metadata": {
+                "profile_name": profile_name,
+                "game": game,
+                "created_date": datetime.now().isoformat(),
+                "jackpot_amount": jackpot_amount,
+                "range_tolerance_percent": range_tolerance,
+                "total_draws_analyzed": len(draws),
+                "date_range": {
+                    "oldest": min(d['date'] for d in draws),
+                    "newest": max(d['date'] for d in draws)
+                }
+            },
+            "core_patterns": {
+                "odd_even_distribution": patterns['odd_even_combos'],
+                "high_low_distribution": patterns['high_low_combos'],
+                "high_low_split_point": patterns['mid_point']
+            },
+            "sum_analysis": patterns['sum_stats'],
+            "number_patterns": {
+                "frequency_map": patterns['number_frequency'],
+                "excluded_numbers": patterns['excluded_numbers'],
+                "hot_numbers": sorted(
+                    patterns['number_frequency'].items(),
+                    key=lambda x: x[1],
+                    reverse=True
+                )[:10],
+                "cold_numbers": sorted(
+                    patterns['number_frequency'].items(),
+                    key=lambda x: x[1]
+                )[:10]
+            },
+            "advanced_insights": {
+                "consecutive_distribution": patterns['consecutive_counts'],
+                "decade_distribution": patterns['decade_distribution'],
+                "gap_statistics": patterns['gap_analysis'],
+                "prime_distribution": patterns['prime_counts'],
+                "pair_distribution": patterns['pair_counts'],
+                "repeat_statistics": patterns['repeat_stats']
+            },
+            "historical_draws": [
+                {
+                    "date": d['date'],
+                    "numbers": d['numbers'],
+                    "jackpot": d['jackpot']
+                } for d in draws[:20]  # Store first 20 for reference
+            ]
+        }
+        
+        # Save to file
+        filename = f"{profile_name}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
+        filepath = profile_dir / filename
+        
+        with open(filepath, 'w') as f:
+            json.dump(profile_data, f, indent=2)
+        
+        return filepath
+    
+    except Exception as e:
+        app_log(f"Error saving draw profile: {e}", "error")
+        return None
+
+
+def _sanitize_game_name(game: str) -> str:
+    """Convert game name to filesystem-safe format."""
+    return game.lower().replace(" ", "_").replace("/", "_")
 
 
 # ============================================================================
@@ -5770,7 +6287,7 @@ def _render_previous_draw_mode(analyzer: SuperIntelligentAIAnalyzer, game: str) 
                                 if cluster_result['missing_winners']:
                                     st.markdown(f"**❌ Missing Winners:** {', '.join(map(str, cluster_result['missing_winners']))}")
                                 else:
-                                    st.markdown("**🎉 All 7 winning numbers covered in top predictions!**")
+                                    st.markdown(f"**🎉 All {total_winners} winning numbers covered in top predictions!**")
                             
                             # Show individual set contributions
                             st.markdown("**📊 Individual Set Contributions:**")

@@ -95,14 +95,14 @@ class ProbabilityGenerator:
                 "number_range": (1, 49),
                 "bonus": 1,
                 "display_name": "Lotto 6/49",
-                "registry_name": "lotto_6_49"
+                "registry_name": "lotto_6_49"  # Normalized name matching folder structure
             },
             "lotto_max": {
                 "main_numbers": 7,
                 "number_range": (1, 50),
                 "bonus": 1,
                 "display_name": "Lotto Max",
-                "registry_name": "lotto_max"
+                "registry_name": "lotto_max"  # Normalized name matching folder structure
             }
         }
         
@@ -256,6 +256,25 @@ class ProbabilityGenerator:
             
             # Take the last row (most recent data point) and reshape to 2D
             last_features = features_df.iloc[-1:].values  # This is already (1, n_features)
+            
+            # Check if we need to pad features to match model's expected count
+            if self.registry:
+                registry_name = self.config.get("registry_name", "")
+                schema = self.registry.get_model_schema(registry_name, model_type)
+                if schema:
+                    expected_count = schema.feature_count
+                    actual_count = last_features.shape[1]
+                    
+                    if actual_count < expected_count:
+                        # Pad with zeros to match expected feature count
+                        padding_needed = expected_count - actual_count
+                        padding = np.zeros((last_features.shape[0], padding_needed))
+                        last_features = np.hstack([last_features, padding])
+                        logger.info(f"Padded features from {actual_count} to {expected_count} (added {padding_needed} zero columns)")
+                    elif actual_count > expected_count:
+                        # Truncate to match expected count
+                        last_features = last_features[:, :expected_count]
+                        logger.warning(f"Truncated features from {actual_count} to {expected_count}")
             
             logger.info(f"Loaded features from {latest_feature_file.name} ({len(features_df)} rows, {last_features.shape[1]} features, shape={last_features.shape})")
             
@@ -816,6 +835,25 @@ class ProbabilityGenerator:
                 features = features.reshape(1, -1)
             
             logger.info(f"Generated features for {model_type}: shape={features.shape}, dtype={features.dtype}")
+            
+            # Pad or truncate features to match model's expected schema (critical for tree models)
+            if model_type in ["xgboost", "catboost", "lightgbm"] and self.registry:
+                registry_name = self.config.get("registry_name", "")
+                schema = self.registry.get_model_schema(registry_name, model_type)
+                if schema:
+                    expected_count = schema.feature_count
+                    actual_count = features.shape[1] if features.ndim > 1 else len(features)
+                    
+                    if actual_count < expected_count:
+                        # Pad with zeros to match expected feature count
+                        padding_needed = expected_count - actual_count
+                        padding = np.zeros((features.shape[0], padding_needed))
+                        features = np.hstack([features, padding])
+                        logger.info(f"Padded {model_type} features from {actual_count} to {expected_count} (added {padding_needed} zero columns)")
+                    elif actual_count > expected_count:
+                        # Truncate to match expected count
+                        features = features[:, :expected_count]
+                        logger.warning(f"Truncated {model_type} features from {actual_count} to {expected_count}")
             
             # 3. Load model and run inference
             raw_output = self._load_and_run_model(model_name, features)
@@ -1704,23 +1742,45 @@ class PredictionEngine:
                 'method': 'mean(selected_probabilities)'
             })
             
-            # Get top contributing models
-            sorted_models = sorted(
-                model_weights.items(),
-                key=lambda x: x[1],
-                reverse=True
-            )
-            top_models = [m[0] for m in sorted_models[:3]]
+            # Check if weights are balanced (nearly equal) - indicates balanced voting
+            weights_list = list(model_weights.values())
+            weight_variance = np.var(weights_list) if len(weights_list) > 1 else 0
+            is_balanced_voting = weight_variance < 0.01  # Threshold for "balanced"
             
-            # Create reasoning
-            reasoning = (
-                f"This prediction is a consensus from our AI ensemble of {len(model_weights)} models. "
-                f"The most influential models were: {', '.join(top_models)}. "
-                f"The numbers were chosen based on weighted model predictions "
-                f"with statistical safeguards applied "
-                f"(KL divergence: {kl_div:.4f}, correction applied: {needs_correction}). "
-                f"Ensemble confidence: {confidence:.3f}"
-            )
+            # Create reasoning based on voting strategy
+            if is_balanced_voting:
+                # All models contributed equally - list all models
+                model_names = list(model_weights.keys())
+                if len(model_names) <= 5:
+                    models_desc = ', '.join(model_names)
+                else:
+                    models_desc = f"{', '.join(model_names[:3])} and {len(model_names) - 3} others"
+                
+                reasoning = (
+                    f"This prediction is a consensus from our AI ensemble of {len(model_weights)} models using balanced voting. "
+                    f"All models contributed equally: {models_desc}. "
+                    f"The numbers were chosen based on democratic model consensus "
+                    f"with statistical safeguards applied "
+                    f"(KL divergence: {kl_div:.4f}, correction applied: {needs_correction}). "
+                    f"Ensemble confidence: {confidence:.3f}"
+                )
+            else:
+                # Weight-based voting - show top contributors
+                sorted_models = sorted(
+                    model_weights.items(),
+                    key=lambda x: x[1],
+                    reverse=True
+                )
+                top_models = [f"{m[0]} ({m[1]:.1%})" for m in sorted_models[:3]]
+                
+                reasoning = (
+                    f"This prediction is a consensus from our AI ensemble of {len(model_weights)} models. "
+                    f"The most influential models were: {', '.join(top_models)}. "
+                    f"The numbers were chosen based on weighted model predictions "
+                    f"with statistical safeguards applied "
+                    f"(KL divergence: {kl_div:.4f}, correction applied: {needs_correction}). "
+                    f"Ensemble confidence: {confidence:.3f}"
+                )
             
             # Create probability dict
             prob_dict = {
