@@ -3727,6 +3727,10 @@ def _render_prediction_generator(analyzer: SuperIntelligentAIAnalyzer) -> None:
         st.session_state.sia_custom_quantity = optimal["optimal_sets"]
     if 'sia_no_repeat_numbers' not in st.session_state:
         st.session_state.sia_no_repeat_numbers = False
+    if 'sia_use_draw_profile' not in st.session_state:
+        st.session_state.sia_use_draw_profile = False
+    if 'sia_selected_draw_profile' not in st.session_state:
+        st.session_state.sia_selected_draw_profile = None
     
     # Three column layout for the checkboxes
     checkbox_col1, checkbox_col2, checkbox_col3 = st.columns(3)
@@ -3757,6 +3761,81 @@ def _render_prediction_generator(analyzer: SuperIntelligentAIAnalyzer) -> None:
             help="Maximize number diversity by minimizing repetition across sets. Uses intelligent calibration to ensure unique coverage."
         )
         st.session_state.sia_no_repeat_numbers = no_repeat_numbers
+    
+    # Second row for Draw Profile checkbox
+    checkbox_col4 = st.columns(1)[0]
+    
+    with checkbox_col4:
+        use_draw_profile = st.checkbox(
+            "🎯 Use Draw Profile",
+            value=st.session_state.sia_use_draw_profile,
+            key="sia_use_draw_profile_checkbox",
+            help="Enforce all generated sets to match patterns from a saved jackpot draw profile"
+        )
+        st.session_state.sia_use_draw_profile = use_draw_profile
+    
+    # Draw Profile Selection (shown when checkbox is enabled)
+    if use_draw_profile:
+        st.markdown("#### 🎯 Select Draw Profile File")
+        
+        # Find available draw profile files
+        available_profiles = _find_all_draw_profiles(analyzer.game)
+        
+        if available_profiles:
+            # Create readable options
+            profile_options = []
+            for pf in available_profiles:
+                # Parse filename for profile info
+                file_stats = pf.stat()
+                mod_time = datetime.fromtimestamp(file_stats.st_mtime).strftime('%Y-%m-%d %H:%M')
+                size_kb = file_stats.st_size / 1024
+                profile_options.append(f"{pf.name} (Modified: {mod_time}, Size: {size_kb:.1f}KB)")
+            
+            # Single-select for draw profile (unlike learning files)
+            selected_profile_idx = st.selectbox(
+                "Choose a draw profile:",
+                range(len(available_profiles)),
+                format_func=lambda i: profile_options[i],
+                index=st.session_state.sia_selected_draw_profile if st.session_state.sia_selected_draw_profile is not None and st.session_state.sia_selected_draw_profile < len(available_profiles) else 0,
+                key="sia_draw_profile_selectbox",
+                help="Select ONE profile to enforce its patterns on all generated sets"
+            )
+            
+            st.session_state.sia_selected_draw_profile = selected_profile_idx
+            
+            # Display selected profile info
+            selected_profile_path = available_profiles[selected_profile_idx]
+            st.success(f"✅ Selected Profile: **{selected_profile_path.name}**")
+            
+            # Load and display profile summary
+            profile_data = _load_draw_profile(selected_profile_path)
+            if profile_data:
+                metadata = profile_data.get('metadata', {})
+                core_patterns = profile_data.get('core_patterns', {})
+                
+                # Show profile details in expandable section
+                with st.expander("📋 Profile Details", expanded=False):
+                    col1, col2, col3 = st.columns(3)
+                    with col1:
+                        st.write(f"**Jackpot Amount:** ${metadata.get('jackpot_amount', 0):,.0f}")
+                        st.write(f"**Draws Analyzed:** {metadata.get('total_draws_analyzed', 0)}")
+                    with col2:
+                        odd_even = core_patterns.get('odd_even_distribution', {})
+                        if odd_even:
+                            most_common_oe = max(odd_even, key=odd_even.get)
+                            st.write(f"**Odd/Even Pattern:** {most_common_oe}")
+                        high_low = core_patterns.get('high_low_distribution', {})
+                        if high_low:
+                            most_common_hl = max(high_low, key=high_low.get)
+                            st.write(f"**High/Low Pattern:** {most_common_hl}")
+                    with col3:
+                        sum_stats = profile_data.get('sum_analysis', {})
+                        if sum_stats:
+                            st.write(f"**Sum Range:** {sum_stats.get('mode_range', 'N/A')}")
+                            st.write(f"**Avg Sum:** {sum_stats.get('mean', 0):.1f}")
+        else:
+            st.warning(f"⚠️ No draw profiles found for {analyzer.game}. Create profiles in the Jackpot Pattern Analysis tab first.")
+            st.session_state.sia_use_draw_profile = False
     
     # Learning Files Selection (shown when checkbox is enabled)
     if use_learning:
@@ -3918,6 +3997,22 @@ def _render_prediction_generator(analyzer: SuperIntelligentAIAnalyzer) -> None:
                         learning_data = _load_and_combine_learning_files(selected_files)
                         st.success(f"✅ Loaded {len(selected_files)} learning file(s) with combined insights")
                 
+                # ===== LOAD DRAW PROFILE IF ENABLED =====
+                draw_profile_data = None
+                draw_profile_name = None
+                
+                if use_draw_profile and st.session_state.sia_selected_draw_profile is not None:
+                    st.info("🎯 Loading draw profile to enforce patterns...")
+                    available_profiles = _find_all_draw_profiles(analyzer.game)
+                    if available_profiles and st.session_state.sia_selected_draw_profile < len(available_profiles):
+                        selected_profile_path = available_profiles[st.session_state.sia_selected_draw_profile]
+                        draw_profile_data = _load_draw_profile(selected_profile_path)
+                        draw_profile_name = selected_profile_path.name
+                        if draw_profile_data:
+                            st.success(f"✅ Loaded draw profile: {draw_profile_name}")
+                        else:
+                            st.warning("⚠️ Failed to load draw profile, proceeding without profile enforcement")
+                
                 # ===== GENERATE PREDICTIONS =====
                 # Pass learning data to generation if available
                 if learning_data:
@@ -3939,6 +4034,53 @@ def _render_prediction_generator(analyzer: SuperIntelligentAIAnalyzer) -> None:
                         no_repeat_numbers=no_repeat_numbers,
                         use_adaptive_learning=False
                     )
+                
+                # ===== VALIDATE AND ENFORCE DRAW PROFILE IF ENABLED =====
+                profile_validation_results = []
+                if draw_profile_data:
+                    st.info("🔍 Validating all sets against draw profile patterns...")
+                    
+                    max_regeneration_attempts = 100
+                    regeneration_count = 0
+                    
+                    # Validate each prediction set
+                    for i, pred_set in enumerate(predictions[:]):  # Use slice to iterate over copy
+                        validation = _validate_set_against_profile(pred_set, draw_profile_data, analyzer.game)
+                        
+                        # Regenerate if invalid
+                        attempts = 0
+                        while not validation['valid'] and attempts < max_regeneration_attempts:
+                            # Generate a new set
+                            if learning_data:
+                                new_set, _, new_attribution, _ = analyzer.generate_prediction_sets_advanced(
+                                    1, optimal, analysis,
+                                    learning_data=learning_data,
+                                    no_repeat_numbers=no_repeat_numbers,
+                                    use_adaptive_learning=use_adaptive_learning
+                                )
+                            else:
+                                new_set, _, new_attribution, _ = analyzer.generate_prediction_sets_advanced(
+                                    1, optimal, analysis,
+                                    no_repeat_numbers=no_repeat_numbers,
+                                    use_adaptive_learning=False
+                                )
+                            
+                            # Replace the set
+                            predictions[i] = new_set[0]
+                            if new_attribution:
+                                predictions_with_attribution[i] = new_attribution[0]
+                            
+                            # Validate new set
+                            validation = _validate_set_against_profile(predictions[i], draw_profile_data, analyzer.game)
+                            attempts += 1
+                            regeneration_count += 1
+                        
+                        profile_validation_results.append(validation)
+                    
+                    if regeneration_count > 0:
+                        st.success(f"✅ Profile enforcement complete: Regenerated {regeneration_count} sets to match profile patterns")
+                    else:
+                        st.success("✅ All sets naturally match the draw profile patterns")
                 
                 # Save to session and file with attribution data
                 st.session_state.sia_predictions = predictions
@@ -3981,6 +4123,79 @@ def _render_prediction_generator(analyzer: SuperIntelligentAIAnalyzer) -> None:
                 
                 # Display strategy report prominently
                 st.info(strategy_report)
+                
+                # ===== DRAW PROFILE MATCH SUMMARY =====
+                if draw_profile_data and profile_validation_results:
+                    st.divider()
+                    st.markdown("### 🎯 Draw Profile Match Summary")
+                    st.markdown(f"**Profile Applied:** {draw_profile_name}")
+                    
+                    # Count valid sets
+                    valid_count = sum(1 for v in profile_validation_results if v['valid'])
+                    
+                    # Create summary metrics - Row 1: Core Patterns
+                    col1, col2, col3, col4 = st.columns(4)
+                    with col1:
+                        st.metric("Sets Matching Profile", f"{valid_count}/{len(profile_validation_results)}")
+                    with col2:
+                        # Most common odd/even pattern
+                        oe_patterns = [v['odd_even'] for v in profile_validation_results]
+                        most_common_oe = max(set(oe_patterns), key=oe_patterns.count) if oe_patterns else "N/A"
+                        st.metric("Most Common Odd/Even", most_common_oe)
+                    with col3:
+                        # Most common high/low pattern
+                        hl_patterns = [v['high_low'] for v in profile_validation_results]
+                        most_common_hl = max(set(hl_patterns), key=hl_patterns.count) if hl_patterns else "N/A"
+                        st.metric("Most Common High/Low", most_common_hl)
+                    with col4:
+                        # Average sum
+                        avg_sum = sum(v['sum'] for v in profile_validation_results) / len(profile_validation_results)
+                        st.metric("Average Sum", f"{avg_sum:.1f}")
+                    
+                    # Row 2: Advanced Patterns
+                    col5, col6, col7, col8 = st.columns(4)
+                    with col5:
+                        # Average consecutive pairs
+                        avg_consecutive = sum(v.get('consecutive', 0) for v in profile_validation_results) / len(profile_validation_results)
+                        st.metric("Avg Consecutive Pairs", f"{avg_consecutive:.1f}")
+                    with col6:
+                        # Average prime count
+                        avg_primes = sum(v.get('primes', 0) for v in profile_validation_results) / len(profile_validation_results)
+                        st.metric("Avg Prime Numbers", f"{avg_primes:.1f}")
+                    with col7:
+                        # Average max gap
+                        avg_max_gap = sum(v.get('max_gap', 0) for v in profile_validation_results) / len(profile_validation_results)
+                        st.metric("Avg Maximum Gap", f"{avg_max_gap:.1f}")
+                    with col8:
+                        # Match percentage
+                        match_pct = (valid_count / len(profile_validation_results)) * 100
+                        st.metric("Profile Match Rate", f"{match_pct:.0f}%")
+                    
+                    # Show profile details in expander
+                    with st.expander("📊 Detailed Profile Match Analysis", expanded=False):
+                        # Create detailed table
+                        match_data = []
+                        for i, validation in enumerate(profile_validation_results, 1):
+                            match_data.append({
+                                'Set #': i,
+                                'Valid': '✅' if validation['valid'] else '❌',
+                                'Odd/Even': validation['odd_even'],
+                                'High/Low': validation['high_low'],
+                                'Sum': validation['sum'],
+                                'Consecutive': validation.get('consecutive', 0),
+                                'Primes': validation.get('primes', 0),
+                                'Max Gap': validation.get('max_gap', 0),
+                                'Issues': ', '.join(validation['issues']) if validation['issues'] else 'None'
+                            })
+                        
+                        match_df = pd.DataFrame(match_data)
+                        st.dataframe(match_df, use_container_width=True, hide_index=True)
+                        
+                        if valid_count == len(profile_validation_results):
+                            st.success("🎉 Perfect! All sets match the draw profile patterns!")
+                        else:
+                            st.warning(f"⚠️ {len(profile_validation_results) - valid_count} set(s) have deviations from profile patterns")
+                            st.info("💡 **Note:** Validation is strict - sets must match top 3 most common Odd/Even & High/Low patterns, top 2 consecutive/prime patterns, and be within tolerance ranges for sum and gaps.")
                 
                 # ===== MODEL PERFORMANCE BREAKDOWN =====
                 st.markdown("### 🤖 Model Performance Breakdown")
@@ -7973,6 +8188,166 @@ def _load_and_combine_learning_files(learning_files: List[Path]) -> Dict:
         combined_data['analysis']['winning_pattern_fingerprint'] = most_common[0][0] if most_common else ''
     
     return combined_data
+
+
+def _find_all_draw_profiles(game: str) -> List[Path]:
+    """Find all draw profile files for a game."""
+    game_folder = _sanitize_game_name(game)
+    profile_dir = Path("data") / "learning" / game_folder / "jackpot_profiles"
+    
+    if not profile_dir.exists():
+        return []
+    
+    # Get all JSON files in the jackpot_profiles directory
+    profile_files = list(profile_dir.glob("*.json"))
+    
+    # Sort by modification time (most recent first)
+    profile_files = sorted(profile_files, key=lambda x: x.stat().st_mtime, reverse=True)
+    return profile_files
+
+
+def _load_draw_profile(profile_path: Path) -> Optional[Dict]:
+    """Load a draw profile JSON file."""
+    try:
+        with open(profile_path, 'r') as f:
+            return json.load(f)
+    except Exception as e:
+        app_log(f"Error loading draw profile {profile_path}: {e}", "error")
+        return None
+
+
+def _validate_set_against_profile(prediction_set: List[int], profile_data: Dict, game: str) -> Dict:
+    """Validate if a prediction set matches the draw profile patterns - STRICT MODE."""
+    if not profile_data:
+        return {'valid': True, 'issues': []}
+    
+    issues = []
+    
+    # Determine number range for the game
+    if "6/49" in game or "6_49" in game:
+        max_num = 49
+        nums_per_draw = 6
+    else:  # Lotto Max
+        max_num = 50
+        nums_per_draw = 7
+    
+    mid_point = profile_data.get('core_patterns', {}).get('high_low_split_point', (max_num + 1) // 2)
+    sorted_nums = sorted(prediction_set)
+    
+    # Helper: Check if number is prime
+    def is_prime(n):
+        if n < 2:
+            return False
+        for i in range(2, int(n**0.5) + 1):
+            if n % i == 0:
+                return False
+        return True
+    
+    # ===== 1. VALIDATE ODD/EVEN - MUST MATCH TOP 3 MOST COMMON =====
+    odd_count = sum(1 for n in sorted_nums if n % 2 == 1)
+    even_count = len(sorted_nums) - odd_count
+    oe_pattern = f"{odd_count} Odd / {even_count} Even"
+    
+    oe_distribution = profile_data.get('core_patterns', {}).get('odd_even_distribution', {})
+    if oe_distribution:
+        # Get top 3 most common patterns
+        top_3_oe = sorted(oe_distribution.items(), key=lambda x: x[1], reverse=True)[:3]
+        top_3_oe_patterns = [pattern for pattern, count in top_3_oe]
+        
+        if oe_pattern not in top_3_oe_patterns:
+            issues.append(f"Odd/Even {oe_pattern} not in top 3 patterns: {', '.join(top_3_oe_patterns)}")
+    
+    # ===== 2. VALIDATE HIGH/LOW - MUST MATCH TOP 3 MOST COMMON =====
+    low_count = sum(1 for n in sorted_nums if n <= mid_point)
+    high_count = len(sorted_nums) - low_count
+    hl_pattern = f"{low_count} Low / {high_count} High"
+    
+    hl_distribution = profile_data.get('core_patterns', {}).get('high_low_distribution', {})
+    if hl_distribution:
+        # Get top 3 most common patterns
+        top_3_hl = sorted(hl_distribution.items(), key=lambda x: x[1], reverse=True)[:3]
+        top_3_hl_patterns = [pattern for pattern, count in top_3_hl]
+        
+        if hl_pattern not in top_3_hl_patterns:
+            issues.append(f"High/Low {hl_pattern} not in top 3 patterns: {', '.join(top_3_hl_patterns)}")
+    
+    # ===== 3. VALIDATE SUM - USE MODE RANGE WITH ±15 TOLERANCE =====
+    total_sum = sum(sorted_nums)
+    sum_stats = profile_data.get('sum_analysis', {})
+    if sum_stats:
+        mode_range_str = sum_stats.get('mode_range', '')
+        if mode_range_str and '-' in mode_range_str:
+            # Parse mode range (e.g., "135-149")
+            try:
+                mode_min, mode_max = map(int, mode_range_str.split('-'))
+                # Allow ±15 tolerance around mode range
+                tolerance = 15
+                adjusted_min = mode_min - tolerance
+                adjusted_max = mode_max + tolerance
+                
+                if not (adjusted_min <= total_sum <= adjusted_max):
+                    issues.append(f"Sum {total_sum} outside mode range {mode_min}-{mode_max} (±{tolerance} tolerance)")
+            except (ValueError, AttributeError):
+                # Fallback to min/max if mode_range parsing fails
+                sum_min = sum_stats.get('min', 0)
+                sum_max = sum_stats.get('max', 999)
+                if not (sum_min <= total_sum <= sum_max):
+                    issues.append(f"Sum {total_sum} outside profile range {sum_min}-{sum_max}")
+    
+    # ===== 4. VALIDATE CONSECUTIVE PAIRS - MUST MATCH TOP 2 MOST COMMON =====
+    consecutive_count = sum(1 for i in range(len(sorted_nums)-1) if sorted_nums[i+1] == sorted_nums[i] + 1)
+    
+    consecutive_distribution = profile_data.get('advanced_insights', {}).get('consecutive_distribution', {})
+    if consecutive_distribution:
+        # Get top 2 most common consecutive counts
+        top_2_consecutive = sorted(consecutive_distribution.items(), key=lambda x: x[1], reverse=True)[:2]
+        top_2_consecutive_counts = [int(count) for count, freq in top_2_consecutive]
+        
+        if consecutive_count not in top_2_consecutive_counts:
+            issues.append(f"Consecutive pairs {consecutive_count} not in top 2: {top_2_consecutive_counts}")
+    
+    # ===== 5. VALIDATE PRIME NUMBERS - MUST MATCH TOP 2 MOST COMMON =====
+    prime_count = sum(1 for n in sorted_nums if is_prime(n))
+    
+    prime_distribution = profile_data.get('advanced_insights', {}).get('prime_distribution', {})
+    if prime_distribution:
+        # Get top 2 most common prime counts
+        top_2_primes = sorted(prime_distribution.items(), key=lambda x: x[1], reverse=True)[:2]
+        top_2_prime_counts = [int(count) for count, freq in top_2_primes]
+        
+        if prime_count not in top_2_prime_counts:
+            issues.append(f"Prime numbers {prime_count} not in top 2: {top_2_prime_counts}")
+    
+    # ===== 6. VALIDATE MAXIMUM GAP - WITHIN ±4 OF AVERAGE =====
+    gaps = [sorted_nums[i+1] - sorted_nums[i] for i in range(len(sorted_nums)-1)]
+    max_gap = max(gaps) if gaps else 0
+    
+    gap_stats = profile_data.get('advanced_insights', {}).get('gap_statistics', {})
+    if gap_stats:
+        avg_gap = gap_stats.get('mean', 0)
+        if avg_gap > 0:
+            # Allow ±4 tolerance from average
+            gap_tolerance = 4
+            if not (avg_gap - gap_tolerance <= max_gap <= avg_gap + gap_tolerance):
+                issues.append(f"Max gap {max_gap} outside average {avg_gap:.1f} (±{gap_tolerance} tolerance)")
+    
+    # ===== 7. VALIDATE EXCLUDED NUMBERS =====
+    excluded_numbers = profile_data.get('number_patterns', {}).get('excluded_numbers', [])
+    if excluded_numbers:
+        used_excluded = [n for n in sorted_nums if n in excluded_numbers]
+        if used_excluded:
+            issues.append(f"Uses typically excluded numbers: {used_excluded}")
+    
+    return {
+        'valid': len(issues) == 0,
+        'issues': issues,
+        'odd_even': oe_pattern,
+        'high_low': hl_pattern,
+        'sum': total_sum,
+        'consecutive': consecutive_count,
+        'primes': prime_count,
+        'max_gap': max_gap
+    }
 
 
 def _regenerate_predictions_with_learning(
