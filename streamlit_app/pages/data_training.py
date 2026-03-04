@@ -464,17 +464,50 @@ def _scrape_lottery_data(url: str, year: int) -> Optional[pd.DataFrame]:
             st.error("Please provide a valid URL")
             return None
         
-        # Make the request
+        # Make the request with retries
         headers = {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+            'Accept-Language': 'en-US,en;q=0.9',
+            'Connection': 'keep-alive',
         }
         
-        try:
-            response = requests.get(url, headers=headers, timeout=10)
-            response.raise_for_status()
-        except requests.exceptions.RequestException as e:
-            st.error(f"Failed to fetch URL: {str(e)}")
-            app_log(f"URL fetch error: {e}", "error")
+        # Retry logic: 3 attempts with increasing timeouts
+        max_retries = 3
+        timeout_values = [15, 30, 45]  # Progressive timeout increase
+        
+        response = None
+        last_error = None
+        
+        for attempt in range(max_retries):
+            try:
+                timeout = timeout_values[attempt]
+                app_log(f"Attempt {attempt + 1}/{max_retries} with {timeout}s timeout...", "info")
+                response = requests.get(url, headers=headers, timeout=timeout)
+                response.raise_for_status()
+                app_log(f"Successfully connected on attempt {attempt + 1}", "info")
+                break  # Success! Exit retry loop
+            except requests.exceptions.Timeout:
+                last_error = f"Connection timed out after {timeout} seconds"
+                app_log(f"Attempt {attempt + 1} timed out", "warning")
+                if attempt < max_retries - 1:
+                    st.warning(f"Attempt {attempt + 1} timed out. Retrying with longer timeout...")
+            except requests.exceptions.RequestException as e:
+                last_error = str(e)
+                app_log(f"Attempt {attempt + 1} failed: {e}", "warning")
+                if attempt < max_retries - 1:
+                    st.warning(f"Attempt {attempt + 1} failed: {str(e)}. Retrying...")
+                break  # Don't retry on non-timeout errors
+        
+        if response is None:
+            error_msg = f"Failed to fetch URL after {max_retries} attempts: {last_error}"
+            st.error(error_msg)
+            st.info("💡 **Troubleshooting Tips:**\n"
+                   "- Check your internet connection\n"
+                   "- Verify the website is accessible in your browser\n"
+                   "- Try disabling VPN/firewall temporarily\n"
+                   "- Check if your ISP blocks lottery websites")
+            app_log(error_msg, "error")
             return None
         
         if BeautifulSoup is None:

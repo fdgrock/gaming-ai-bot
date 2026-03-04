@@ -2248,7 +2248,8 @@ understanding that lottery outcomes remain random and unpredictable.
     
     def generate_prediction_sets_advanced(self, num_sets: int, optimal_analysis: Dict[str, Any],
                                         model_analysis: Dict[str, Any], learning_data: Dict[str, Any] = None,
-                                        no_repeat_numbers: bool = False, use_adaptive_learning: bool = True) -> tuple:
+                                        no_repeat_numbers: bool = False, use_adaptive_learning: bool = True,
+                                        existing_number_usage: Dict[int, int] = None) -> tuple:
         """
         Generate AI-optimized prediction sets using REAL MODEL PROBABILITIES from ensemble inference.
         
@@ -2259,6 +2260,7 @@ understanding that lottery outcomes remain random and unpredictable.
             learning_data: Optional learning data to enhance predictions with historical insights
             no_repeat_numbers: If True, minimize number repetition across sets for maximum diversity
             use_adaptive_learning: If True, use AdaptiveLearningSystem with evolved weights (default: True)
+            existing_number_usage: Optional dict tracking numbers already used (for regeneration scenarios)
         
         Returns:
             Tuple of (predictions, strategy_report, predictions_with_attribution, strategy_log) where:
@@ -2314,7 +2316,8 @@ understanding that lottery outcomes remain random and unpredictable.
         
         # ===== INTELLIGENT NUMBER TRACKING FOR DIVERSITY =====
         # Track number usage across sets for intelligent calibration
-        number_usage_count = {}  # Track how many times each number has been used
+        # Use existing usage if provided (for regeneration scenarios), otherwise start fresh
+        number_usage_count = existing_number_usage.copy() if existing_number_usage else {}
         total_possible_unique_sets = max_number // draw_size  # Rough estimate
         
         # Determine initial diversity strategy - will be dynamically updated per set
@@ -4050,19 +4053,30 @@ def _render_prediction_generator(analyzer: SuperIntelligentAIAnalyzer) -> None:
                         # Regenerate if invalid
                         attempts = 0
                         while not validation['valid'] and attempts < max_regeneration_attempts:
-                            # Generate a new set
+                            # Build number usage from OTHER sets (exclude the one being regenerated)
+                            # This ensures no_repeat_numbers works correctly during regeneration
+                            existing_usage = {}
+                            if no_repeat_numbers:
+                                for j, other_set in enumerate(predictions):
+                                    if j != i:  # Don't count the set we're replacing
+                                        for num in other_set:
+                                            existing_usage[num] = existing_usage.get(num, 0) + 1
+                            
+                            # Generate a new set with knowledge of already-used numbers
                             if learning_data:
                                 new_set, _, new_attribution, _ = analyzer.generate_prediction_sets_advanced(
                                     1, optimal, analysis,
                                     learning_data=learning_data,
                                     no_repeat_numbers=no_repeat_numbers,
-                                    use_adaptive_learning=use_adaptive_learning
+                                    use_adaptive_learning=use_adaptive_learning,
+                                    existing_number_usage=existing_usage
                                 )
                             else:
                                 new_set, _, new_attribution, _ = analyzer.generate_prediction_sets_advanced(
                                     1, optimal, analysis,
                                     no_repeat_numbers=no_repeat_numbers,
-                                    use_adaptive_learning=False
+                                    use_adaptive_learning=False,
+                                    existing_number_usage=existing_usage
                                 )
                             
                             # Replace the set
