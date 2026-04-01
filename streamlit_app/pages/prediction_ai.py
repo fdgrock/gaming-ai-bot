@@ -15,7 +15,7 @@ import plotly.graph_objects as go
 import plotly.express as px
 from pathlib import Path
 from datetime import datetime, timedelta
-from typing import Optional, Dict, Any, List, Tuple
+from typing import Optional, Dict, Any, List, Tuple, Union
 import json
 import random
 import statistics
@@ -119,49 +119,122 @@ class AdaptiveLearningSystem:
     
     def get_adaptive_weights(self, draw_age: int = 0) -> Dict[str, float]:
         """
-        Get adaptive weights with temporal decay applied.
-        
+        Get adaptive weights with temporal decay and cross-factor interaction boosts applied.
+
+        Strong factor pairs detected by detect_cross_factor_interactions() are used to
+        give a mild multiplicative lift (up to +20%) to factors that appear in the top
+        interaction pairs, rewarding factors that work well in combination.
+
         Args:
             draw_age: Number of draws since this learning data was created (0 = most recent)
         """
         base_weights = self.meta_learning_data['factor_weights']
         decay_rate = self.meta_learning_data['temporal_decay_rate']
-        
-        # Apply temporal decay: older data gets less weight
         decay_factor = decay_rate ** draw_age
-        
-        # Return decayed weights
-        return {k: v * decay_factor for k, v in base_weights.items()}
+
+        # Start with decayed base weights
+        weights = {k: v * decay_factor for k, v in base_weights.items()}
+
+        # Apply cross-factor interaction boosts (P5)
+        interactions = self.meta_learning_data.get('cross_factor_interactions', {})
+        if interactions:
+            # Find the global max interaction score to normalise boosts
+            _max_int = max(interactions.values()) if interactions.values() else 1.0
+            if _max_int > 0:
+                _factor_boost: Dict[str, float] = {}
+                for pair_key, pair_score in interactions.items():
+                    _parts = pair_key.split('+', 1)
+                    if len(_parts) == 2:
+                        for _f in _parts:
+                            # Accumulate normalised boost per factor (cap at 0.20 per factor)
+                            _factor_boost[_f] = _factor_boost.get(_f, 0.0) + (pair_score / _max_int) * 0.10
+                for _f, _boost in _factor_boost.items():
+                    if _f in weights:
+                        weights[_f] *= (1.0 + min(0.20, _boost))
+
+        return weights
     
-    def update_weights_from_success(self, winning_numbers: List[int], top_predictions: List[List[int]], 
+    def update_weights_from_success(self, winning_numbers, top_predictions: List[List[int]],
                                     factor_scores: Dict[str, List[float]]):
         """
-        Adaptive learning: Update factor weights based on which factors 
-        were strong in successful predictions.
-        
+        Adaptive learning: Update factor weights based on real accuracy deltas.
+
+        Each factor score is weighted by how many winning numbers the corresponding
+        prediction actually matched, so factors that correlate with real hits are
+        rewarded over factors that look good on paper but miss in practice.
+
         Args:
-            winning_numbers: The actual winning numbers
+            winning_numbers: The actual winning numbers (list or dict with 'numbers' key)
             top_predictions: The best-performing prediction sets
             factor_scores: Score breakdown by factor for each top prediction
         """
-        # Calculate how well each factor predicted success
+        # Normalise winning_numbers to a plain list
+        if isinstance(winning_numbers, dict):
+            _win_list = list(winning_numbers.get('numbers', []))
+        else:
+            _win_list = list(winning_numbers)
+        _win_set = set(_win_list)
+
+        # Compute actual hit count per prediction (real accuracy signal)
+        _hit_counts = []
+        for pred in top_predictions:
+            _hit_counts.append(len(set(pred) & _win_set))
+        _total_hits = sum(_hit_counts)
+
+        # Calculate real accuracy delta for each factor
         for factor_name, scores in factor_scores.items():
-            # Higher scores in top predictions mean this factor is predictive
-            avg_score = np.mean(scores) if scores else 0
-            
+            if not scores:
+                continue
+
+            n = min(len(scores), len(_hit_counts))
+            _scores_arr = np.array(scores[:n], dtype=float)
+            _hits_arr   = np.array(_hit_counts[:n], dtype=float)
+
+            if _total_hits > 0:
+                # Hit-weighted average: how high was this factor when predictions hit more numbers?
+                _hit_weighted_avg = float(np.dot(_scores_arr, _hits_arr) / _total_hits)
+            else:
+                _hit_weighted_avg = float(np.mean(_scores_arr))
+
+            # Uniform average: what the factor scores were regardless of hits
+            _uniform_avg = float(np.mean(_scores_arr))
+
+            # accuracy_delta > 0 means factor correlates with actual hits (reward it)
+            # accuracy_delta ≈ 0 means factor is neutral; < 0 means it's misleading
+            _accuracy_delta = _hit_weighted_avg - _uniform_avg
+
+            # Map delta to a 0–1 success-rate signal (shift+scale so 0.5 = neutral)
+            _signal = max(0.0, min(1.0, 0.5 + _accuracy_delta))
+
             # Update success rate tracking
             if factor_name not in self.meta_learning_data['factor_success_rates']:
                 self.meta_learning_data['factor_success_rates'][factor_name] = []
-            
-            self.meta_learning_data['factor_success_rates'][factor_name].append(avg_score)
-            
+
+            self.meta_learning_data['factor_success_rates'][factor_name].append(_signal)
+
             # Keep only last 50 results
             if len(self.meta_learning_data['factor_success_rates'][factor_name]) > 50:
                 self.meta_learning_data['factor_success_rates'][factor_name].pop(0)
         
+        # P6: Record hit_rate effectiveness — fraction of winning numbers covered by top predictions
+        if _win_set and top_predictions:
+            _covered = set()
+            for _p in top_predictions:
+                _covered.update(set(_p) & _win_set)
+            _hit_rate = len(_covered) / len(_win_set)
+            _hr_history = self.meta_learning_data.setdefault('hit_rate_history', [])
+            _hr_history.append({
+                'cycle': self.meta_learning_data.get('total_learning_cycles', 0) + 1,
+                'hit_rate': round(_hit_rate, 4),
+                'timestamp': datetime.now().isoformat()
+            })
+            # Keep last 50 entries
+            if len(_hr_history) > 50:
+                _hr_history.pop(0)
+
         # Recalculate adaptive weights based on historical success
         self._recalculate_adaptive_weights()
-        
+
         # Save updated meta-learning
         self.meta_learning_data['total_learning_cycles'] += 1
         self.meta_learning_data['last_updated'] = datetime.now().isoformat()
@@ -203,49 +276,48 @@ class AdaptiveLearningSystem:
         if len(self.meta_learning_data['weight_history']) > 100:
             self.meta_learning_data['weight_history'].pop(0)
     
-    def detect_cross_factor_interactions(self, predictions: List[List[int]], 
-                                        winning_numbers: List[int],
-                                        factor_scores: Dict[str, Dict[int, float]]):
+    def detect_cross_factor_interactions(self, predictions: List[List[int]],
+                                        winning_numbers,
+                                        factor_scores: Dict[str, List[float]]):
         """
         Detect when combinations of factors predict better together.
-        
+        Identifies factor pairs whose combined presence correlates with the most
+        actual number matches, then stores the top pairs so get_adaptive_weights()
+        can apply joint multipliers during generation.
+
         Args:
-            predictions: All prediction sets
-            winning_numbers: Actual winning numbers
-            factor_scores: Individual factor scores for each prediction
+            predictions: Top prediction sets (already filtered to best performers)
+            winning_numbers: Actual winning numbers (list or dict with 'numbers' key)
+            factor_scores: {factor_name: [score_per_prediction]} (list-indexed)
         """
-        # Analyze top 10% of predictions
-        num_top = max(1, len(predictions) // 10)
-        
-        # Calculate match scores for each prediction
-        match_scores = []
-        for pred in predictions:
-            matches = len(set(pred) & set(winning_numbers))
-            match_scores.append(matches)
-        
-        top_indices = np.argsort(match_scores)[-num_top:]
-        
-        # Analyze factor combinations in top predictions
-        factor_pairs = {}
+        if isinstance(winning_numbers, dict):
+            _win_set = set(winning_numbers.get('numbers', []))
+        else:
+            _win_set = set(winning_numbers)
+
+        # Hit count per prediction
+        _hit_counts = [len(set(p) & _win_set) for p in predictions]
+
         factors = list(self.meta_learning_data['factor_weights'].keys())
-        
+        factor_pairs = {}
+
         for i, factor1 in enumerate(factors):
-            for factor2 in factors[i+1:]:
-                pair_key = f"{factor1}+{factor2}"
-                pair_scores = []
-                
-                for idx in top_indices:
-                    if idx < len(predictions):
-                        score1 = factor_scores.get(factor1, {}).get(idx, 0)
-                        score2 = factor_scores.get(factor2, {}).get(idx, 0)
-                        # Interaction strength: product of both scores
-                        pair_scores.append(score1 * score2)
-                
-                if pair_scores:
-                    factor_pairs[pair_key] = np.mean(pair_scores)
-        
-        # Update interaction tracking
-        self.meta_learning_data['cross_factor_interactions'] = factor_pairs
+            for factor2 in factors[i + 1:]:
+                s1 = factor_scores.get(factor1, [])
+                s2 = factor_scores.get(factor2, [])
+                n = min(len(s1), len(s2), len(_hit_counts))
+                if n == 0:
+                    continue
+                # Pair interaction: product of both scores, weighted by actual hits
+                _pair_products = [s1[j] * s2[j] for j in range(n)]
+                _total_hits = sum(_hit_counts[:n]) or 1
+                # Hit-weighted mean of pair product
+                _hw_mean = sum(_pair_products[j] * _hit_counts[j] for j in range(n)) / _total_hits
+                factor_pairs[f"{factor1}+{factor2}"] = round(float(_hw_mean), 6)
+
+        # Keep only top-20 strongest pairs to limit JSON growth
+        _top_pairs = sorted(factor_pairs.items(), key=lambda x: x[1], reverse=True)[:20]
+        self.meta_learning_data['cross_factor_interactions'] = dict(_top_pairs)
         self._save_meta_learning()
         
         return factor_pairs
@@ -259,23 +331,27 @@ class AdaptiveLearningSystem:
             worst_predictions: The worst-performing prediction sets
             winning_numbers: Actual winning numbers
         """
+        # P9: Before adding new anti-patterns, increment age on all existing ones.
+        # This lets old failure signatures fade while fresh ones stay strong.
+        for _ap in self.meta_learning_data['anti_patterns']:
+            _ap['age'] = _ap.get('age', 0) + 1
+
         for pred in worst_predictions:
-            # Extract anti-pattern characteristics
             anti_pattern = {
                 'numbers': sorted(pred),
                 'sum': sum(pred),
                 'gaps': [pred[i+1] - pred[i] for i in range(len(pred)-1)] if len(pred) > 1 else [],
                 'even_count': sum(1 for n in pred if n % 2 == 0),
                 'zones': self._categorize_zones(pred),
-                'timestamp': datetime.now().isoformat()
+                'timestamp': datetime.now().isoformat(),
+                'age': 0  # Fresh anti-pattern, full penalty weight
             }
-            
             self.meta_learning_data['anti_patterns'].append(anti_pattern)
-        
+
         # Keep only last 200 anti-patterns
         if len(self.meta_learning_data['anti_patterns']) > 200:
             self.meta_learning_data['anti_patterns'] = self.meta_learning_data['anti_patterns'][-200:]
-        
+
         self._save_meta_learning()
     
     def _categorize_zones(self, numbers: List[int]) -> Dict[str, int]:
@@ -326,8 +402,12 @@ class AdaptiveLearningSystem:
         coverage_count = len(covered_winners)
         coverage_percent = (coverage_count / len(winning_numbers)) * 100
         
-        # Detect cluster: 85%+ coverage (6/7 for Lotto Max, 5/6 for Lotto 649)
-        cluster_threshold = int(len(winning_numbers) * 0.85)
+        # P7: Adaptive cluster threshold — starts at 60% (easy trigger for new users,
+        # builds co-occurrence data faster), rises linearly to 85% once the cluster
+        # history is rich enough (30+ entries) so the system becomes more selective.
+        _cluster_history_n = len(self.meta_learning_data.get('cluster_history', []))
+        _adaptive_frac = 0.60 + min(0.25, _cluster_history_n / 120.0)  # 60%→85% over 30 detections
+        cluster_threshold = max(1, int(len(winning_numbers) * _adaptive_frac))
         is_cluster = coverage_count >= cluster_threshold
         
         cluster_result = {
@@ -422,9 +502,18 @@ class AdaptiveLearningSystem:
             return 1.0
         
         concentration_weight = self.meta_learning_data['factor_weights']['cluster_concentration']
-        
-        # If weight is zero, no boosting
-        if concentration_weight == 0.0:
+
+        # P4 (also applied here): use smooth ramp instead of hard 0.03 floor;
+        # only activate after 10+ learning cycles to avoid noise-based boosting.
+        _has_cooc_data = bool(self.meta_learning_data.get('number_cooccurrence'))
+        _cooc_cycles = int(self.meta_learning_data.get('total_learning_cycles', 0))
+        if _has_cooc_data and _cooc_cycles >= 10:
+            _ramp = min(0.05, 0.005 * (_cooc_cycles - 9))
+            effective_weight = max(concentration_weight, _ramp)
+        else:
+            effective_weight = concentration_weight
+
+        if effective_weight == 0.0:
             return 1.0
         
         # Calculate average co-occurrence strength with numbers in current set
@@ -442,11 +531,11 @@ class AdaptiveLearningSystem:
         
         avg_strength = total_strength / count
         
-        # Convert strength to boost multiplier scaled by concentration weight
-        # avg_strength ranges 0-1, concentration_weight ranges 0-0.20
+        # Convert strength to boost multiplier scaled by effective concentration weight.
+        # avg_strength ranges 0-1, effective_weight ranges 0.03-0.20
         # Result: boost ranges from 1.0 (no boost) to 1.5 (50% boost at max)
-        boost = 1.0 + (avg_strength * concentration_weight * 2.5)
-        
+        boost = 1.0 + (avg_strength * effective_weight * 2.5)
+
         return boost
     
     def generate_fusion_sets(self, predictions: List[List[int]], 
@@ -471,11 +560,14 @@ class AdaptiveLearningSystem:
             List of fusion set dictionaries with numbers and metadata
         """
         from collections import Counter
-        
-        # Ensure cluster concentration is meaningful before generating fusion sets
+
+        # Allow fusion sets whenever there is co-occurrence data, even if cluster_concentration
+        # weight hasn't built up yet (new users). Use an effective floor of 0.02.
         concentration_weight = self.meta_learning_data['factor_weights'].get('cluster_concentration', 0.0)
-        
-        if concentration_weight < 0.05:  # Less than 5% - not enough evidence yet
+        _has_cooccurrence = bool(self.meta_learning_data.get('number_cooccurrence'))
+        effective_concentration = max(concentration_weight, 0.02) if _has_cooccurrence else concentration_weight
+
+        if effective_concentration < 0.02:  # Need at least co-occurrence data or 2% weight
             return []
         
         fusion_sets = []
@@ -677,30 +769,33 @@ class AdaptiveLearningSystem:
         
         for anti in self.meta_learning_data['anti_patterns'][-50:]:  # Check recent 50
             similarity = 0.0
-            
+
             # Sum similarity
             sum_diff = abs(pred_sum - anti['sum'])
             if sum_diff < 20:
                 similarity += 0.3
-            
+
             # Zone similarity
             zone_diff = sum(abs(pred_zones[z] - anti['zones'].get(z, 0)) for z in ['low', 'mid', 'high'])
             if zone_diff <= 2:
                 similarity += 0.3
-            
+
             # Even/odd similarity
             if abs(pred_even - anti['even_count']) <= 1:
                 similarity += 0.2
-            
+
             # Number overlap
             overlap = len(set(prediction) & set(anti['numbers']))
             if overlap >= 4:
                 similarity += 0.2
-            
+
             if similarity > 0.6:  # Strong match to anti-pattern
-                penalty += similarity
+                # P9: Apply age-based decay — old failures fade, recent ones stay strong
+                _age = anti.get('age', 0)
+                _age_factor = 0.90 ** _age  # 10% weaker per learning cycle
+                penalty += similarity * _age_factor
                 matches += 1
-        
+
         # Average penalty from matches
         return min(1.0, penalty / max(1, matches))
     
@@ -1168,14 +1263,12 @@ class SuperIntelligentAIAnalyzer:
         """
         import sys
         from pathlib import Path
-        
+
         # Add project root to path for absolute imports
         project_root = Path(__file__).parent.parent.parent
         if str(project_root) not in sys.path:
             sys.path.insert(0, str(project_root))
-        
-        from tools.prediction_engine import PredictionEngine
-        
+
         analysis = {
             "models": [],
             "total_selected": len(selected_models),
@@ -1186,14 +1279,11 @@ class SuperIntelligentAIAnalyzer:
             "model_probabilities": {},      # Per-model probabilities
             "inference_logs": []            # Detailed inference trace
         }
-        
+
         if not selected_models:
             return analysis
-        
+
         try:
-            # Initialize prediction engine
-            engine = PredictionEngine(game=self.game)
-            
             # Get metadata for accuracies
             accuracies = []
             all_model_probabilities = []
@@ -1236,30 +1326,106 @@ class SuperIntelligentAIAnalyzer:
                         from tensorflow import keras
                         model = keras.models.load_model(model_path)
                     
-                    # Generate simple probabilities based on model type
-                    # For standard models, create uniform distribution weighted by accuracy
                     max_number = self.game_config["max_number"]
-                    base_probs = np.ones(max_number) / max_number
-                    
-                    # Add small variations based on accuracy
-                    import random
-                    random.seed(42 + hash(model_name) % 1000)
-                    variations = np.array([random.uniform(-0.01, 0.01) for _ in range(max_number)])
-                    number_probabilities_array = base_probs + (variations * accuracy)
-                    number_probabilities_array = np.clip(number_probabilities_array, 0.001, 1.0)
-                    number_probabilities_array = number_probabilities_array / number_probabilities_array.sum()
-                    
+                    number_probabilities_array = None
+
+                    # --- Attempt real predict_proba inference using AdvancedFeatureGenerator ---
+                    try:
+                        from streamlit_app.services.advanced_feature_generator import AdvancedFeatureGenerator
+                        from streamlit_app.core import get_data_dir, sanitize_game_name as _san_std
+
+                        _data_dir = get_data_dir()
+                        _game_folder = _san_std(self.game)
+                        _csv_files = sorted(
+                            (_data_dir / _game_folder).glob("*.csv"),
+                            key=lambda p: p.stat().st_mtime, reverse=True
+                        )
+                        if not _csv_files:
+                            raise FileNotFoundError(f"No CSV data in {_data_dir / _game_folder}")
+
+                        _dfs, _total = [], 0
+                        for _cf in _csv_files:
+                            _dfs.append(pd.read_csv(_cf))
+                            _total += len(_dfs[-1])
+                            if _total >= 100:
+                                break
+                        _df = pd.concat(_dfs, ignore_index=True)
+                        if 'draw_date' in _df.columns:
+                            _df['draw_date'] = pd.to_datetime(_df['draw_date'], errors='coerce')
+                            _df = (_df.dropna(subset=['draw_date'])
+                                     .sort_values('draw_date', ascending=False)
+                                     .head(100))
+
+                        # XGBoost, LightGBM, and CatBoost all use draw-level catboost features
+                        _fgen = AdvancedFeatureGenerator(game=self.game)
+                        _feats_df, _ = _fgen.generate_catboost_features(_df)
+                        _feat_cols = [c for c in _feats_df.columns if c not in ['draw_date', 'numbers']]
+                        _X = _feats_df[_feat_cols].iloc[-1:].values
+
+                        _raw = model.predict_proba(_X)
+                        # Handle MultiOutputClassifier returning a list of per-position arrays
+                        if isinstance(_raw, list):
+                            _pos_arrays = [p[0] if len(p.shape) > 1 else p for p in _raw]
+                            _probs = np.mean(_pos_arrays, axis=0)
+                        else:
+                            _probs = _raw[0]
+
+                        # Resize to max_number if needed
+                        if len(_probs) > max_number:
+                            _probs = _probs[:max_number]
+                        elif len(_probs) < max_number:
+                            _probs = np.concatenate([_probs, np.full(max_number - len(_probs), 1e-6)])
+
+                        _probs = np.clip(_probs, 1e-6, None)
+                        number_probabilities_array = _probs / _probs.sum()
+                        analysis["inference_logs"].append(
+                            f"✅ {model_name} ({model_type}): Real predict_proba inference "
+                            f"({len(number_probabilities_array)}-class distribution)"
+                        )
+                    except Exception as _infer_err:
+                        analysis["inference_logs"].append(
+                            f"⚠️ {model_name} ({model_type}): predict_proba failed "
+                            f"({str(_infer_err)[:80]}), falling back to historical frequency"
+                        )
+
+                    # --- Frequency-based fallback when inference is unavailable ---
+                    if number_probabilities_array is None:
+                        try:
+                            from streamlit_app.core import get_data_dir as _gdd, sanitize_game_name as _san_fb
+                            _fb_dir = _gdd() / _san_fb(self.game)
+                            _counts = np.ones(max_number)  # Laplace smoothing
+                            for _cf2 in sorted(_fb_dir.glob("*.csv"),
+                                               key=lambda p: p.stat().st_mtime, reverse=True)[:3]:
+                                try:
+                                    for _, _row in pd.read_csv(_cf2).iterrows():
+                                        for _n in [int(x.strip()) for x in
+                                                   str(_row.get('numbers', '')).split(',')
+                                                   if x.strip().isdigit()]:
+                                            if 1 <= _n <= max_number:
+                                                _counts[_n - 1] += 1
+                                except Exception:
+                                    continue
+                            number_probabilities_array = _counts / _counts.sum()
+                            analysis["inference_logs"].append(
+                                f"📊 {model_name} ({model_type}): Using historical frequency distribution"
+                            )
+                        except Exception:
+                            number_probabilities_array = np.ones(max_number) / max_number
+                            analysis["inference_logs"].append(
+                                f"📊 {model_name} ({model_type}): Using uniform distribution (no data available)"
+                            )
+
                     # Convert to dict
                     number_probabilities = {i+1: float(number_probabilities_array[i]) for i in range(max_number)}
-                    
+
                     if not number_probabilities or len(number_probabilities) == 0:
                         raise ValueError(f"No probabilities generated for {model_name}")
-                    
+
                     # Store per-model probabilities (convert keys to strings for consistency)
                     prob_dict_str = {str(k): float(v) for k, v in number_probabilities.items()}
                     analysis["model_probabilities"][f"{model_name} ({model_type})"] = prob_dict_str
                     all_model_probabilities.append(prob_dict_str)
-                    
+
                     analysis["models"].append({
                         "name": model_name,
                         "type": model_type,
@@ -1268,10 +1434,6 @@ class SuperIntelligentAIAnalyzer:
                         "real_probabilities": prob_dict_str,
                         "metadata": model_info.get("full_metadata", {})
                     })
-                    
-                    analysis["inference_logs"].append(
-                        f"✅ {model_name} ({model_type}): Generated real probabilities from model inference"
-                    )
                     
                 except Exception as model_error:
                     import traceback
@@ -1367,274 +1529,297 @@ class SuperIntelligentAIAnalyzer:
                         from streamlit_app.services.advanced_feature_generator import AdvancedFeatureGenerator
                         from streamlit_app.core import sanitize_game_name, get_data_dir
                         
-                        # Extract position number from model name (e.g., "catboost_position_1" -> 1)
-                        # Some models don't have positions (e.g., lstm_lotto_max, transformer_lotto_max)
-                        position = None
-                        if 'position' in model_name.lower():
+                        # Track inference quality for UI warnings
+                        _inference_type = 'synthetic'  # default; updated to 'real' on successful inference
+
+                        # ── Resolve model file path ─────────────────────────────────────────
+                        # Neural network models (LSTM, CNN, Transformer + variants) have a
+                        # completely different file layout from tree models:
+                        #
+                        #   Tree:  models/advanced/{game}/{type}/position_NN.pkl
+                        #   Neural base:    models/advanced/{game}/{type}/{type}_model.h5
+                        #   Neural variant: models/advanced/{game}/{type}_variants/{type}_variant_N_seed_S.h5
+                        #
+                        # Model cards store summary JSON paths as model_path, not the .h5
+                        # files, so we must re-derive the correct path from the model_name.
+                        # ─────────────────────────────────────────────────────────────────
+                        import re as _re
+
+                        game_folder = sanitize_game_name(self.game)
+                        _adv_base = project_root / "models" / "advanced" / game_folder
+
+                        _NEURAL_TYPES = {'lstm', 'cnn', 'transformer'}
+                        _arch_lower = architecture.lower()
+                        _name_lower = model_name.lower()
+
+                        # Detect whether this is a neural-network model
+                        _is_neural_model = (
+                            model_type.lower() in _NEURAL_TYPES
+                            or any(t in _arch_lower for t in _NEURAL_TYPES)
+                            or any(t in _name_lower for t in _NEURAL_TYPES)
+                        )
+
+                        # Determine canonical neural base type (lstm / cnn / transformer)
+                        def _base_neural_type(name_l, arch_l):
+                            for t in ('lstm', 'cnn', 'transformer'):
+                                if t in name_l or t in arch_l:
+                                    return t
+                            return None
+
+                        model_path = None
+                        position = None  # only used for tree models
+                        _vm = None       # variant regex match; None for tree models and neural base models
+
+                        if _is_neural_model:
+                            _btype = _base_neural_type(_name_lower, _arch_lower)
+                            if _btype:
+                                # Check for variant pattern:
+                                # LSTM_variant_2_seed_123  /  TRANSFORMER_variant_3_seed_456
+                                _vm = _re.search(r'variant_(\d+)_seed_(\d+)', model_name, _re.IGNORECASE)
+                                if _vm:
+                                    _vn, _vs = _vm.group(1), _vm.group(2)
+                                    _vdir = _adv_base / f"{_btype}_variants"
+                                    _vfile = _vdir / f"{_btype}_variant_{_vn}_seed_{_vs}.h5"
+                                    if _vfile.exists():
+                                        model_path = _vfile
+                                    else:
+                                        # Scan variants directory for any .h5 matching variant/seed
+                                        _scan = list(_vdir.glob(f"*variant*{_vn}*seed*{_vs}*.h5")) if _vdir.exists() else []
+                                        model_path = _scan[0] if _scan else None
+                                    analysis["inference_logs"].append(
+                                        f"🔬 Neural variant path: {model_path or '(not found)'}"
+                                    )
+                                else:
+                                    # Base (non-variant) neural model
+                                    _base_path = _adv_base / _btype / f"{_btype}_model.h5"
+                                    if _base_path.exists():
+                                        model_path = _base_path
+                                    else:
+                                        # Try .keras as well
+                                        _keras_path = _base_path.with_suffix('.keras')
+                                        model_path = _keras_path if _keras_path.exists() else None
+                                    analysis["inference_logs"].append(
+                                        f"🔬 Neural base path: {model_path or '(not found)'}"
+                                    )
+
+                                if model_path is None:
+                                    raise FileNotFoundError(
+                                        f"Neural model file not found for '{model_name}' "
+                                        f"(type={_btype}). Looked in: {_adv_base / _btype} "
+                                        f"and {_adv_base / (_btype + '_variants')}"
+                                    )
+                                # Override model_type so feature generation uses the right branch
+                                model_type = _btype
+                            else:
+                                raise FileNotFoundError(
+                                    f"Cannot determine neural type for model '{model_name}' "
+                                    f"(architecture='{architecture}')"
+                                )
+
+                        elif 'position' in _name_lower:
+                            # Tree model with explicit position in name
                             try:
                                 position = int(model_name.split('_')[-1])
                             except (ValueError, IndexError):
-                                # Not a position-specific model, skip real inference
-                                analysis["inference_logs"].append(
-                                    f"⚠️ {model_name}: Not a position-specific model, using health-based probabilities"
+                                raise ValueError(f"Cannot parse position from '{model_name}'")
+
+                            _tree_path = _adv_base / model_type / f"position_{position:02d}.pkl"
+                            for _ext in ['.pkl', '.joblib', '.keras', '.h5']:
+                                _p = _tree_path.with_suffix(_ext)
+                                if _p.exists():
+                                    model_path = _p
+                                    break
+                            if model_path is None:
+                                raise FileNotFoundError(
+                                    f"Tree model file not found (tried .pkl/.joblib/.keras/.h5): "
+                                    f"{_tree_path.with_suffix('')}"
                                 )
-                                # Generate health-based probabilities
-                                max_number = self.game_config["max_number"]
-                                base_probs = np.ones(max_number) / max_number
-                                import random
-                                random.seed(42 + hash(model_name) % 1000)
-                                variations = np.array([random.uniform(-0.01, 0.01) for _ in range(max_number)])
-                                number_probabilities_array = base_probs + (variations * health_score)
-                                number_probabilities_array = np.clip(number_probabilities_array, 0.001, 1.0)
-                                number_probabilities_array = number_probabilities_array / number_probabilities_array.sum()
-                                number_probabilities = {i+1: float(number_probabilities_array[i]) for i in range(max_number)}
-                                prob_dict_str = {str(k): float(v) for k, v in number_probabilities.items()}
-                                analysis["model_probabilities"][f"{model_name} ({model_type})"] = prob_dict_str
-                                all_model_probabilities.append(prob_dict_str)
-                                
-                                # Add model to analysis with health score as accuracy
-                                accuracies.append(health_score)
-                                analysis["models"].append({
-                                    "name": model_name,
-                                    "type": model_type,
-                                    "accuracy": health_score,
-                                    "confidence": self._calculate_confidence(health_score),
-                                    "inference_data": [],
-                                    "real_probabilities": prob_dict_str,
-                                    "metadata": model_dict
-                                })
-                                continue
+
                         else:
-                            # Not a position-specific model, skip real inference
-                            analysis["inference_logs"].append(
-                                f"⚠️ {model_name}: Not a position-specific model, using health-based probabilities"
+                            # Unknown model type — cannot do real inference
+                            raise FileNotFoundError(
+                                f"Cannot resolve model file for '{model_name}' "
+                                f"(type={model_type}, arch={architecture}). "
+                                "Not a neural model and no 'position' in name."
                             )
-                            # Generate health-based probabilities
-                            max_number = self.game_config["max_number"]
-                            base_probs = np.ones(max_number) / max_number
-                            import random
-                            random.seed(42 + hash(model_name) % 1000)
-                            variations = np.array([random.uniform(-0.01, 0.01) for _ in range(max_number)])
-                            number_probabilities_array = base_probs + (variations * health_score)
-                            number_probabilities_array = np.clip(number_probabilities_array, 0.001, 1.0)
-                            number_probabilities_array = number_probabilities_array / number_probabilities_array.sum()
-                            number_probabilities = {i+1: float(number_probabilities_array[i]) for i in range(max_number)}
-                            prob_dict_str = {str(k): float(v) for k, v in number_probabilities.items()}
-                            analysis["model_probabilities"][f"{model_name} ({model_type})"] = prob_dict_str
-                            all_model_probabilities.append(prob_dict_str)
-                            
-                            # Add model to analysis with health score as accuracy
-                            accuracies.append(health_score)
-                            analysis["models"].append({
-                                "name": model_name,
-                                "type": model_type,
-                                "accuracy": health_score,
-                                "confidence": self._calculate_confidence(health_score),
-                                "inference_data": [],
-                                "real_probabilities": prob_dict_str,
-                                "metadata": model_dict
-                            })
-                            continue
-                        
-                        # Construct path to model file
-                        game_folder = sanitize_game_name(self.game)
-                        model_path = project_root / "models" / "advanced" / game_folder / model_type / f"position_{position:02d}.pkl"
-                        
-                        if not model_path.exists():
-                            # Try alternate extensions for neural networks
-                            model_path_keras = model_path.with_suffix('.keras')
-                            model_path_h5 = model_path.with_suffix('.h5')
-                            
-                            if model_path_keras.exists():
-                                model_path = model_path_keras
-                            elif model_path_h5.exists():
-                                model_path = model_path_h5
-                            else:
-                                raise FileNotFoundError(f"Model file not found: {model_path}")
                         
                         analysis["inference_logs"].append(f"📁 Loading model from: {model_path.name}")
-                        
+
                         # Load the model
                         if model_path.suffix in ['.keras', '.h5']:
-                            # Neural network model
+                            # Neural network model — may require custom layer classes that
+                            # were defined in the training scripts under tools/.
+                            import tensorflow as _tf
                             from tensorflow import keras
-                            model = keras.models.load_model(model_path)
+                            from tensorflow.keras import layers as _klayers
+
+                            # ── Custom object registry ────────────────────────────────
+                            _custom_objects = {}
+
+                            # AttentionLayer (LSTM variants trained via advanced_lstm_ensemble)
+                            try:
+                                from tools.advanced_lstm_ensemble import AttentionLayer as _AttentionLayer
+                                _custom_objects['AttentionLayer'] = _AttentionLayer
+                            except Exception:
+                                pass
+
+                            # Transformer base model custom layers
+                            try:
+                                from tools.advanced_transformer_model_trainer import (
+                                    PositionalEncoding as _PositionalEncoding,
+                                    TransformerBlock as _TransformerBlock,
+                                    MultiHeadAttention as _MHAttn,
+                                    FeedForwardNetwork as _FFN,
+                                )
+                                _custom_objects.update({
+                                    'PositionalEncoding': _PositionalEncoding,
+                                    'TransformerBlock': _TransformerBlock,
+                                    'MultiHeadAttention': _MHAttn,
+                                    'FeedForwardNetwork': _FFN,
+                                })
+                            except Exception:
+                                pass
+
+                            # Transformer variant compat shims (old-TF serialisation artefacts)
+                            # get_positions: Lambda function used in positional encoding
+                            def _get_positions(x):
+                                return _tf.range(_tf.shape(x)[1])
+                            _custom_objects['get_positions'] = _get_positions
+
+                            # NotEqual: TF op serialised as a layer in old TF2.x builds
+                            class _NotEqualLayer(_klayers.Layer):
+                                def call(self, inputs):
+                                    if isinstance(inputs, (list, tuple)):
+                                        return _tf.not_equal(inputs[0], inputs[1])
+                                    return _tf.not_equal(inputs, 0)
+                            _custom_objects['NotEqual'] = _NotEqualLayer
+
+                            analysis["inference_logs"].append(
+                                f"🔧 Custom objects registered: {list(_custom_objects.keys())}"
+                            )
+                            model = keras.models.load_model(
+                                model_path,
+                                custom_objects=_custom_objects
+                            )
                             is_neural = True
                         else:
                             # Tree-based model (joblib)
                             model = joblib.load(model_path)
                             is_neural = False
                         
-                        # Load historical data for feature generation
-                        data_dir = get_data_dir()
-                        game_data_dir = data_dir / game_folder
-                        
-                        # Find CSV files for this game
-                        csv_files = list(game_data_dir.glob("*.csv"))
-                        if not csv_files:
-                            raise FileNotFoundError(f"No training data found in {game_data_dir}")
-                        
-                        # Load last 100 draws across multiple CSV files for better analysis
-                        # Sort by modification time (most recent first)
-                        csv_files_sorted = sorted(csv_files, key=lambda p: p.stat().st_mtime, reverse=True)
-                        all_dfs = []
-                        total_draws = 0
-                        target_draws = 100  # Load 100 most recent draws for robust analysis
-                        
-                        for csv_file in csv_files_sorted:
-                            try:
-                                temp_df = pd.read_csv(csv_file)
-                                all_dfs.append(temp_df)
-                                total_draws += len(temp_df)
-                                
-                                # Stop once we have at least target_draws
-                                if total_draws >= target_draws:
-                                    break
-                            except Exception as e:
-                                analysis["inference_logs"].append(f"⚠️ Warning: Could not load {csv_file.name}: {e}")
-                                continue
-                        
-                        if not all_dfs:
-                            raise FileNotFoundError(f"No valid training data found in {game_data_dir}")
-                        
-                        # Combine and sort by draw_date (most recent first)
-                        df = pd.concat(all_dfs, ignore_index=True)
-                        
-                        # Sort by draw_date if available
-                        if 'draw_date' in df.columns:
-                            try:
-                                df['draw_date'] = pd.to_datetime(df['draw_date'], format='mixed', errors='coerce')
-                                df = df.dropna(subset=['draw_date'])
-                                df = df.sort_values('draw_date', ascending=False)
-                            except Exception as e:
-                                analysis["inference_logs"].append(f"⚠️ Warning: Could not sort by date: {e}")
-                        
-                        # Keep only the most recent target_draws
-                        df = df.head(target_draws)
-                        
-                        files_used = min(len(csv_files_sorted), len(all_dfs))
-                        analysis["inference_logs"].append(f"📊 Loaded {len(df)} historical draws from {files_used} file(s) for robust analysis")
-                        
-                        # Generate features using AdvancedFeatureGenerator based on model type
-                        feature_gen = AdvancedFeatureGenerator(game=self.game)
-                        
-                        # Generate features based on model type
-                        if model_type == 'xgboost' or model_type == 'lightgbm':
-                            # XGBoost/LightGBM models expect simple 6-feature format from parquet files
-                            # Generate simplified features matching training data format
-                            # Features: time_since_last_seen, rolling_freq_50, rolling_freq_100, 
-                            #           rolling_mean_interval, target, even_count
-                            
-                            # For inference, we create features for all numbers 1-max_number
-                            max_number = self.game_config["max_number"]
-                            features_list = []
-                            
-                            # Calculate basic statistics from recent draws
-                            recent_draws = df.tail(100)  # Last 100 draws for statistics
-                            
-                            for num in range(1, max_number + 1):
-                                # Feature 1: time_since_last_seen (draws since this number appeared)
-                                time_since = 0
-                                for idx in range(len(df) - 1, -1, -1):
-                                    numbers_str = str(df.iloc[idx]['numbers'])
-                                    numbers = [int(n.strip()) for n in numbers_str.split(',')]
-                                    if num in numbers:
-                                        break
-                                    time_since += 1
-                                
-                                # Feature 2: rolling_freq_50 (frequency in last 50 draws)
-                                freq_50 = 0
-                                for idx in range(max(0, len(df) - 50), len(df)):
-                                    numbers_str = str(df.iloc[idx]['numbers'])
-                                    numbers = [int(n.strip()) for n in numbers_str.split(',')]
-                                    if num in numbers:
-                                        freq_50 += 1
-                                freq_50 = freq_50 / min(50, len(df))
-                                
-                                # Feature 3: rolling_freq_100 (frequency in last 100 draws)
-                                freq_100 = 0
-                                for idx in range(max(0, len(df) - 100), len(df)):
-                                    numbers_str = str(df.iloc[idx]['numbers'])
-                                    numbers = [int(n.strip()) for n in numbers_str.split(',')]
-                                    if num in numbers:
-                                        freq_100 += 1
-                                freq_100 = freq_100 / min(100, len(df))
-                                
-                                # Feature 4: rolling_mean_interval (average gap between appearances)
-                                appearances = []
-                                for idx in range(len(df)):
-                                    numbers_str = str(df.iloc[idx]['numbers'])
-                                    numbers = [int(n.strip()) for n in numbers_str.split(',')]
-                                    if num in numbers:
-                                        appearances.append(idx)
-                                
-                                if len(appearances) > 1:
-                                    intervals = np.diff(appearances)
-                                    rolling_mean_interval = float(np.mean(intervals))
-                                else:
-                                    rolling_mean_interval = float(len(df))  # Default to full history
-                                
-                                # Feature 5: target (placeholder, will be set to 0 for inference)
-                                target = 0
-                                
-                                # Feature 6: even_count (from last draw)
-                                last_numbers_str = str(df.iloc[-1]['numbers'])
-                                last_numbers = [int(n.strip()) for n in last_numbers_str.split(',')]
-                                even_count = sum(1 for n in last_numbers if n % 2 == 0)
-                                
-                                features_list.append([
-                                    time_since, freq_50, freq_100, rolling_mean_interval, target, even_count
-                                ])
-                            
-                            # For position-specific models, we predict the specific position
-                            # Use the feature vector for position-specific prediction
-                            # We'll use the average features across all numbers as a proxy
-                            X_latest = np.mean(features_list, axis=0).reshape(1, -1)
-                            features = None  # Skip DataFrame handling
-                            
-                            analysis["inference_logs"].append(f"🔬 Generated {X_latest.shape[1]} features for inference (simplified)")
-                        
-                        elif model_type == 'catboost':
-                            features_df, metadata = feature_gen.generate_catboost_features(df)
-                            features = features_df
-                        elif model_type == 'lstm':
-                            # LSTM uses sequences
-                            sequences, metadata = feature_gen.generate_lstm_sequences(df, window_size=10, stride=1)
-                            if sequences is not None and len(sequences) > 0:
-                                # Use the last sequence for prediction
-                                X_latest = sequences[-1:].reshape(1, sequences.shape[1], sequences.shape[2])
-                                features = None  # Skip feature DataFrame handling
-                            else:
-                                raise ValueError("LSTM sequence generation failed")
-                        elif model_type == 'transformer':
-                            # Transformer uses embeddings/features
-                            features_df, metadata = feature_gen.generate_transformer_features_csv(df, window_size=10, stride=1)
-                            features = features_df
-                        elif model_type == 'cnn':
-                            # CNN uses embeddings
-                            embeddings, metadata = feature_gen.generate_cnn_embeddings(df, window_size=10, stride=1)
-                            if embeddings is not None and len(embeddings) > 0:
-                                # Use the last embedding for prediction
-                                X_latest = embeddings[-1:].reshape(1, embeddings.shape[1], embeddings.shape[2])
-                                features = None  # Skip feature DataFrame handling
-                            else:
-                                raise ValueError("CNN embedding generation failed")
+                        # ── Feature generation ───────────────────────────────────────────────
+                        # ALL advanced models (tree and neural) were trained on the same source:
+                        #   data/features/advanced/{game}/temporal_features.parquet
+                        #
+                        # Tree trainer (advanced_tree_model_trainer.py):
+                        #   X = temporal_df.drop(columns=['draw_index','number'], errors='ignore')
+                        #   'draw_index' not in parquet (col is 'draw_idx') → only 'number' dropped
+                        #   → 6 features  (confirmed: LGB/XGB n_features_in_=6, CB n_features_in_=0)
+                        #
+                        # Using AdvancedFeatureGenerator.generate_catboost_features() produces 92
+                        # features — completely wrong. LGB/XGB reject it; CatBoost silently accepts
+                        # garbage input because its n_features_in_ is not set.
+
+                        _temporal_parquet = (
+                            project_root / "data" / "features" / "advanced"
+                            / game_folder / "temporal_features.parquet"
+                        )
+                        if not _temporal_parquet.exists():
+                            raise FileNotFoundError(
+                                f"Temporal features not found: {_temporal_parquet}. "
+                                "Run data training to generate features first."
+                            )
+                        _tp_df = pd.read_parquet(_temporal_parquet)
+                        analysis["inference_logs"].append(
+                            f"📊 Loaded temporal_features: {_tp_df.shape[0]} rows × {_tp_df.shape[1]} cols"
+                        )
+
+                        # All models: drop 'number' → 6 features (same as training)
+                        # Exception: LSTM variants keep all 7 cols (ensemble trainer kept everything)
+                        _is_variant = (_vm is not None)
+                        if model_type == 'lstm' and _is_variant:
+                            _infer_X = _tp_df.values.astype(np.float32)
                         else:
-                            raise ValueError(f"Unsupported model type: {model_type}")
-                        
-                        # Get the most recent feature row for prediction (if features is a DataFrame)
-                        if features is not None:
-                            if len(features) == 0:
-                                raise ValueError("Feature generation failed")
-                            
-                            # Exclude non-numeric columns (draw_date, numbers)
-                            feature_cols = [col for col in features.columns if col not in ['draw_date', 'numbers']]
-                            X_latest = features[feature_cols].iloc[-1:].values
-                            
-                            analysis["inference_logs"].append(f"🔬 Generated {X_latest.shape[1]} features for inference")
+                            _infer_X = _tp_df.drop(columns=['number'], errors='ignore').values.astype(np.float32)
+
+                        from sklearn.preprocessing import StandardScaler as _StdScaler
+                        _scaler = _StdScaler()
+                        _infer_X_scaled = _scaler.fit_transform(_infer_X)
+                        analysis["inference_logs"].append(
+                            f"🔬 Feature matrix after scaling: shape={_infer_X_scaled.shape} "
+                            f"(n_features={_infer_X_scaled.shape[1]})"
+                        )
+
+                        if not _is_neural_model:
+                            # ── Tree models: single last row → (1, 6) ──
+                            # Each position model is a multiclass classifier:
+                            # predict_proba returns (1, n_numbers) — one prob per candidate number
+                            X_latest = _infer_X_scaled[-1:].reshape(1, _infer_X_scaled.shape[1])
+                            analysis["inference_logs"].append(
+                                f"🔬 {model_type.upper()} input: {X_latest.shape}"
+                            )
+
                         else:
-                            # X_latest was already set for neural models (LSTM/CNN)
-                            analysis["inference_logs"].append(f"🔬 Generated features for inference (shape: {X_latest.shape})")
+                            # ── Neural models: build correctly-shaped input tensor ──
+                            # Parquet loading and _infer_X_scaled already prepared above.
+                            if model_type == 'lstm' and _is_variant:
+                                # LSTM variants (ensemble): (1, 100, 7)
+                                _lookback = 100
+                                if len(_infer_X_scaled) < _lookback:
+                                    raise ValueError(
+                                        f"Insufficient rows for LSTM variant: need {_lookback}, "
+                                        f"got {len(_infer_X_scaled)}"
+                                    )
+                                X_latest = _infer_X_scaled[-_lookback:].reshape(
+                                    1, _lookback, _infer_X_scaled.shape[1]
+                                )
+
+                            elif model_type == 'lstm':
+                                # LSTM base (encoder-decoder): multi-input [(1, seq, 6), (1, 1, 6)]
+                                _seq_len = min(100, len(_infer_X_scaled))
+                                _enc = _infer_X_scaled[-_seq_len:].reshape(
+                                    1, _seq_len, _infer_X_scaled.shape[1]
+                                )
+                                _dec = _infer_X_scaled[-1:].reshape(1, 1, _infer_X_scaled.shape[1])
+                                X_latest = [_enc, _dec]
+
+                            elif model_type == 'cnn':
+                                # CNN base: (1, 10, 6)
+                                _win = 10
+                                if len(_infer_X_scaled) < _win:
+                                    raise ValueError(
+                                        f"Insufficient rows for CNN: need {_win}, "
+                                        f"got {len(_infer_X_scaled)}"
+                                    )
+                                X_latest = _infer_X_scaled[-_win:].reshape(
+                                    1, _win, _infer_X_scaled.shape[1]
+                                )
+
+                            elif model_type == 'transformer' and _is_variant:
+                                # Transformer variants: same lookback as LSTM variants
+                                # (will usually have already failed at model load due to Keras compat)
+                                _lookback = 100
+                                _rows = min(_lookback, len(_infer_X_scaled))
+                                X_latest = _infer_X_scaled[-_rows:].reshape(
+                                    1, _rows, _infer_X_scaled.shape[1]
+                                )
+
+                            elif model_type == 'transformer':
+                                # Transformer base: (1, 6) — single time-step
+                                X_latest = _infer_X_scaled[-1:].reshape(1, _infer_X_scaled.shape[1])
+
+                            else:
+                                # Unknown neural type — safe fallback (last row)
+                                X_latest = _infer_X_scaled[-1:].reshape(1, _infer_X_scaled.shape[1])
+
+                            _shape_str = (
+                                str([x.shape for x in X_latest])
+                                if isinstance(X_latest, list)
+                                else str(X_latest.shape)
+                            )
+                            analysis["inference_logs"].append(
+                                f"🔬 Input tensor ready for inference: {_shape_str}"
+                            )
                         
                         # Run inference
                         if is_neural:
@@ -1712,7 +1897,17 @@ class SuperIntelligentAIAnalyzer:
                         else:
                             # Tree-based models - use predict_proba
                             if hasattr(model, 'predict_proba'):
-                                probabilities = model.predict_proba(X_latest)[0]
+                                _raw_tree = model.predict_proba(X_latest)
+                                # MultiOutputClassifier returns a list of arrays (one per position).
+                                # Average across all positions to get a single number distribution.
+                                if isinstance(_raw_tree, list):
+                                    _pos_arrays = [p[0] if len(p.shape) > 1 else p for p in _raw_tree]
+                                    probabilities = np.mean(_pos_arrays, axis=0)
+                                    analysis["inference_logs"].append(
+                                        f"🔢 MultiOutput tree: averaged {len(_pos_arrays)} position distributions"
+                                    )
+                                else:
+                                    probabilities = _raw_tree[0]
                             else:
                                 # Model doesn't support probabilities, use predictions
                                 pred = model.predict(X_latest)[0]
@@ -1739,13 +1934,16 @@ class SuperIntelligentAIAnalyzer:
                         # Create probability dictionary
                         number_probabilities = {i+1: float(probabilities[i]) for i in range(len(probabilities))}
                         accuracy = health_score  # Use health score from card as accuracy
-                        
+                        _inference_type = 'real'  # Real model file was loaded and inferred
+
+                        _pos_label = f"position {position}" if position is not None else model_path.name
                         analysis["inference_logs"].append(
-                            f"✅ {model_name}: Real inference complete (position {position}, {len(probabilities)} probs)"
+                            f"✅ {model_name}: Real inference complete ({_pos_label}, {len(probabilities)} probs)"
                         )
-                        
+
                     except Exception as load_error:
                         # Fallback to synthetic probabilities if model loading fails
+                        _inference_type = 'synthetic_fallback'
                         analysis["inference_logs"].append(
                             f"⚠️ {model_name}: Could not load model ({str(load_error)}), using health-based probabilities"
                         )
@@ -1783,9 +1981,10 @@ class SuperIntelligentAIAnalyzer:
                         "confidence": self._calculate_confidence(accuracy),
                         "inference_data": [],
                         "real_probabilities": prob_dict_str,
-                        "metadata": model_dict
+                        "metadata": model_dict,
+                        "inference_type": _inference_type,
                     })
-                    
+
                 except Exception as model_error:
                     error_msg = f"⚠️ {model_name}: {str(model_error)}"
                     analysis["inference_logs"].append(error_msg)
@@ -1811,9 +2010,17 @@ class SuperIntelligentAIAnalyzer:
                 best_idx = np.argmax(accuracies)
                 analysis["best_model"] = analysis["models"][best_idx]
             
+            # Summarise inference quality for UI warnings
+            _type_counts = {}
+            for _m in analysis["models"]:
+                _t = _m.get("inference_type", "unknown")
+                _type_counts[_t] = _type_counts.get(_t, 0) + 1
+            analysis["inference_type_summary"] = _type_counts
+            _real_count = _type_counts.get('real', 0)
+            _synth_count = _type_counts.get('synthetic', 0) + _type_counts.get('synthetic_fallback', 0)
             analysis["inference_logs"].append(
-                f"✅ ML Model Analysis: {len(ml_models)} models analyzed, "
-                f"real probabilities generated from model inference"
+                f"✅ ML Model Analysis: {len(ml_models)} models analyzed — "
+                f"{_real_count} real inference, {_synth_count} synthetic/fallback"
             )
             
         except Exception as e:
@@ -1829,7 +2036,7 @@ class SuperIntelligentAIAnalyzer:
         # Ensure accuracy is a float
         accuracy = float(accuracy) if accuracy is not None else 0.0
         # Boost low accuracies with positive offset, cap at 0.95
-        confidence = min(0.95, max(0.50, accuracy * 1.15))
+        confidence = min(0.95, max(0.01, accuracy * 1.15))
         return float(confidence)
     
     def _calculate_ensemble_confidence(self, accuracies: List[float]) -> float:
@@ -2019,17 +2226,17 @@ class SuperIntelligentAIAnalyzer:
                     app_log(f"Error loading prediction file {file}: {e}", "warning")
         return predictions
     
-    def calculate_optimal_sets_advanced(self, analysis: Dict[str, Any]) -> Dict[str, Any]:
+    def calculate_optimal_sets_advanced(self, analysis: Dict[str, Any], target_probability: float = 0.90) -> Dict[str, Any]:
         """
-        Calculate OPTIMAL NUMBER OF SETS needed to guarantee winning the lottery jackpot
-        with specified confidence, based on REAL ensemble probabilities from model inference.
-        
+        Calculate OPTIMAL NUMBER OF SETS needed for the desired coverage confidence,
+        based on REAL ensemble probabilities from model inference.
+
         Scientific Foundation:
         1. Extract REAL probabilities from ensemble inference
-        2. Calculate single-set jackpot probability (product of all 6 number probabilities)
+        2. Calculate expected match quality (geometric mean of top-k probabilities)
         3. Use binomial distribution: P(win in N sets) = 1 - (1 - p)^N
-        4. Solve for N given target win probability
-        5. Apply game complexity and model confidence adjustments
+        4. Solve for N given target_probability (configurable, default 90%)
+        5. Apply variance-based uncertainty expansion instead of arbitrary multiplier
         """
         if not analysis["models"] or not analysis.get("ensemble_probabilities"):
             return {
@@ -2041,7 +2248,7 @@ class SuperIntelligentAIAnalyzer:
                 "weighted_confidence": 0.0,
                 "model_variance": 0.0,
                 "uncertainty_factor": 1.0,
-                "safety_margin": 0.0,
+                "uncertainty_extra_sets": 0,
                 "diversity_factor": 1.0,
                 "distribution_method": "probability-weighted",
                 "hot_cold_ratio": 1.0,
@@ -2061,7 +2268,7 @@ class SuperIntelligentAIAnalyzer:
                 "weighted_confidence": 0.0,
                 "model_variance": 0.0,
                 "uncertainty_factor": 1.0,
-                "safety_margin": 0.0,
+                "uncertainty_extra_sets": 0,
                 "diversity_factor": 1.0,
                 "distribution_method": "probability-weighted",
                 "hot_cold_ratio": 1.0,
@@ -2087,21 +2294,18 @@ class SuperIntelligentAIAnalyzer:
             draw_size = self.game_config["draw_size"]
             max_number = self.game_config["max_number"]
             
-            # Calculate probability of winning jackpot with ONE optimally selected set
-            # This is the average of the top draw_size probabilities (representing ideal selection)
+            # Geometric mean of top-k probabilities = "expected match quality per set"
+            # (geometric mean is honest: one near-zero probability can't hide behind high ones)
             sorted_probs = sorted(prob_values, reverse=True)
             top_k_probs = sorted_probs[:draw_size]
-            
-            # Single set jackpot probability = product of selecting each winning number
-            # BUT: models give probability of EACH number being in the draw
-            # So we use the AVERAGE of top probabilities as our "single set probability"
-            single_set_prob = float(np.mean(top_k_probs))
-            
-            # Binomial calculation: How many sets needed for 90% win probability?
-            # P(win in N sets) = 1 - (1 - p)^N
+            clipped = np.clip(top_k_probs, 1e-10, 1.0)
+            single_set_prob = float(np.exp(np.mean(np.log(clipped))))
+
+            # Binomial calculation: How many sets needed for target_probability coverage?
+            # P(at least one match in N sets) = 1 - (1 - p)^N
             # Solve: N = ln(1 - target_prob) / ln(1 - single_set_prob)
-            target_win_probability = 0.90  # 90% confidence
-            
+            target_win_probability = float(np.clip(target_probability, 0.05, 0.99))
+
             if single_set_prob >= 0.99:
                 optimal_sets = 1
             elif single_set_prob > 0:
@@ -2110,22 +2314,24 @@ class SuperIntelligentAIAnalyzer:
                 )))
             else:
                 optimal_sets = 100  # Fallback if no probability
-            
+
             # Model confidence (from ensemble accuracy)
             accuracies = [float(m.get("accuracy", 0.5)) for m in analysis.get("models", [])]
             average_accuracy = float(np.mean(accuracies)) if accuracies else 0.5
             ensemble_confidence = float(analysis.get("ensemble_confidence", 0.5))
-            
-            # Adjust optimal sets based on ensemble confidence
-            # Lower confidence = need more sets for same win probability
-            confidence_multiplier = 1.0 / (ensemble_confidence + 0.3)  # Range [1.0, ~3.3]
-            adjusted_optimal_sets = max(1, int(optimal_sets * confidence_multiplier))
-            
-            # Calculate actual win probability with adjusted sets
-            actual_win_prob = 1.0 - ((1.0 - single_set_prob) ** adjusted_optimal_sets)
-            
-            # Calculate ensemble metrics
+
+            # Variance-based uncertainty expansion: high model disagreement → extra sets
+            # model_variance is already computed below; compute it now for use here
             model_variance = float(np.var(accuracies)) if len(accuracies) > 1 else 0.0
+            uncertainty_extra = int(np.ceil(model_variance * 10))  # 0-3 extra sets typically
+            adjusted_optimal_sets = max(1, optimal_sets + uncertainty_extra)
+            # legacy field kept for downstream code that reads it
+            confidence_multiplier = adjusted_optimal_sets / max(1, optimal_sets)
+            
+            # Expected match quality across all sets (geometric-mean based)
+            actual_win_prob = 1.0 - ((1.0 - single_set_prob) ** adjusted_optimal_sets)
+
+            # Ensemble metrics
             ensemble_synergy = min(0.99, ensemble_confidence + (0.1 * len(accuracies) / 10.0))
             
             # Determine distribution method based on model count and accuracy
@@ -2174,14 +2380,15 @@ Actual Lottery Odds: 1 in {actual_lottery_odds:,}
 Model Probability Analysis:
 • Ensemble Model Confidence: {ensemble_confidence:.2%}
 • Average Model Accuracy: {average_accuracy:.2%}
-• High-Probability Numbers Identified: {draw_size} numbers with highest predictions
-• Recommended Sets for Coverage: {adjusted_optimal_sets}
+• Expected Match Quality (geometric mean): {single_set_prob:.4f}
+• Coverage Target: {target_win_probability:.0%} with {adjusted_optimal_sets} sets
+• Uncertainty Expansion (from model variance): +{uncertainty_extra} sets
 
 **HOW WE CALCULATED THIS**:
 1. Used real probabilities from {len(analysis.get("models", []))} trained ML/AI models
-2. Applied ensemble voting to identify most likely numbers
-3. Calculated optimal coverage based on model confidence
-4. Balanced coverage with practical budget constraints
+2. Applied geometric mean of top-{draw_size} probabilities for honest match quality
+3. Solved binomial formula for {target_win_probability:.0%} coverage target
+4. Added {uncertainty_extra} extra set(s) for model disagreement (variance={model_variance:.4f})
 
 **WHAT YOU GET**:
 • {adjusted_optimal_sets} sets strategically selected using AI/ML analysis
@@ -2190,14 +2397,14 @@ Model Probability Analysis:
 • Estimated cost: ${adjusted_optimal_sets * 3:,} (assuming $3 per ticket)
 
 **IMPORTANT DISCLAIMER**:
-⚠️  Lottery drawings are fundamentally random events. The actual probability of winning 
-    the {self.game} jackpot is approximately 1 in {actual_lottery_odds:,} per ticket, 
+⚠️  Lottery drawings are fundamentally random events. The actual probability of winning
+    the {self.game} jackpot is approximately 1 in {actual_lottery_odds:,} per ticket,
     regardless of prediction method.
 
-⚠️  While our ML models identify patterns in {'' if len(analysis.get("models", [])) < 1 else '17-21 years of '}historical data, 
+⚠️  While our ML models identify patterns in {'' if len(analysis.get("models", [])) < 1 else '17-21 years of '}historical data,
     they cannot predict truly random future outcomes with certainty.
 
-⚠️  This tool provides OPTIMIZED NUMBER SELECTION based on historical patterns, 
+⚠️  This tool provides OPTIMIZED NUMBER SELECTION based on historical patterns,
     NOT guaranteed winning predictions.
 
 ✓  Play responsibly and only spend what you can afford to lose.
@@ -2213,17 +2420,19 @@ understanding that lottery outcomes remain random and unpredictable.
                 "optimal_sets": adjusted_optimal_sets,
                 "win_probability": actual_win_prob,
                 "ensemble_confidence": ensemble_confidence,
-                "base_probability": single_set_prob,
+                "base_probability": single_set_prob,         # geometric mean (honest match quality)
+                "expected_match_quality": single_set_prob,   # explicit alias
                 "ensemble_synergy": ensemble_synergy,
                 "weighted_confidence": ensemble_confidence,
                 "model_variance": model_variance,
+                "uncertainty_extra_sets": uncertainty_extra,
                 "uncertainty_factor": confidence_multiplier,
-                "safety_margin": 0.0,
-                "diversity_factor": 1.2 + (0.3 * len(accuracies) / 10.0),  # More models = more diversity needed
+                "target_probability": target_win_probability,
+                "diversity_factor": 1.2 + (0.3 * len(accuracies) / 10.0),
                 "distribution_method": distribution_method,
                 "hot_cold_ratio": hot_cold_ratio,
                 "detailed_algorithm_notes": detailed_notes.strip(),
-                "mathematical_framework": "Binomial Distribution + Ensemble Probability Fusion"
+                "mathematical_framework": "Geometric Mean Match Quality + Binomial Coverage + Variance Expansion"
             }
             
         except Exception as e:
@@ -2238,7 +2447,7 @@ understanding that lottery outcomes remain random and unpredictable.
                 "weighted_confidence": 0.0,
                 "model_variance": 0.0,
                 "uncertainty_factor": 1.0,
-                "safety_margin": 0.0,
+                "uncertainty_extra_sets": 0,
                 "diversity_factor": 1.0,
                 "distribution_method": "error",
                 "hot_cold_ratio": 1.0,
@@ -2249,7 +2458,8 @@ understanding that lottery outcomes remain random and unpredictable.
     def generate_prediction_sets_advanced(self, num_sets: int, optimal_analysis: Dict[str, Any],
                                         model_analysis: Dict[str, Any], learning_data: Dict[str, Any] = None,
                                         no_repeat_numbers: bool = False, use_adaptive_learning: bool = True,
-                                        existing_number_usage: Dict[int, int] = None) -> tuple:
+                                        existing_number_usage: Dict[int, int] = None,
+                                        draw_profile_data: Optional[Union[Dict[str, Any], List[Dict[str, Any]]]] = None) -> tuple:
         """
         Generate AI-optimized prediction sets using REAL MODEL PROBABILITIES from ensemble inference.
         
@@ -2343,7 +2553,254 @@ understanding that lottery outcomes remain random and unpredictable.
             prob_values = prob_values / prob_sum
         else:
             prob_values = np.ones(max_number) / max_number
-        
+
+        # ===== PHASE 1–4 ENGINE BLEND (MathematicalEngine frequency analysis) =====
+        # Wire the Phase 1 MathematicalEngine into the probability distribution.
+        # It provides frequency/gap/statistical analysis independent of the ML models,
+        # blended in at 20% so it augments rather than overrides the ML probabilities.
+        try:
+            from streamlit_app.ai_engines.phase1_mathematical import MathematicalEngine
+            from streamlit_app.core import get_data_dir, sanitize_game_name as _san_p1
+
+            _p1_data_dir = get_data_dir() / _san_p1(self.game)
+            _p1_csv = sorted(_p1_data_dir.glob("*.csv"),
+                             key=lambda p: p.stat().st_mtime, reverse=True)
+            if _p1_csv:
+                _p1_dfs, _p1_total = [], 0
+                for _p1_f in _p1_csv:
+                    _p1_dfs.append(pd.read_csv(_p1_f))
+                    _p1_total += len(_p1_dfs[-1])
+                    if _p1_total >= 200:
+                        break
+                _p1_df = pd.concat(_p1_dfs, ignore_index=True)
+
+                # Rename columns to match MathematicalEngine.load_data() expected format
+                _col_map = {}
+                if 'draw_date' in _p1_df.columns:
+                    _col_map['draw_date'] = 'date'
+                _p1_df = _p1_df.rename(columns=_col_map)
+                if 'date' not in _p1_df.columns:
+                    _p1_df['date'] = pd.date_range(end=pd.Timestamp.now(), periods=len(_p1_df), freq='W')
+                if 'bonus' not in _p1_df.columns:
+                    _p1_df['bonus'] = None
+
+                _p1_engine = MathematicalEngine({
+                    'game_config': {
+                        'number_range': [1, max_number],
+                        'numbers_per_draw': draw_size,
+                    }
+                })
+                _p1_engine.load_data(_p1_df)
+                _p1_engine.train()   # runs analyze_frequency(), analyze_gaps(), analyze_trends()
+
+                # Extract per-number frequency scores from trained engine
+                _p1_stats = _p1_engine.frequency_stats.get('number_stats', {})
+                if _p1_stats:
+                    _p1_probs = np.array([
+                        float(_p1_stats.get(n, {}).get('frequency', 1.0 / max_number))
+                        for n in range(1, max_number + 1)
+                    ])
+                    _p1_probs = np.clip(_p1_probs, 1e-6, None)
+                    _p1_probs = _p1_probs / _p1_probs.sum()
+                    # Blend: 80% ML ensemble + 20% Phase-1 mathematical engine
+                    prob_values = 0.80 * prob_values + 0.20 * _p1_probs
+                    prob_values = prob_values / prob_values.sum()
+                    strategy_log['phase1_engine_blended'] = True
+        except Exception as _p1_err:
+            # Non-fatal — engine blend is best-effort
+            strategy_log['phase1_engine_blended'] = False
+            strategy_log['phase1_engine_error'] = str(_p1_err)[:120]
+
+        # ===== JACKPOT PROFILE BLEND (P1–P10 enhanced) =====
+        # P10: accept a single profile OR a list of profiles; blend all of them.
+        _profiles_to_blend = []
+        if draw_profile_data:
+            if isinstance(draw_profile_data, list):
+                _profiles_to_blend = [p for p in draw_profile_data if p]
+            elif isinstance(draw_profile_data, dict):
+                _profiles_to_blend = [draw_profile_data]
+
+        if _profiles_to_blend:
+            try:
+                # --- Accumulator for multi-profile blend ---
+                _combined_freq  = np.zeros(max_number)
+                _combined_decade = np.zeros(max_number)
+                _combined_sum_means = []
+                _combined_sum_stds  = []
+                _combined_hot_boost = np.zeros(max_number)
+                _combined_weight_total = 0.0
+                _profiles_blended = 0
+
+                for _pdata in _profiles_to_blend:
+                    _pmeta  = _pdata.get('metadata', {})
+                    _draws_n = int(_pmeta.get('total_draws_analyzed', 10))
+                    _jamt    = float(_pmeta.get('jackpot_amount', 0))
+
+                    # P7: dynamic blend weight — scales 10%→25% with draw count quality
+                    _blend_w = min(0.25, 0.10 + _draws_n / 2000.0)
+
+                    # P6: correct key is 'frequency_map' inside 'number_patterns'
+                    _freq_map = _pdata.get('number_patterns', {}).get('frequency_map', {})
+
+                    if _freq_map:
+                        _fp = np.zeros(max_number)
+                        for _k, _v in _freq_map.items():
+                            try:
+                                _idx = int(_k) - 1
+                                if 0 <= _idx < max_number:
+                                    _fp[_idx] = float(_v)
+                            except (ValueError, TypeError):
+                                continue
+                        if _fp.sum() > 0:
+                            _fp = np.clip(_fp, 1e-8, None)
+                            _fp = _fp / _fp.sum()
+                            _combined_freq  += _fp * _blend_w
+                            _combined_weight_total += _blend_w
+                            _profiles_blended += 1
+
+                    # P4: decade distribution → per-number bias
+                    _decade_dist = _pdata.get('advanced_insights', {}).get('decade_distribution', {})
+                    if _decade_dist:
+                        _dd = np.zeros(max_number)
+                        for _decade_key, _dcnt in _decade_dist.items():
+                            try:
+                                _dstart = int(_decade_key.split('-')[0])
+                                for _dn in range(_dstart, min(_dstart + 10, max_number + 1)):
+                                    if 1 <= _dn <= max_number:
+                                        _dd[_dn - 1] += float(_dcnt)
+                            except Exception:
+                                continue
+                        if _dd.sum() > 0:
+                            _dd = _dd / _dd.sum()
+                            _combined_decade += _dd * _blend_w
+
+                    # P8: hot-number additive boost (top-5 hot numbers get +boost)
+                    _hot_list = _pdata.get('number_patterns', {}).get('hot_numbers', [])
+                    for _hi, _hentry in enumerate(_hot_list[:5]):
+                        try:
+                            _hnum = int(_hentry[0]) if isinstance(_hentry, (list, tuple)) else int(_hentry)
+                            if 1 <= _hnum <= max_number:
+                                # Boost decays: top-1 = 0.030, top-5 = 0.006
+                                _combined_hot_boost[_hnum - 1] += (0.03 - _hi * 0.006) * _blend_w
+                        except Exception:
+                            continue
+
+                    # Sum stats for sum-centring
+                    _ss = _pdata.get('sum_analysis', {})
+                    _sm = float(_ss.get('mean', 0) or 0)
+                    _sd = float(_ss.get('std', 0) or 0)
+                    if _sm > 0:
+                        _combined_sum_means.append((_sm, _blend_w))
+                        _combined_sum_stds.append((_sd, _blend_w))
+
+                # Apply blended frequency (P6/P7)
+                if _combined_weight_total > 0 and _combined_freq.sum() > 0:
+                    _combined_freq = _combined_freq / _combined_freq.sum()
+                    _blend_alpha = min(0.25, _combined_weight_total / len(_profiles_to_blend))
+                    prob_values = (1 - _blend_alpha) * prob_values + _blend_alpha * _combined_freq
+                    prob_values = prob_values / prob_values.sum()
+                    strategy_log['jackpot_profile_blended'] = _profiles_blended
+                    strategy_log['jackpot_profile_blend_weight'] = round(_blend_alpha, 3)
+
+                # Apply decade bias (P4) — 4% weight
+                if _combined_decade.sum() > 0:
+                    _combined_decade = _combined_decade / _combined_decade.sum()
+                    prob_values = 0.96 * prob_values + 0.04 * _combined_decade
+                    prob_values = prob_values / prob_values.sum()
+                    strategy_log['decade_bias_applied'] = True
+
+                # Apply hot-number boost (P8)
+                if _combined_hot_boost.sum() > 0:
+                    prob_values = prob_values + _combined_hot_boost
+                    prob_values = np.clip(prob_values, 1e-8, None)
+                    prob_values = prob_values / prob_values.sum()
+                    strategy_log['hot_boost_applied'] = True
+
+                # Sum-centring Gaussian bias (now uses real std — P1)
+                if _combined_sum_means:
+                    _w_tot = sum(w for _, w in _combined_sum_means) or 1.0
+                    _sum_mean = sum(m * w for m, w in _combined_sum_means) / _w_tot
+                    _sum_std  = sum(s * w for s, w in _combined_sum_stds) / _w_tot
+                    if _sum_mean > 0 and draw_size > 0:
+                        _target_avg = _sum_mean / draw_size
+                        _spread = max(1.0, _sum_std / draw_size)
+                        _sum_bias = np.array([
+                            float(np.exp(-0.5 * ((_n - _target_avg) / _spread) ** 2))
+                            for _n in range(1, max_number + 1)
+                        ])
+                        _sum_bias = _sum_bias / _sum_bias.sum()
+                        prob_values = 0.95 * prob_values + 0.05 * _sum_bias
+                        prob_values = prob_values / prob_values.sum()
+                        strategy_log['jackpot_sum_bias_applied'] = True
+
+            except Exception as _profile_blend_err:
+                strategy_log['jackpot_profile_blend_error'] = str(_profile_blend_err)[:200]
+
+        # ===== RECENT PER-DRAW LEARNING FILE BLEND (Priority 5) =====
+        # Load the 5 most recent draw_*_learning.json files and blend their hot-number
+        # frequency data into the probability distribution with recency-weighted decay.
+        try:
+            _dl_game_folder = _sanitize_game_name(self.game)
+            _dl_dir = Path("data") / "learning" / _dl_game_folder
+            if _dl_dir.exists():
+                _dl_files = sorted(_dl_dir.glob("draw_*_learning.json"), reverse=True)[:5]
+                _dl_accumulator = np.zeros(max_number)
+                _dl_count = 0
+                for _dl_idx, _dl_path in enumerate(_dl_files):
+                    try:
+                        with open(_dl_path, 'r') as _dlh:
+                            _dl_data = json.load(_dlh)
+                        _dl_freq_info = _dl_data.get('analysis', {}).get('number_frequency', {})
+                        _dl_hot = _dl_freq_info.get('hot_numbers', [])
+                        if _dl_hot:
+                            _file_decay = 1.0 - (_dl_idx * 0.1)  # 1.0, 0.9, 0.8, 0.7, 0.6
+                            for _item in _dl_hot:
+                                if isinstance(_item, dict):
+                                    _dl_num  = int(_item.get('number', 0))
+                                    _dl_freq = float(_item.get('frequency', 1.0))
+                                else:
+                                    _dl_num, _dl_freq = int(_item), 1.0
+                                if 1 <= _dl_num <= max_number:
+                                    _dl_accumulator[_dl_num - 1] += _dl_freq * _file_decay
+                            _dl_count += 1
+                    except Exception:
+                        continue
+                if _dl_count > 0 and _dl_accumulator.sum() > 0:
+                    _dl_probs = np.clip(_dl_accumulator, 1e-6, None)
+                    _dl_probs = _dl_probs / _dl_probs.sum()
+                    # P3: Scale blend weight 10%→25% based on accumulated learning cycles.
+                    # Early cycles: 10% (conservative, few real signals).
+                    # After ~300 cycles: reaches 25% cap (well-calibrated system).
+                    _dl_meta_cycles = 0
+                    try:
+                        _dl_meta_path = Path("data") / "learning" / _dl_game_folder / "meta_learning.json"
+                        if _dl_meta_path.exists():
+                            with open(_dl_meta_path, 'r') as _dlm:
+                                _dl_meta_cycles = int(json.load(_dlm).get('total_learning_cycles', 0))
+                    except Exception:
+                        pass
+                    _learning_blend_weight = min(0.25, 0.10 + _dl_meta_cycles / 300.0)
+                    prob_values = (1 - _learning_blend_weight) * prob_values + _learning_blend_weight * _dl_probs
+                    prob_values = prob_values / prob_values.sum()
+                    strategy_log['recent_draw_files_blended'] = _dl_count
+                    strategy_log['learning_blend_weight'] = round(_learning_blend_weight, 3)
+                    strategy_log['learning_cycles_for_blend'] = _dl_meta_cycles
+        except Exception as _dl_err:
+            strategy_log['recent_draw_blend_error'] = str(_dl_err)[:80]
+
+        # ===== COMPUTE DRAW AGE FOR TEMPORAL DECAY (Priority 4) =====
+        # Compute once here so GA scoring, Phase 3 ranking, and adaptive weights all share it.
+        _generation_draw_age = 0
+        if learning_data:
+            try:
+                from datetime import date as _gen_date_cls
+                _gen_date_str = learning_data.get('draw_date', '')
+                if _gen_date_str:
+                    _gen_ld = datetime.strptime(_gen_date_str, '%Y-%m-%d').date()
+                    _generation_draw_age = max(0, (_gen_date_cls.today() - _gen_ld).days // 4)
+            except Exception:
+                pass
+
         # ===== ENHANCE WITH LEARNING DATA IF AVAILABLE =====
         adaptive_system = None
         if learning_data:
@@ -2357,9 +2814,9 @@ understanding that lottery outcomes remain random and unpredictable.
             if use_adaptive_learning:
                 # Initialize adaptive learning system for this game
                 adaptive_system = AdaptiveLearningSystem(self.game)
-                
-                # Get current adaptive weights
-                adaptive_weights = adaptive_system.get_adaptive_weights(draw_age=0)
+
+                # Get current adaptive weights with real temporal decay
+                adaptive_weights = adaptive_system.get_adaptive_weights(draw_age=_generation_draw_age)
                 total_cycles = adaptive_system.meta_learning_data.get('total_learning_cycles', 0)
                 
                 # Add to strategy log
@@ -2441,8 +2898,9 @@ understanding that lottery outcomes remain random and unpredictable.
             # Early sets: use exact ensemble probs; Late sets: more uniform/diverse
             set_progress = float(set_idx) / float(num_sets) if num_sets > 1 else 0.5
             
-            # Temperature annealing: gradually flatten probability distribution
-            temperature = 1.0 - (0.4 * set_progress)  # Range [0.6, 1.0]
+            # Temperature annealing: increase temperature for later sets to widen the
+            # distribution and drive diversity. Higher T → flatter → more exploration.
+            temperature = 0.6 + (0.4 * set_progress)  # Range [0.6, 1.0] — grows with set index
             
             # Apply temperature scaling via softmax for entropy-controlled distribution
             log_probs = np.log(prob_values + 1e-10)
@@ -2491,12 +2949,24 @@ understanding that lottery outcomes remain random and unpredictable.
                     adjusted_probs = adjusted_probs / np.sum(adjusted_probs)
             
             # ===== PHASE 2: APPLY CO-OCCURRENCE CONCENTRATION BOOSTING =====
-            # If adaptive learning is enabled and we have cluster history, boost co-occurring numbers
+            # If adaptive learning is enabled and we have cluster history, boost co-occurring numbers.
+            # Apply whenever adaptive_system is set and co-occurrence data exists, regardless of
+            # the concentration weight (which starts at 0 for new users).
             if adaptive_system and set_idx > 0:  # Skip first set, no prior numbers to correlate
                 concentration_applied = False
                 concentration_weight = adaptive_system.meta_learning_data['factor_weights'].get('cluster_concentration', 0.0)
-                
-                if concentration_weight > 0.01:  # Only apply if weight is meaningful
+                _has_cooccurrence = bool(adaptive_system.meta_learning_data.get('number_cooccurrence'))
+                # P4: Replace the hard 0.03 floor with a smooth ramp that only activates after
+                # 10+ learning cycles, so early predictions aren't biased by noise data.
+                _cooc_cycles = int(adaptive_system.meta_learning_data.get('total_learning_cycles', 0))
+                if _has_cooccurrence and _cooc_cycles >= 10:
+                    # Ramp from 0 → 0.05 over cycles 10–30, then natural weight takes over
+                    _ramp = min(0.05, 0.005 * (_cooc_cycles - 9))
+                    _effective_conc = max(concentration_weight, _ramp)
+                else:
+                    _effective_conc = concentration_weight  # No floor until 10 cycles
+
+                if _effective_conc > 0.0:  # Run whenever there is any co-occurrence signal
                     # Get numbers from previous sets to build correlation context
                     recent_numbers = []
                     lookback = min(3, set_idx)  # Look at last 3 sets
@@ -2604,6 +3074,14 @@ understanding that lottery outcomes remain random and unpredictable.
                             strategy_used = "Deterministic Top-K from Ensemble"
                             strategy_log["strategy_4_topk"] += 1
             
+                # ===== ANTI-PATTERN REJECTION (P1) =====
+                # Reject candidates that strongly match known failure signatures and retry
+                if adaptive_system and selected_numbers and attempt < max_attempts - 5:
+                    _anti_penalty = adaptive_system.penalize_anti_patterns(selected_numbers)
+                    if _anti_penalty > 0.7:
+                        strategy_log['anti_pattern_rejections'] = strategy_log.get('anti_pattern_rejections', 0) + 1
+                        continue  # Force Gumbel re-sample with new noise
+
                 # ===== TRACK MODEL ATTRIBUTION FOR SELECTED NUMBERS =====
                 # Determine which models "voted" for each selected number based on their probabilities
                 model_attribution = {}
@@ -2615,10 +3093,11 @@ understanding that lottery outcomes remain random and unpredictable.
                     for model_key, model_probs in model_probabilities.items():
                         if isinstance(model_probs, dict):
                             number_prob = float(model_probs.get(number_str, 0))
-                            # If model gave this number above-average probability, it "voted" for it
+                            # A model "voted" for this number if it assigned above-average probability.
+                            # Use a fixed 1.5× threshold so attribution is consistent across all
+                            # sets regardless of retry attempt count.
                             avg_prob = 1.0 / max_number  # Uniform baseline
-                            # Lower threshold for retries to increase model coverage
-                            vote_threshold = 1.5 - (0.02 * attempt)  # Gradually lower threshold
+                            vote_threshold = 1.5
                             if number_prob > avg_prob * vote_threshold:
                                 model_attribution[number_str].append({
                                     'model': model_key,
@@ -2663,19 +3142,61 @@ understanding that lottery outcomes remain random and unpredictable.
         
         # Generate comprehensive strategy report
         strategy_report = self._generate_strategy_report(strategy_log, distribution_method)
-        
+
+        # ===== GENETIC ALGORITHM POST-PROCESSING =====
+        # Run GA optimisation on the bottom 30% of sets (by learning score) when
+        # learning data is available. Limits generations to 20 for speed.
+        if learning_data and adaptive_system and len(predictions) >= 4:
+            try:
+                _bottom_n = max(1, len(predictions) // 3)
+                # Score all sets
+                _scored = []
+                for _idx, _pset in enumerate(predictions):
+                    _s = _calculate_learning_score_advanced(_pset, learning_data, adaptive_system, draw_age=_generation_draw_age)
+                    _scored.append((_s, _idx))
+                _scored.sort(key=lambda x: x[0])   # ascending — lowest scores first
+
+                _ga = GeneticSetOptimizer(
+                    draw_size=draw_size,
+                    max_number=max_number,
+                    learning_data=learning_data,
+                    adaptive_system=adaptive_system
+                )
+                _ga.generations = 20   # cap at 20 for speed during prediction
+
+                _ga_improved = 0
+                for _score, _orig_idx in _scored[:_bottom_n]:
+                    _orig_set = predictions[_orig_idx]
+                    _opt_set = _ga.optimize_set(initial_set=_orig_set)
+                    _opt_score = _calculate_learning_score_advanced(_opt_set, learning_data, adaptive_system)
+                    if _opt_score > _score:
+                        predictions[_orig_idx] = _opt_set
+                        predictions_with_attribution[_orig_idx]['numbers'] = _opt_set
+                        predictions_with_attribution[_orig_idx]['strategy'] = (
+                            predictions_with_attribution[_orig_idx].get('strategy', '') + ' [GA-optimised]'
+                        )
+                        _ga_improved += 1
+
+                strategy_log['ga_sets_improved'] = _ga_improved
+                strategy_log['ga_sets_attempted'] = _bottom_n
+            except Exception as _ga_err:
+                strategy_log['ga_error'] = str(_ga_err)[:120]
+
         # ===== PHASE 3: CLUSTER FUSION STRATEGY =====
-        # Generate fusion sets from top-ranked predictions if adaptive learning is active
+        # Generate fusion sets whenever adaptive learning is active and co-occurrence data exists.
+        # `generate_fusion_sets` now handles its own effective-weight floor internally.
         if adaptive_system and len(predictions) >= 5:
             concentration_weight = adaptive_system.meta_learning_data['factor_weights'].get('cluster_concentration', 0.0)
-            
-            if concentration_weight >= 0.05:  # Only if we have enough cluster learning (5%+)
+            _p3_has_cooc = bool(adaptive_system.meta_learning_data.get('number_cooccurrence'))
+            _p3_effective = max(concentration_weight, 0.02) if _p3_has_cooc else concentration_weight
+
+            if _p3_effective >= 0.02:  # Run with co-occurrence data or 2%+ weight
                 # Rank predictions by learning score to identify top performers
                 if learning_data:
                     ranked_predictions = []
                     for idx, pred_set in enumerate(predictions):
                         score = _calculate_learning_score_advanced(
-                            pred_set, learning_data, adaptive_system, draw_age=0
+                            pred_set, learning_data, adaptive_system, draw_age=_generation_draw_age
                         )
                         ranked_predictions.append((score, pred_set, idx))
                     
@@ -2989,7 +3510,234 @@ def render_prediction_ai_page(services_registry=None, ai_engines=None, component
         
         # Initialize analyzer
         analyzer = SuperIntelligentAIAnalyzer(selected_game)
-        
+
+        # ── Auto-learning detection banner ───────────────────────────────────
+        # ── Show result from banner "Apply Learning Now" button (previous run) ──
+        _bl_success = st.session_state.pop('sia_banner_learning_success', None)
+        if _bl_success:
+            st.success(
+                f"✅ **Learning Applied!** Draw **{_bl_success['draw_date']}** — "
+                f"Cycle **#{_bl_success['cycle']}** complete"
+            )
+            with st.expander("📋 Learning Summary", expanded=True):
+                _blc1, _blc2, _blc3, _blc4 = st.columns(4)
+                _blc1.metric("Learning Cycle", _bl_success['cycle'], delta="+1")
+                _blc2.metric(
+                    "Prediction Files",
+                    f"{_bl_success['files_processed']}/{_bl_success['files_count']}"
+                )
+                _blc3.metric("Anti-Patterns Tracked", _bl_success['anti_patterns'])
+                _blc4.metric("Factor Interactions", _bl_success['factor_interactions'])
+                st.markdown(
+                    f"**Top-weighted factor:** `{_bl_success['top_factor']}` "
+                    f"— weight `{_bl_success['top_factor_weight']}`"
+                )
+                st.markdown(
+                    f"**Winning numbers learned from:** "
+                    f"{', '.join(str(n) for n in sorted(_bl_success['winning_numbers']))}"
+                )
+                if _bl_success.get('saved_paths'):
+                    st.markdown("**Learning data saved to:**")
+                    for _sp in _bl_success['saved_paths']:
+                        st.code(_sp, language=None)
+                st.caption(
+                    "💡 For full factor-by-factor analysis, visit the "
+                    "**AI Learning tab → Previous Draw Date** and re-run with detailed factor scoring."
+                )
+        _bl_error = st.session_state.pop('sia_banner_learning_error', None)
+        if _bl_error:
+            st.error(_bl_error)
+        # ─────────────────────────────────────────────────────────────────────
+
+        # Check whether a new draw has occurred since the last meta-learning
+        # update, and predictions were saved for that draw date.
+        try:
+            _als = AdaptiveLearningSystem(selected_game)
+            _last_updated_str = _als.meta_learning_data.get('last_updated', '')
+            _last_updated_dt = None
+            if _last_updated_str:
+                try:
+                    _last_updated_dt = datetime.fromisoformat(_last_updated_str)
+                except Exception:
+                    pass
+
+            _today = datetime.now().date()
+            _game_folder = _sanitize_game_name(selected_game)
+            _pred_dir = Path("predictions") / _game_folder / "prediction_ai"
+            _pending_draw_date: Optional[str] = None
+            _pending_pred_count: int = 0
+
+            if _pred_dir.exists():
+                for _pf in sorted(_pred_dir.glob("*.json"), reverse=True):
+                    try:
+                        with open(_pf, 'r') as _fh:
+                            _pd_data = json.load(_fh)
+                        _nd = _pd_data.get('next_draw_date', '')
+                        if not _nd:
+                            continue
+                        _nd_date = datetime.strptime(_nd, '%Y-%m-%d').date()
+                        # Draw must have already happened (past date)
+                        if _nd_date >= _today:
+                            continue
+                        # Check if results exist in CSV for this date
+                        _win_nums, _, _ = _get_draw_results(selected_game, _nd_date)
+                        if not _win_nums:
+                            continue
+                        # Check if this draw is newer than our last learning update
+                        if _last_updated_dt is not None:
+                            _nd_as_dt = datetime(year=_nd_date.year, month=_nd_date.month, day=_nd_date.day)
+                            if _nd_as_dt <= _last_updated_dt:
+                                continue
+                        # Found an unlearned draw with predictions and results
+                        if _pending_draw_date is None or _nd > _pending_draw_date:
+                            _pending_draw_date = _nd
+                        _pending_pred_count += 1
+                    except Exception:
+                        continue
+
+            if _pending_draw_date:
+                _banner_col1, _banner_col2 = st.columns([4, 1])
+                with _banner_col1:
+                    st.warning(
+                        f"🔔 **New draw results available for learning!**  "
+                        f"Draw date **{_pending_draw_date}** has results in the database and "
+                        f"{_pending_pred_count} saved prediction file(s) — but the AI has not "
+                        f"yet learned from this draw. Apply learning to improve future accuracy."
+                    )
+                with _banner_col2:
+                    if st.button("🧠 Apply Learning Now", key="auto_learning_banner_btn", type="primary"):
+                        with st.spinner(f"Applying learning for {_pending_draw_date}…"):
+                            try:
+                                _learn_actual = _load_actual_results(selected_game, _pending_draw_date)
+                                if not _learn_actual or not _learn_actual.get('numbers'):
+                                    st.session_state['sia_banner_learning_error'] = (
+                                        f"Could not load draw results for {_pending_draw_date}"
+                                    )
+                                    st.rerun()
+                                else:
+                                    _learn_files = _find_prediction_files_for_date(
+                                        selected_game, _pending_draw_date
+                                    )
+                                    _total_saved: list = []
+                                    _last_als = None
+
+                                    for _lf in _learn_files:
+                                        try:
+                                            with open(_lf, 'r') as _lfh:
+                                                _lf_data = json.load(_lfh)
+                                            _lf_preds = _lf_data.get('predictions', [])
+                                            if not _lf_preds:
+                                                continue
+
+                                            _lf_matched = _highlight_prediction_matches(
+                                                _lf_preds,
+                                                _learn_actual['numbers'],
+                                                _learn_actual.get('bonus')
+                                            )
+                                            _lf_sorted = _sort_predictions_by_accuracy(
+                                                _lf_matched, _learn_actual['numbers']
+                                            )
+                                            _lf_ld = _compile_comprehensive_learning_data(
+                                                selected_game, _pending_draw_date,
+                                                _learn_actual, _lf_sorted, _lf_data, False
+                                            )
+                                            if not _lf_ld:
+                                                continue
+
+                                            _als = AdaptiveLearningSystem(selected_game)
+                                            _total_preds = len(_lf_sorted)
+                                            _top_n = max(1, _total_preds // 10)
+                                            _bot_n = max(1, _total_preds // 10)
+                                            _top_ps = [
+                                                [n['number'] for n in p['numbers']]
+                                                for p in _lf_sorted[:_top_n]
+                                            ]
+                                            _bot_ps = [
+                                                [n['number'] for n in p['numbers']]
+                                                for p in _lf_sorted[-_bot_n:]
+                                            ]
+
+                                            # Quick-apply: update weights + anti-patterns + clusters.
+                                            # Full factor-scored analysis is available in the
+                                            # AI Learning tab → Previous Draw Date.
+                                            _als.update_weights_from_success(
+                                                winning_numbers=_learn_actual,
+                                                top_predictions=_top_ps,
+                                                factor_scores={}
+                                            )
+                                            _als.track_anti_patterns(_bot_ps, _learn_actual)
+                                            try:
+                                                _als.detect_cross_factor_interactions(
+                                                    _top_ps, _learn_actual, {}
+                                                )
+                                            except Exception:
+                                                pass
+
+                                            _ranked_c = [
+                                                (
+                                                    p['correct_count'] / max(1, len(_learn_actual['numbers'])),
+                                                    [n['number'] for n in p['numbers']]
+                                                )
+                                                for p in _lf_sorted
+                                            ]
+                                            _cr = _als.detect_winning_clusters(
+                                                _ranked_c, _learn_actual['numbers'], top_n=5
+                                            )
+                                            _als.update_cluster_concentration_weight(
+                                                _cr.get('coverage_count', 0),
+                                                len(_learn_actual['numbers'])
+                                            )
+
+                                            _saved = _save_learning_data(
+                                                selected_game, _pending_draw_date, _lf_ld
+                                            )
+                                            _total_saved.append(str(_saved))
+                                            _last_als = _als
+                                        except Exception:
+                                            continue
+
+                                    if _total_saved and _last_als:
+                                        _cycle = _last_als.meta_learning_data.get(
+                                            'total_learning_cycles', 0
+                                        )
+                                        _ap_ct = len(
+                                            _last_als.meta_learning_data.get('anti_patterns', [])
+                                        )
+                                        _wts = _last_als.meta_learning_data.get('factor_weights', {})
+                                        _top_f = max(_wts, key=_wts.get) if _wts else 'N/A'
+                                        _inter_ct = len(
+                                            _last_als.meta_learning_data.get(
+                                                'cross_factor_interactions', {}
+                                            )
+                                        )
+                                        st.session_state['sia_banner_learning_success'] = {
+                                            'draw_date': _pending_draw_date,
+                                            'cycle': _cycle,
+                                            'files_count': len(_learn_files),
+                                            'files_processed': len(_total_saved),
+                                            'anti_patterns': _ap_ct,
+                                            'factor_interactions': _inter_ct,
+                                            'top_factor': _top_f,
+                                            'top_factor_weight': round(_wts.get(_top_f, 0), 4),
+                                            'saved_paths': _total_saved,
+                                            'winning_numbers': _learn_actual['numbers'],
+                                        }
+                                        st.rerun()
+                                    else:
+                                        st.session_state['sia_banner_learning_error'] = (
+                                            "No learning data could be saved — "
+                                            "no valid prediction files found for this draw date."
+                                        )
+                                        st.rerun()
+                            except Exception as _apply_err:
+                                st.session_state['sia_banner_learning_error'] = (
+                                    f"Learning failed: {_apply_err}"
+                                )
+                                st.rerun()
+        except Exception as _banner_err:
+            app_log(f"Auto-learning banner check failed: {_banner_err}", "warning")
+        # ── End auto-learning banner ─────────────────────────────────────────
+
         # Create tabs
         tab1, tab2, tab3, tab4, tab5 = st.tabs([
             "🤖 AI Model Configuration",
@@ -3179,15 +3927,43 @@ def _render_model_configuration(analyzer: SuperIntelligentAIAnalyzer) -> None:
                         }
                         for m in analysis["models"]
                     ])
-                    st.dataframe(models_df, use_container_width=True, hide_index=True)
-                    
+                    # Add inference_type column to table
+                    models_df_display = pd.DataFrame([
+                        {
+                            "Model": m["name"],
+                            "Type": m["type"],
+                            "Accuracy": f"{m['accuracy']:.1%}",
+                            "Confidence": f"{m['confidence']:.1%}",
+                            "Inference": m.get("inference_type", "unknown"),
+                        }
+                        for m in analysis["models"]
+                    ])
+                    st.dataframe(models_df_display, use_container_width=True, hide_index=True)
+
+                    # Warn when any model used synthetic probabilities
+                    _type_summary = analysis.get("inference_type_summary", {})
+                    _synth_n = _type_summary.get('synthetic', 0) + _type_summary.get('synthetic_fallback', 0)
+                    _real_n = _type_summary.get('real', 0)
+                    if _synth_n > 0 and _real_n == 0:
+                        st.error(
+                            f"**All {_synth_n} models used synthetic (health-based) probabilities** — "
+                            "no real model inference was performed. Predictions will reflect uniform distributions, "
+                            "not learned patterns. Ensure model card points to trained `.joblib`/`.keras` files."
+                        )
+                    elif _synth_n > 0:
+                        st.warning(
+                            f"**{_synth_n} of {_synth_n + _real_n} models used synthetic probabilities** "
+                            f"({_real_n} used real inference). Ensemble quality is reduced. "
+                            "Check inference log for details."
+                        )
+
                     # Display inference logs in an expander
                     if analysis.get("inference_logs"):
                         with st.expander("🔍 Model Loading & Inference Details", expanded=False):
                             st.markdown("**Real-time inference log showing model loading, feature generation, and probability calculation:**")
                             for log_entry in analysis["inference_logs"]:
                                 st.text(log_entry)
-                    
+
                     # Optimal Analysis section
                     st.divider()
                     st.markdown("### 🎯 Intelligent Set Recommendation - AI/ML Analysis")
@@ -3204,9 +3980,17 @@ def _render_model_configuration(analyzer: SuperIntelligentAIAnalyzer) -> None:
                     ⚠️ **Important**: Lottery outcomes are random. These are optimized recommendations, not guaranteed wins.
                     """)
                     
-                    # Set Limit Controls
-                    col_cap1, col_cap2 = st.columns([1, 2])
-                    
+                    # Coverage target + Set Limit Controls
+                    col_cov, col_cap1, col_cap2 = st.columns([2, 1, 2])
+
+                    with col_cov:
+                        sia_ml_target_prob = st.slider(
+                            "Coverage Target",
+                            min_value=50, max_value=95, value=90, step=5,
+                            key="sia_ml_target_prob",
+                            help="How confident do you want to be that at least one set covers the winning pattern? Higher = more sets recommended."
+                        ) / 100.0
+
                     with col_cap1:
                         enable_cap = st.checkbox(
                             "Enable Set Limit",
@@ -3214,7 +3998,7 @@ def _render_model_configuration(analyzer: SuperIntelligentAIAnalyzer) -> None:
                             key="sia_ml_enable_cap",
                             help="Limit the maximum number of recommended sets"
                         )
-                    
+
                     with col_cap2:
                         if enable_cap:
                             max_sets_cap = st.number_input(
@@ -3228,10 +4012,10 @@ def _render_model_configuration(analyzer: SuperIntelligentAIAnalyzer) -> None:
                             )
                         else:
                             max_sets_cap = None
-                    
+
                     if st.button("🧠 Calculate Optimal Sets (SIA)", use_container_width=True, key="sia_calc_ml_btn"):
                         with st.spinner("🤖 SIA performing deep mathematical analysis..."):
-                            optimal = analyzer.calculate_optimal_sets_advanced(analysis)
+                            optimal = analyzer.calculate_optimal_sets_advanced(analysis, target_probability=sia_ml_target_prob)
                             
                             # Apply cap if enabled
                             if enable_cap and max_sets_cap is not None:
@@ -3301,7 +4085,7 @@ def _render_model_configuration(analyzer: SuperIntelligentAIAnalyzer) -> None:
                             **Risk & Variance Analysis:**
                             - Model Variance: {optimal['model_variance']:.4f}
                             - Uncertainty Factor: {optimal['uncertainty_factor']:.2f}
-                            - Safety Margin: {optimal['safety_margin']:.1%}
+                            - Uncertainty Extra Sets: {optimal.get('uncertainty_extra_sets', 0)}
                             
                             **Set Composition Strategy:**
                             - Diversity Score: {optimal['diversity_factor']:.2f}
@@ -3507,9 +4291,17 @@ def _render_model_configuration(analyzer: SuperIntelligentAIAnalyzer) -> None:
             ⚠️ **Important**: Lottery outcomes are random. These are optimized recommendations, not guaranteed wins.
             """)
             
-            # Set Limit Controls (Standard Models)
-            col_cap1, col_cap2 = st.columns([1, 2])
-            
+            # Coverage target + Set Limit Controls (Standard Models)
+            col_cov_std, col_cap1, col_cap2 = st.columns([2, 1, 2])
+
+            with col_cov_std:
+                sia_std_target_prob = st.slider(
+                    "Coverage Target",
+                    min_value=50, max_value=95, value=90, step=5,
+                    key="sia_std_target_prob",
+                    help="How confident do you want to be that at least one set covers the winning pattern? Higher = more sets recommended."
+                ) / 100.0
+
             with col_cap1:
                 enable_cap_std = st.checkbox(
                     "Enable Set Limit",
@@ -3517,7 +4309,7 @@ def _render_model_configuration(analyzer: SuperIntelligentAIAnalyzer) -> None:
                     key="sia_std_enable_cap",
                     help="Limit the maximum number of recommended sets"
                 )
-            
+
             with col_cap2:
                 if enable_cap_std:
                     max_sets_cap_std = st.number_input(
@@ -3529,10 +4321,10 @@ def _render_model_configuration(analyzer: SuperIntelligentAIAnalyzer) -> None:
                         key="sia_std_max_cap",
                         help="Set the maximum number of sets to recommend (1-1000)"
                     )
-            
+
             if st.button("🧠 Calculate Optimal Sets (SIA)", use_container_width=True, key="sia_calc_btn"):
                 with st.spinner("🤖 SIA performing deep mathematical analysis..."):
-                    optimal = analyzer.calculate_optimal_sets_advanced(analysis)
+                    optimal = analyzer.calculate_optimal_sets_advanced(analysis, target_probability=sia_std_target_prob)
                     
                     # Apply cap if enabled
                     if enable_cap_std and 'max_sets_cap_std' in locals() and max_sets_cap_std is not None:
@@ -3601,7 +4393,7 @@ def _render_model_configuration(analyzer: SuperIntelligentAIAnalyzer) -> None:
                     **Risk & Variance Analysis:**
                     - Model Variance: {optimal['model_variance']:.4f}
                     - Uncertainty Factor: {optimal['uncertainty_factor']:.2f}
-                    - Safety Margin: {optimal['safety_margin']:.1%}
+                    - Uncertainty Extra Sets: {optimal.get('uncertainty_extra_sets', 0)}
                     
                     **Set Composition Strategy:**
                     - Diversity Score: {optimal['diversity_factor']:.2f}
@@ -3684,17 +4476,50 @@ def _render_prediction_generator(analyzer: SuperIntelligentAIAnalyzer) -> None:
         analysis = st.session_state.sia_analysis_result
         model_source = "Standard Models"
     
+    # --- Prerequisites checklist ---
+    _ml_analysis = st.session_state.get('sia_ml_analysis_result')
+    _std_analysis = st.session_state.get('sia_analysis_result')
+    _ml_optimal = st.session_state.get('sia_ml_optimal_sets')
+    _std_optimal = st.session_state.get('sia_optimal_sets')
+
+    _step1_ok = bool(_ml_analysis or _std_analysis)   # models analysed
+    _step2_ok = bool(_ml_optimal or _std_optimal)      # optimal sets calculated
+    _step3_ok = bool(optimal and analysis)             # ready to generate
+
+    def _chk(ok: bool) -> str:
+        return "✅" if ok else "❌"
+
+    with st.container():
+        st.markdown("#### Prerequisites")
+        _col_a, _col_b, _col_c = st.columns(3)
+        with _col_a:
+            st.markdown(
+                f"{_chk(_step1_ok)} **Step 1 — Analyse Models**  \n"
+                f"{'Done' if _step1_ok else 'Go to Tab 1 → click Analyze'}"
+            )
+        with _col_b:
+            st.markdown(
+                f"{_chk(_step2_ok)} **Step 2 — Calculate Optimal Sets**  \n"
+                f"{'Done' if _step2_ok else 'Tab 1 → click Calculate Optimal Sets'}"
+            )
+        with _col_c:
+            # Optional: learning files
+            _learning_dir = Path(__file__).parent.parent.parent / "data" / "learning" / \
+                ("lotto_6_49" if "6/49" in (analyzer.game if analyzer else "") else "lotto_max")
+            _lf_count = len(list(_learning_dir.glob("draw_*_learning.json"))) if _learning_dir.exists() else 0
+            _lf_ok = _lf_count > 0
+            st.markdown(
+                f"{'✅' if _lf_ok else '⚠️'} **Step 3 — Learning Files** (optional)  \n"
+                f"{_lf_count} file(s) available for draw-history blend"
+            )
+        st.divider()
+
     if not optimal or not analysis:
-        st.warning("⚠️ Please complete the Model Configuration tab first:")
-        st.markdown("""
-        **Required Steps:**
-        1. Select your AI models (either Machine Learning Models or Standard Models)
-        2. Click "Analyze Selected Models"
-        3. Click "Calculate Optimal Sets (SIA)" to determine how many sets you need
-        4. Return to this tab to generate your winning predictions
-        """)
+        st.error(
+            "Steps 1 and 2 must be completed in the **AI Model Configuration** tab before generating predictions."
+        )
         return
-    
+
     # Show which model source is being used
     st.info(f"ℹ️ **Using Configuration from:** {model_source}")
     
@@ -3734,6 +4559,9 @@ def _render_prediction_generator(analyzer: SuperIntelligentAIAnalyzer) -> None:
         st.session_state.sia_use_draw_profile = False
     if 'sia_selected_draw_profile' not in st.session_state:
         st.session_state.sia_selected_draw_profile = None
+    # P10: multi-profile selection (list of indices)
+    if 'sia_selected_draw_profiles' not in st.session_state:
+        st.session_state.sia_selected_draw_profiles = []
     
     # Three column layout for the checkboxes
     checkbox_col1, checkbox_col2, checkbox_col3 = st.columns(3)
@@ -3785,57 +4613,111 @@ def _render_prediction_generator(analyzer: SuperIntelligentAIAnalyzer) -> None:
         available_profiles = _find_all_draw_profiles(analyzer.game)
         
         if available_profiles:
-            # Create readable options
-            profile_options = []
+            import re as _re_pf
+
+            # Parse each profile: read metadata from JSON for jackpot_amount + profile_name
+            _profile_meta = []
             for pf in available_profiles:
-                # Parse filename for profile info
-                file_stats = pf.stat()
-                mod_time = datetime.fromtimestamp(file_stats.st_mtime).strftime('%Y-%m-%d %H:%M')
-                size_kb = file_stats.st_size / 1024
-                profile_options.append(f"{pf.name} (Modified: {mod_time}, Size: {size_kb:.1f}KB)")
-            
-            # Single-select for draw profile (unlike learning files)
-            selected_profile_idx = st.selectbox(
-                "Choose a draw profile:",
+                try:
+                    with open(pf, 'r') as _fp:
+                        _pd = json.load(_fp)
+                    _jamt = _pd.get('metadata', {}).get('jackpot_amount', 0)
+                    _pname = _pd.get('metadata', {}).get('profile_name', pf.stem)
+                except Exception:
+                    _jamt = 0
+                    _pname = pf.stem
+                # Parse saved date from filename suffix: {name}_{YYYYMMDD_HHMMSS}.json
+                _dm = _re_pf.search(r'_(\d{4})(\d{2})(\d{2})_\d{6}$', pf.stem)
+                _saved_date = f"{_dm.group(1)}-{_dm.group(2)}-{_dm.group(3)}" if _dm else "unknown date"
+                _profile_meta.append({"path": pf, "jackpot": _jamt, "name": _pname, "date": _saved_date})
+
+            # Sort profiles by jackpot amount descending so biggest are at top
+            _profile_meta = sorted(_profile_meta, key=lambda x: x['jackpot'], reverse=True)
+            available_profiles = [pm['path'] for pm in _profile_meta]
+
+            profile_options = [
+                f"${pm['jackpot']/1e6:.0f}M — {pm['name']} (saved {pm['date']})"
+                if pm['jackpot'] >= 1e6
+                else f"${pm['jackpot']:,.0f} — {pm['name']} (saved {pm['date']})"
+                for pm in _profile_meta
+            ]
+
+            # Current jackpot input → auto-select closest profile(s)
+            _curr_jackpot = st.number_input(
+                "Current jackpot ($M) — used to auto-select closest profiles:",
+                min_value=0, max_value=1000, value=50, step=5,
+                key="sia_current_jackpot_m",
+                help="Enter today's jackpot to auto-select the best matching profile(s)"
+            ) * 1_000_000
+
+            # Find 1-3 closest profiles (P10: multi-profile)
+            _sorted_by_prox = sorted(
+                range(len(_profile_meta)),
+                key=lambda i: abs(_profile_meta[i]['jackpot'] - _curr_jackpot)
+            )
+            _auto_default_indices = _sorted_by_prox[:min(2, len(_sorted_by_prox))]
+            _prev_multi = st.session_state.sia_selected_draw_profiles
+            _multi_default = _prev_multi if _prev_multi else _auto_default_indices
+
+            # P10: multiselect — blend up to 3 profiles
+            selected_profile_indices = st.multiselect(
+                "Choose draw profile(s) to blend (up to 3 recommended):",
                 range(len(available_profiles)),
                 format_func=lambda i: profile_options[i],
-                index=st.session_state.sia_selected_draw_profile if st.session_state.sia_selected_draw_profile is not None and st.session_state.sia_selected_draw_profile < len(available_profiles) else 0,
-                key="sia_draw_profile_selectbox",
-                help="Select ONE profile to enforce its patterns on all generated sets"
+                default=[i for i in _multi_default if i < len(available_profiles)],
+                key="sia_draw_profile_multiselect",
+                help="Multiple profiles are blended together (weighted by draw count). "
+                     "Closest to current jackpot auto-selected."
             )
-            
-            st.session_state.sia_selected_draw_profile = selected_profile_idx
-            
-            # Display selected profile info
-            selected_profile_path = available_profiles[selected_profile_idx]
-            st.success(f"✅ Selected Profile: **{selected_profile_path.name}**")
-            
-            # Load and display profile summary
-            profile_data = _load_draw_profile(selected_profile_path)
-            if profile_data:
-                metadata = profile_data.get('metadata', {})
-                core_patterns = profile_data.get('core_patterns', {})
-                
-                # Show profile details in expandable section
-                with st.expander("📋 Profile Details", expanded=False):
-                    col1, col2, col3 = st.columns(3)
-                    with col1:
-                        st.write(f"**Jackpot Amount:** ${metadata.get('jackpot_amount', 0):,.0f}")
-                        st.write(f"**Draws Analyzed:** {metadata.get('total_draws_analyzed', 0)}")
-                    with col2:
-                        odd_even = core_patterns.get('odd_even_distribution', {})
-                        if odd_even:
-                            most_common_oe = max(odd_even, key=odd_even.get)
-                            st.write(f"**Odd/Even Pattern:** {most_common_oe}")
-                        high_low = core_patterns.get('high_low_distribution', {})
-                        if high_low:
-                            most_common_hl = max(high_low, key=high_low.get)
-                            st.write(f"**High/Low Pattern:** {most_common_hl}")
-                    with col3:
-                        sum_stats = profile_data.get('sum_analysis', {})
-                        if sum_stats:
-                            st.write(f"**Sum Range:** {sum_stats.get('mode_range', 'N/A')}")
-                            st.write(f"**Avg Sum:** {sum_stats.get('mean', 0):.1f}")
+            st.session_state.sia_selected_draw_profiles = selected_profile_indices
+            # Keep legacy single-select state in sync for backwards compat
+            st.session_state.sia_selected_draw_profile = selected_profile_indices[0] if selected_profile_indices else None
+
+            if selected_profile_indices:
+                _sel_pms = [_profile_meta[i] for i in selected_profile_indices]
+                _total_draws_sel = sum(p.get('jackpot', 0) and 1 for p in _sel_pms)
+                st.success(
+                    f"✅ **{len(selected_profile_indices)} profile(s) selected** — "
+                    + ", ".join(
+                        f"{pm['name']} (${pm['jackpot']/1e6:.0f}M)" for pm in _sel_pms
+                    )
+                )
+                # Expandable details for each selected profile
+                for _sel_idx in selected_profile_indices:
+                    _sel_path = available_profiles[_sel_idx]
+                    _sel_pm   = _profile_meta[_sel_idx]
+                    _pdata    = _load_draw_profile(_sel_path)
+                    if _pdata:
+                        with st.expander(f"📋 {_sel_pm['name']} — Profile Details", expanded=False):
+                            _meta = _pdata.get('metadata', {})
+                            _cp   = _pdata.get('core_patterns', {})
+                            _ss   = _pdata.get('sum_analysis', {})
+                            _np   = _pdata.get('number_patterns', {})
+                            _col1, _col2, _col3 = st.columns(3)
+                            with _col1:
+                                st.write(f"**Jackpot:** ${_meta.get('jackpot_amount', 0):,.0f}")
+                                st.write(f"**Draws Analyzed:** {_meta.get('total_draws_analyzed', 0)}")
+                                st.write(f"**Saved:** {_sel_pm['date']}")
+                            with _col2:
+                                _oe = _cp.get('odd_even_distribution', {})
+                                if _oe:
+                                    st.write(f"**Top Odd/Even:** {max(_oe, key=_oe.get)}")
+                                _hl = _cp.get('high_low_distribution', {})
+                                if _hl:
+                                    st.write(f"**Top High/Low:** {max(_hl, key=_hl.get)}")
+                                _pairs = _np.get('pair_cooccurrence', {})
+                                if _pairs:
+                                    _top_pair = max(_pairs, key=_pairs.get)
+                                    st.write(f"**Top Pair:** {_top_pair} ({_pairs[_top_pair]:.2f})")
+                            with _col3:
+                                if _ss:
+                                    st.write(f"**Sum Range:** {_ss.get('mode_range', 'N/A')}")
+                                    st.write(f"**Avg Sum:** {_ss.get('mean', 0):.1f} ± {_ss.get('std', 0):.1f}")
+                                _hot = _np.get('hot_numbers', [])[:3]
+                                if _hot:
+                                    st.write(f"**Top-3 Hot:** {[h[0] for h in _hot if isinstance(h, list)]}")
+            else:
+                st.info("No profile selected — generation will use only ML ensemble probabilities.")
         else:
             st.warning(f"⚠️ No draw profiles found for {analyzer.game}. Create profiles in the Jackpot Pattern Analysis tab first.")
             st.session_state.sia_use_draw_profile = False
@@ -3848,29 +4730,51 @@ def _render_prediction_generator(analyzer: SuperIntelligentAIAnalyzer) -> None:
         available_learning_files = _find_all_learning_files(analyzer.game)
         
         if available_learning_files:
-            # Create readable options
+            # Sort by draw date extracted from filename (draw_YYYYMMDD_learning.json)
+            def _lf_draw_date(p):
+                import re
+                m = re.search(r'draw_(\d{8})_', p.name)
+                return m.group(1) if m else p.stat().st_mtime.__str__()
+
+            available_learning_files = sorted(available_learning_files, key=_lf_draw_date, reverse=True)
+
+            # Build human-readable labels with date parsed from filename
+            import re as _re
             learning_options = []
             for lf in available_learning_files:
-                # Parse filename for date/draw info
-                file_stats = lf.stat()
-                mod_time = datetime.fromtimestamp(file_stats.st_mtime).strftime('%Y-%m-%d %H:%M')
-                size_kb = file_stats.st_size / 1024
-                learning_options.append(f"{lf.name} (Modified: {mod_time}, Size: {size_kb:.1f}KB)")
-            
-            # Multi-select for learning files
+                _dm = _re.search(r'draw_(\d{4})(\d{2})(\d{2})_', lf.name)
+                if _dm:
+                    _label_date = f"{_dm.group(1)}-{_dm.group(2)}-{_dm.group(3)}"
+                else:
+                    _label_date = datetime.fromtimestamp(lf.stat().st_mtime).strftime('%Y-%m-%d')
+                _size_kb = lf.stat().st_size / 1024
+                learning_options.append(f"{_label_date} — {lf.name} ({_size_kb:.1f} KB)")
+
+            # Default: pre-select 3 most recent
+            _default_sel = list(range(min(3, len(available_learning_files))))
+            _prev_sel = st.session_state.sia_selected_learning_files
+            _sel_default = _prev_sel if _prev_sel else _default_sel
+
             selected_learning_indices = st.multiselect(
-                "Choose one or more learning files:",
+                "Choose learning files (3 most recent pre-selected):",
                 range(len(available_learning_files)),
                 format_func=lambda i: learning_options[i],
-                default=st.session_state.sia_selected_learning_files if st.session_state.sia_selected_learning_files else [0],
+                default=_sel_default,
                 key="sia_learning_files_multiselect",
-                help="Select multiple files to combine their insights for better predictions"
+                help="Files are sorted newest → oldest. Select multiple to combine historical draw insights."
             )
-            
+
             st.session_state.sia_selected_learning_files = selected_learning_indices
-            
+
+            # Coverage metric
             if selected_learning_indices:
-                st.info(f"✅ Selected {len(selected_learning_indices)} learning file(s) to incorporate into generation")
+                _total = len(available_learning_files)
+                _sel_n = len(selected_learning_indices)
+                _pct = _sel_n / _total * 100 if _total else 0
+                st.info(
+                    f"✅ **{_sel_n} / {_total} files selected** ({_pct:.0f}% draw history coverage)  \n"
+                    f"Earliest selected: {learning_options[max(selected_learning_indices)].split(' — ')[0]}"
+                )
             else:
                 st.warning("⚠️ No learning files selected. Predictions will be generated without learning insights.")
             
@@ -4000,57 +4904,78 @@ def _render_prediction_generator(analyzer: SuperIntelligentAIAnalyzer) -> None:
                         learning_data = _load_and_combine_learning_files(selected_files)
                         st.success(f"✅ Loaded {len(selected_files)} learning file(s) with combined insights")
                 
-                # ===== LOAD DRAW PROFILE IF ENABLED =====
-                draw_profile_data = None
+                # ===== LOAD DRAW PROFILE(S) IF ENABLED (P10: multi-profile) =====
+                draw_profile_data = None   # will be a List[Dict] when multiple profiles selected
                 draw_profile_name = None
-                
-                if use_draw_profile and st.session_state.sia_selected_draw_profile is not None:
-                    st.info("🎯 Loading draw profile to enforce patterns...")
-                    available_profiles = _find_all_draw_profiles(analyzer.game)
-                    if available_profiles and st.session_state.sia_selected_draw_profile < len(available_profiles):
-                        selected_profile_path = available_profiles[st.session_state.sia_selected_draw_profile]
-                        draw_profile_data = _load_draw_profile(selected_profile_path)
-                        draw_profile_name = selected_profile_path.name
-                        if draw_profile_data:
-                            st.success(f"✅ Loaded draw profile: {draw_profile_name}")
+
+                if use_draw_profile:
+                    _sel_indices = st.session_state.get('sia_selected_draw_profiles', [])
+                    # Fallback: legacy single-select
+                    if not _sel_indices and st.session_state.sia_selected_draw_profile is not None:
+                        _sel_indices = [st.session_state.sia_selected_draw_profile]
+
+                    if _sel_indices:
+                        _avail = _find_all_draw_profiles(analyzer.game)
+                        _loaded = []
+                        for _pi in _sel_indices:
+                            if _pi < len(_avail):
+                                _pd = _load_draw_profile(_avail[_pi])
+                                if _pd:
+                                    _loaded.append(_pd)
+                        if _loaded:
+                            draw_profile_data = _loaded  # List[Dict] — generation blends all
+                            draw_profile_name = f"{len(_loaded)} profile(s)"
+                            st.success(f"✅ Loaded {len(_loaded)} draw profile(s) for blending")
                         else:
-                            st.warning("⚠️ Failed to load draw profile, proceeding without profile enforcement")
+                            st.warning("⚠️ Failed to load any draw profiles, proceeding without profile enforcement")
                 
                 # ===== GENERATE PREDICTIONS =====
                 # Pass learning data to generation if available
                 if learning_data:
                     # Generate with learning-enhanced algorithm
                     predictions, strategy_report, predictions_with_attribution, strategy_log = analyzer.generate_prediction_sets_advanced(
-                        final_sets, 
-                        optimal, 
+                        final_sets,
+                        optimal,
                         analysis,
                         learning_data=learning_data,
                         no_repeat_numbers=no_repeat_numbers,
-                        use_adaptive_learning=use_adaptive_learning
+                        use_adaptive_learning=use_adaptive_learning,
+                        draw_profile_data=draw_profile_data
                     )
                 else:
                     # Generate normally without learning
                     predictions, strategy_report, predictions_with_attribution, strategy_log = analyzer.generate_prediction_sets_advanced(
-                        final_sets, 
-                        optimal, 
+                        final_sets,
+                        optimal,
                         analysis,
                         no_repeat_numbers=no_repeat_numbers,
-                        use_adaptive_learning=False
+                        use_adaptive_learning=False,
+                        draw_profile_data=draw_profile_data
                     )
                 
-                # ===== VALIDATE AND ENFORCE DRAW PROFILE IF ENABLED =====
+                # ===== VALIDATE AND SCORE AGAINST DRAW PROFILE (soft conformance) =====
                 profile_validation_results = []
                 if draw_profile_data:
-                    st.info("🔍 Validating all sets against draw profile patterns...")
-                    
-                    max_regeneration_attempts = 100
+                    st.info("🔍 Scoring all sets against draw profile (soft conformance)...")
+
+                    # With profile-guided generation already biasing probabilities, the
+                    # vast majority of sets will be conformant without regeneration.
+                    # Only attempt a single replacement pass for the very lowest scores.
+                    max_regeneration_attempts = 5   # reduced from 100 — profile blend handles most cases
                     regeneration_count = 0
-                    
+
+                    # Resolve single profile for validation (P10: use first/primary profile)
+                    _validation_profile = (
+                        draw_profile_data[0]
+                        if isinstance(draw_profile_data, list) and draw_profile_data
+                        else draw_profile_data
+                    )
+
                     # Validate each prediction set
                     for i, pred_set in enumerate(predictions[:]):  # Use slice to iterate over copy
-                        validation = _validate_set_against_profile(pred_set, draw_profile_data, analyzer.game)
-                        
-                        # Regenerate if invalid
+                        validation = _validate_set_against_profile(pred_set, _validation_profile, analyzer.game)
+
+                        # Only regenerate truly poor conformance (< 40%)
                         attempts = 0
                         while not validation['valid'] and attempts < max_regeneration_attempts:
                             # Build number usage from OTHER sets (exclude the one being regenerated)
@@ -4069,14 +4994,16 @@ def _render_prediction_generator(analyzer: SuperIntelligentAIAnalyzer) -> None:
                                     learning_data=learning_data,
                                     no_repeat_numbers=no_repeat_numbers,
                                     use_adaptive_learning=use_adaptive_learning,
-                                    existing_number_usage=existing_usage
+                                    existing_number_usage=existing_usage,
+                                    draw_profile_data=draw_profile_data
                                 )
                             else:
                                 new_set, _, new_attribution, _ = analyzer.generate_prediction_sets_advanced(
                                     1, optimal, analysis,
                                     no_repeat_numbers=no_repeat_numbers,
                                     use_adaptive_learning=False,
-                                    existing_number_usage=existing_usage
+                                    existing_number_usage=existing_usage,
+                                    draw_profile_data=draw_profile_data
                                 )
                             
                             # Replace the set
@@ -4084,17 +5011,38 @@ def _render_prediction_generator(analyzer: SuperIntelligentAIAnalyzer) -> None:
                             if new_attribution:
                                 predictions_with_attribution[i] = new_attribution[0]
                             
-                            # Validate new set
-                            validation = _validate_set_against_profile(predictions[i], draw_profile_data, analyzer.game)
+                            # Validate new set (always use single-profile dict for validation)
+                            validation = _validate_set_against_profile(predictions[i], _validation_profile, analyzer.game)
                             attempts += 1
                             regeneration_count += 1
                         
                         profile_validation_results.append(validation)
-                    
+
+                    # Sort predictions by conformance_score descending so the best-matching
+                    # sets appear first in the output list
+                    if profile_validation_results:
+                        _paired = list(zip(profile_validation_results, predictions, predictions_with_attribution))
+                        _paired.sort(key=lambda x: x[0].get('conformance_score', 0.0), reverse=True)
+                        profile_validation_results, predictions, predictions_with_attribution = (
+                            [p[0] for p in _paired],
+                            [p[1] for p in _paired],
+                            [p[2] for p in _paired],
+                        )
+
+                    avg_conformance = (
+                        sum(v.get('conformance_score', 0.5) for v in profile_validation_results)
+                        / max(1, len(profile_validation_results))
+                    )
                     if regeneration_count > 0:
-                        st.success(f"✅ Profile enforcement complete: Regenerated {regeneration_count} sets to match profile patterns")
+                        st.success(
+                            f"✅ Profile scoring complete — avg conformance: {avg_conformance:.0%} "
+                            f"({regeneration_count} low-scoring set(s) regenerated)"
+                        )
                     else:
-                        st.success("✅ All sets naturally match the draw profile patterns")
+                        st.success(
+                            f"✅ All sets profile-scored — avg conformance: {avg_conformance:.0%} "
+                            f"(sorted best-to-worst)"
+                        )
                 
                 # Save to session and file with attribution data
                 st.session_state.sia_predictions = predictions
@@ -4132,6 +5080,70 @@ def _render_prediction_generator(analyzer: SuperIntelligentAIAnalyzer) -> None:
                             st.info(f"📊 **Top Adaptive Factors:** {factors_str}")
                     
                     st.success(f"📚 **Learning Enhanced:** Predictions optimized using insights from {len(learning_file_paths)} historical learning file(s)")
+
+                    # P8: Learning contribution breakdown — show how each component
+                    # shifted the probability distribution during generation.
+                    with st.expander("🔬 Learning Contribution Breakdown", expanded=False):
+                        _slog = stored_strategy_log
+                        st.markdown("**How each learning layer influenced this generation:**")
+
+                        _breakdown_rows = []
+
+                        # Per-draw file blend
+                        _blend_w = _slog.get('learning_blend_weight', None)
+                        _blend_files = _slog.get('recent_draw_files_blended', 0)
+                        if _blend_w is not None and _blend_files:
+                            _blend_cycles = _slog.get('learning_cycles_for_blend', 0)
+                            _breakdown_rows.append({
+                                'Component': '📂 Per-Draw File Blend',
+                                'Weight': f"{_blend_w:.1%}",
+                                'Detail': f"{_blend_files} files · {_blend_cycles} cycles accumulated"
+                            })
+
+                        # Jackpot profile blend
+                        _jp_w = _slog.get('jackpot_profile_blend_weight', None)
+                        _jp_n = _slog.get('jackpot_profile_blended', 0)
+                        if _jp_w is not None and _jp_n:
+                            _breakdown_rows.append({
+                                'Component': '🎰 Jackpot Profile Blend',
+                                'Weight': f"{_jp_w:.1%}",
+                                'Detail': f"{_jp_n} profile(s) blended"
+                            })
+
+                        # Adaptive weight top factors
+                        _aw = _slog.get('adaptive_weights', {})
+                        if _aw:
+                            _top2 = sorted(_aw.items(), key=lambda x: x[1], reverse=True)[:2]
+                            for _fn, _fw in _top2:
+                                _breakdown_rows.append({
+                                    'Component': f"🧬 Adaptive: {_fn.replace('_', ' ').title()}",
+                                    'Weight': f"{_fw:.1%}",
+                                    'Detail': 'Evolved factor weight applied during sampling'
+                                })
+
+                        # Co-occurrence concentration
+                        _conc = _slog.get('phase2_concentration_applied', 0)
+                        if _conc:
+                            _breakdown_rows.append({
+                                'Component': '🔗 Co-occurrence Concentration',
+                                'Weight': 'Variable',
+                                'Detail': f"Applied on {_conc} of {len(predictions)} sets"
+                            })
+
+                        # Anti-pattern rejections
+                        _rejections = _slog.get('anti_pattern_rejections', 0)
+                        if _rejections:
+                            _breakdown_rows.append({
+                                'Component': '🚫 Anti-Pattern Rejections',
+                                'Weight': '—',
+                                'Detail': f"{_rejections} candidate set(s) rejected & resampled"
+                            })
+
+                        if _breakdown_rows:
+                            _bd_df = pd.DataFrame(_breakdown_rows)
+                            st.dataframe(_bd_df, use_container_width=True, hide_index=True)
+                        else:
+                            st.info("No learning components active for this generation.")
                 else:
                     st.balloons()
                 
@@ -4609,8 +5621,17 @@ def _search_draws_by_jackpot(game: str, min_jackpot: float, max_jackpot: float) 
 
 
 def _analyze_draw_patterns(draws: List[Dict], game: str) -> Dict:
-    """Analyze patterns across all matching draws."""
-    
+    """Analyze patterns across all matching draws.
+
+    Improvements applied:
+    - P1: std added to sum_stats and gap_analysis
+    - P2: position_frequency tracks per-sorted-position number counts
+    - P3: pair_cooccurrence tracks all 2-number combinations per draw (top-30 saved)
+    - P5: temporal decay weights recent draws more heavily (half-life 180 days)
+    - P9: bonus_frequency captured for Lotto Max
+    """
+    from itertools import combinations as _combs
+
     # Determine number range for the game
     if "6/49" in game or "6_49" in game:
         max_num = 49
@@ -4618,23 +5639,43 @@ def _analyze_draw_patterns(draws: List[Dict], game: str) -> Dict:
     else:  # Lotto Max
         max_num = 50
         nums_per_draw = 7
-    
-    # Dynamic high/low split (first half vs second half)
+
     mid_point = (max_num + 1) // 2
-    
+
+    # P5: Sort draws newest → oldest and compute temporal decay weights
+    # half-life = 180 days; weight = exp(-age / 180)
+    _today = datetime.today().date()
+    def _draw_date(d):
+        try:
+            return datetime.strptime(str(d.get('date', '')), '%Y-%m-%d').date()
+        except Exception:
+            return _today
+    sorted_draws = sorted(draws, key=_draw_date, reverse=True)
+    newest_date = _draw_date(sorted_draws[0]) if sorted_draws else _today
+    def _decay_weight(d):
+        age = max(0, (newest_date - _draw_date(d)).days)
+        return float(np.exp(-age / 180.0))
+
     # Initialize counters
     odd_even_combos = {}
     high_low_combos = {}
     sum_ranges = []
-    number_frequency = {i: 0 for i in range(1, max_num + 1)}
+    sum_weights = []
+    # P5: weighted frequency (float counts)
+    number_frequency = {i: 0.0 for i in range(1, max_num + 1)}
     consecutive_counts = {}
-    decade_distribution = {f"{i*10}-{i*10+9}": 0 for i in range(max_num // 10 + 1)}
+    decade_distribution = {f"{i*10}-{i*10+9}": 0.0 for i in range(max_num // 10 + 1)}
     gap_analysis = []
     prime_counts = {}
     pair_counts = {}
     repeat_from_previous = []
-    
-    # Helper: Check if number is prime
+    # P2: position frequency {1: {num: float, ...}, ...}
+    position_frequency = {pos: {n: 0.0 for n in range(1, max_num + 1)} for pos in range(1, nums_per_draw + 1)}
+    # P3: co-occurrence pair counts
+    pair_cooccurrence = {}
+    # P9: bonus frequency (Lotto Max only)
+    bonus_frequency = {i: 0 for i in range(1, max_num + 1)} if nums_per_draw == 7 else {}
+
     def is_prime(n):
         if n < 2:
             return False
@@ -4642,97 +5683,147 @@ def _analyze_draw_patterns(draws: List[Dict], game: str) -> Dict:
             if n % i == 0:
                 return False
         return True
-    
-    primes = [n for n in range(1, max_num + 1) if is_prime(n)]
-    
-    # Analyze each draw
+
+    primes = set(n for n in range(1, max_num + 1) if is_prime(n))
+
     previous_numbers = None
-    
-    for draw in draws:
+
+    for draw in sorted_draws:
         numbers = sorted(draw['numbers'])
-        
+        w = _decay_weight(draw)  # P5 temporal decay weight
+
         # Odd/Even analysis
         odd_count = sum(1 for n in numbers if n % 2 == 1)
         even_count = len(numbers) - odd_count
         oe_combo = f"{odd_count} Odd / {even_count} Even"
-        odd_even_combos[oe_combo] = odd_even_combos.get(oe_combo, 0) + 1
-        
+        odd_even_combos[oe_combo] = odd_even_combos.get(oe_combo, 0) + w
+
         # High/Low analysis
         low_count = sum(1 for n in numbers if n <= mid_point)
         high_count = len(numbers) - low_count
         hl_combo = f"{low_count} Low / {high_count} High"
-        high_low_combos[hl_combo] = high_low_combos.get(hl_combo, 0) + 1
-        
-        # Sum analysis
+        high_low_combos[hl_combo] = high_low_combos.get(hl_combo, 0) + w
+
+        # Sum analysis (keep raw list for std; weight for mean/median)
         total_sum = sum(numbers)
         sum_ranges.append(total_sum)
-        
-        # Number frequency
+        sum_weights.append(w)
+
+        # P5: weighted number frequency
         for num in numbers:
-            number_frequency[num] += 1
-        
+            number_frequency[num] += w
+
         # Consecutive numbers
-        consecutive = sum(1 for i in range(len(numbers)-1) if numbers[i+1] == numbers[i] + 1)
-        consecutive_counts[consecutive] = consecutive_counts.get(consecutive, 0) + 1
-        
-        # Decade distribution
+        consecutive = sum(1 for i in range(len(numbers) - 1) if numbers[i + 1] == numbers[i] + 1)
+        consecutive_counts[consecutive] = consecutive_counts.get(consecutive, 0) + w
+
+        # Decade distribution (weighted)
         for num in numbers:
             decade = f"{(num-1)//10*10}-{(num-1)//10*10+9}"
             if decade in decade_distribution:
-                decade_distribution[decade] += 1
-        
-        # Gap analysis (largest gap between consecutive numbers)
+                decade_distribution[decade] += w
+
+        # Gap analysis
         if len(numbers) > 1:
-            gaps = [numbers[i+1] - numbers[i] for i in range(len(numbers)-1)]
-            max_gap = max(gaps)
-            gap_analysis.append(max_gap)
-        
+            gaps = [numbers[i + 1] - numbers[i] for i in range(len(numbers) - 1)]
+            gap_analysis.append(max(gaps))
+
         # Prime count
         prime_count = sum(1 for n in numbers if n in primes)
-        prime_counts[prime_count] = prime_counts.get(prime_count, 0) + 1
-        
-        # Pairs/Triplets (numbers within 2 of each other)
-        pairs = sum(1 for i in range(len(numbers)-1) if numbers[i+1] - numbers[i] <= 2)
-        pair_counts[pairs] = pair_counts.get(pairs, 0) + 1
-        
+        prime_counts[prime_count] = prime_counts.get(prime_count, 0) + w
+
+        # Close-pair count (gap ≤ 2)
+        pairs = sum(1 for i in range(len(numbers) - 1) if numbers[i + 1] - numbers[i] <= 2)
+        pair_counts[pairs] = pair_counts.get(pairs, 0) + w
+
         # Repeat from previous draw
         if previous_numbers is not None:
             repeats = len(set(numbers) & set(previous_numbers))
             repeat_from_previous.append(repeats)
-        
+
         previous_numbers = numbers
-    
-    # Calculate statistics
+
+        # P2: position frequency (weighted)
+        for pos, num in enumerate(numbers, 1):
+            if pos in position_frequency:
+                position_frequency[pos][num] += w
+
+        # P3: co-occurrence pairs (weighted)
+        for n1, n2 in _combs(numbers, 2):
+            key = f"{n1},{n2}"
+            pair_cooccurrence[key] = pair_cooccurrence.get(key, 0) + w
+
+        # P9: bonus frequency (Lotto Max, unweighted — raw count)
+        if nums_per_draw == 7:
+            bonus = int(draw.get('bonus', 0) or 0)
+            if 1 <= bonus <= max_num:
+                bonus_frequency[bonus] = bonus_frequency.get(bonus, 0) + 1
+
+    # ---- Compute statistics ----
+    # P1: weighted mean for sum (raw std from unweighted list for simplicity)
+    _sw_total = sum(sum_weights) or 1.0
+    _sum_mean = sum(s * w for s, w in zip(sum_ranges, sum_weights)) / _sw_total
+    _sum_std  = (statistics.stdev(sum_ranges) if len(sum_ranges) > 1 else 0.0)
+
+    # P1: gap std
+    _gap_std = statistics.stdev(gap_analysis) if len(gap_analysis) > 1 else 0.0
+
+    # P3: top-30 most frequent co-occurrence pairs
+    top_pairs = sorted(pair_cooccurrence.items(), key=lambda x: x[1], reverse=True)[:30]
+    top_pairs_dict = {k: round(v, 4) for k, v in top_pairs}
+
+    # P2: for each position, build a ranked list of top-10 numbers
+    position_top_numbers = {}
+    for pos, freq_dict in position_frequency.items():
+        ranked = sorted(freq_dict.items(), key=lambda x: x[1], reverse=True)[:10]
+        position_top_numbers[str(pos)] = [[n, round(f, 4)] for n, f in ranked]
+
+    # P9: top-10 bonus numbers
+    bonus_top = []
+    if bonus_frequency:
+        bonus_top = sorted(bonus_frequency.items(), key=lambda x: x[1], reverse=True)[:10]
+
+    # Use raw (unweighted) counts for excluded-number detection to avoid under-reporting cold #s
+    raw_frequency = {i: 0 for i in range(1, max_num + 1)}
+    for draw in sorted_draws:
+        for num in sorted(draw['numbers']):
+            raw_frequency[num] += 1
+
     patterns = {
-        'odd_even_combos': odd_even_combos,
-        'high_low_combos': high_low_combos,
+        'odd_even_combos'   : odd_even_combos,
+        'high_low_combos'   : high_low_combos,
         'sum_stats': {
-            'min': min(sum_ranges),
-            'max': max(sum_ranges),
-            'mean': statistics.mean(sum_ranges),
-            'median': statistics.median(sum_ranges),
-            'mode_range': _get_mode_range(sum_ranges, nums_per_draw)
+            'min'       : min(sum_ranges),
+            'max'       : max(sum_ranges),
+            'mean'      : round(_sum_mean, 4),
+            'std'       : round(_sum_std, 4),       # P1
+            'median'    : statistics.median(sum_ranges),
+            'mode_range': _get_mode_range(sum_ranges, nums_per_draw),
         },
-        'number_frequency': number_frequency,
-        'excluded_numbers': _get_excluded_numbers(number_frequency, max_num),
+        'number_frequency'  : {k: round(v, 4) for k, v in number_frequency.items()},
+        'excluded_numbers'  : _get_excluded_numbers(raw_frequency, max_num),
         'consecutive_counts': consecutive_counts,
         'decade_distribution': decade_distribution,
         'gap_analysis': {
-            'min': min(gap_analysis) if gap_analysis else 0,
-            'max': max(gap_analysis) if gap_analysis else 0,
-            'mean': statistics.mean(gap_analysis) if gap_analysis else 0
+            'min' : min(gap_analysis) if gap_analysis else 0,
+            'max' : max(gap_analysis) if gap_analysis else 0,
+            'mean': round(statistics.mean(gap_analysis), 4) if gap_analysis else 0,
+            'std' : round(_gap_std, 4),              # P1
         },
-        'prime_counts': prime_counts,
-        'pair_counts': pair_counts,
+        'prime_counts'      : prime_counts,
+        'pair_counts'       : pair_counts,
         'repeat_stats': {
-            'min': min(repeat_from_previous) if repeat_from_previous else 0,
-            'max': max(repeat_from_previous) if repeat_from_previous else 0,
-            'mean': statistics.mean(repeat_from_previous) if repeat_from_previous else 0
+            'min' : min(repeat_from_previous) if repeat_from_previous else 0,
+            'max' : max(repeat_from_previous) if repeat_from_previous else 0,
+            'mean': statistics.mean(repeat_from_previous) if repeat_from_previous else 0,
         },
-        'total_draws': len(draws),
-        'mid_point': mid_point
+        'position_frequency': position_top_numbers,     # P2
+        'pair_cooccurrence' : top_pairs_dict,           # P3
+        'bonus_frequency'   : dict(bonus_top),          # P9
+        'total_draws'       : len(draws),
+        'mid_point'         : mid_point,
     }
-    
+
     return patterns
 
 
@@ -5071,6 +6162,26 @@ def _save_draw_profile(profile_name: str, jackpot_amount: float, range_tolerance
         profile_dir = Path("data") / "learning" / game_folder / "jackpot_profiles"
         profile_dir.mkdir(parents=True, exist_ok=True)
         
+        # P6: Normalize frequency_map to probabilities before saving so two profiles
+        # built from different draw counts are comparable at blend time.
+        raw_freq = patterns['number_frequency']
+        _freq_total = sum(raw_freq.values()) or 1.0
+        freq_map_normalized = {str(k): round(v / _freq_total, 6) for k, v in raw_freq.items()}
+
+        # Build hot/cold lists from the normalized map
+        hot_numbers  = sorted(freq_map_normalized.items(), key=lambda x: x[1], reverse=True)[:10]
+        cold_numbers = sorted(freq_map_normalized.items(), key=lambda x: x[1])[:10]
+
+        # P9: bonus data (Lotto Max only)
+        bonus_data = {}
+        if patterns.get('bonus_frequency'):
+            _bf = patterns['bonus_frequency']
+            _bf_total = sum(_bf.values()) or 1.0
+            bonus_data = {
+                "frequency_map": {str(k): round(v / _bf_total, 6) for k, v in _bf.items()},
+                "hot_bonus_numbers": sorted(_bf.items(), key=lambda x: x[1], reverse=True)[:5],
+            }
+
         # Create profile data
         profile_data = {
             "metadata": {
@@ -5082,43 +6193,46 @@ def _save_draw_profile(profile_name: str, jackpot_amount: float, range_tolerance
                 "total_draws_analyzed": len(draws),
                 "date_range": {
                     "oldest": min(d['date'] for d in draws),
-                    "newest": max(d['date'] for d in draws)
-                }
+                    "newest": max(d['date'] for d in draws),
+                },
             },
             "core_patterns": {
                 "odd_even_distribution": patterns['odd_even_combos'],
                 "high_low_distribution": patterns['high_low_combos'],
-                "high_low_split_point": patterns['mid_point']
+                "high_low_split_point" : patterns['mid_point'],
             },
-            "sum_analysis": patterns['sum_stats'],
+            "sum_analysis": patterns['sum_stats'],  # now includes 'std' (P1)
             "number_patterns": {
-                "frequency_map": patterns['number_frequency'],
-                "excluded_numbers": patterns['excluded_numbers'],
-                "hot_numbers": sorted(
-                    patterns['number_frequency'].items(),
-                    key=lambda x: x[1],
-                    reverse=True
-                )[:10],
-                "cold_numbers": sorted(
-                    patterns['number_frequency'].items(),
-                    key=lambda x: x[1]
-                )[:10]
+                # P6: pre-normalized probabilities (sum ≈ 1.0)
+                "frequency_map"    : freq_map_normalized,
+                "excluded_numbers" : patterns['excluded_numbers'],
+                "hot_numbers"      : hot_numbers,
+                "cold_numbers"     : cold_numbers,
+                # P2: top numbers per sorted position
+                "position_frequency": patterns.get('position_frequency', {}),
+                # P3: top-30 co-occurring pairs
+                "pair_cooccurrence" : patterns.get('pair_cooccurrence', {}),
             },
             "advanced_insights": {
                 "consecutive_distribution": patterns['consecutive_counts'],
-                "decade_distribution": patterns['decade_distribution'],
-                "gap_statistics": patterns['gap_analysis'],
-                "prime_distribution": patterns['prime_counts'],
-                "pair_distribution": patterns['pair_counts'],
-                "repeat_statistics": patterns['repeat_stats']
+                "decade_distribution"     : patterns['decade_distribution'],
+                "gap_statistics"          : patterns['gap_analysis'],  # now includes 'std' (P1)
+                "prime_distribution"      : patterns['prime_counts'],
+                "pair_distribution"       : patterns['pair_counts'],
+                "repeat_statistics"       : patterns['repeat_stats'],
             },
+            # P9: bonus patterns (populated for Lotto Max; empty dict for 6/49)
+            "bonus_patterns": bonus_data,
             "historical_draws": [
                 {
-                    "date": d['date'],
+                    "date"   : d['date'],
                     "numbers": d['numbers'],
-                    "jackpot": d['jackpot']
-                } for d in draws[:20]  # Store first 20 for reference
-            ]
+                    "jackpot": d.get('jackpot', 0),
+                    "bonus"  : d.get('bonus', 0),
+                }
+                # Store 50 most recent draws (sorted newest-first)
+                for d in sorted(draws, key=lambda x: x.get('date', ''), reverse=True)[:50]
+            ],
         }
         
         # Save to file
@@ -5795,20 +6909,32 @@ def _render_performance_history(analyzer: SuperIntelligentAIAnalyzer) -> None:
 def _render_deep_learning_tab(analyzer: SuperIntelligentAIAnalyzer, game: str) -> None:
     """Deep Learning and Analytics tab for prediction optimization and learning."""
     st.subheader("🧠 Deep Learning and Analytics")
-    
+
     st.markdown("""
     Use machine learning to analyze predictions and optimize future sets based on historical patterns and outcomes.
     """)
-    
+
+    # If the auto-learning banner redirected here, show a prominent prompt and
+    # default to "Previous Draw Date" mode with the pending draw pre-selected.
+    _auto_date = st.session_state.get('sia_auto_learning_date')
+    _default_mode_index = 0
+    if _auto_date:
+        st.info(
+            f"📌 **Auto-selected:** Draw date **{_auto_date}** has unseen results ready for learning. "
+            f"Switch to **Previous Draw Date** mode below and apply learning to incorporate these results."
+        )
+        _default_mode_index = 1  # default to "Previous Draw Date"
+
     # Mode selector
     mode = st.radio(
         "Analysis Mode",
         ["📅 Next Draw Date (Optimize Future Predictions)", "📊 Previous Draw Date (Learn from Results)"],
+        index=_default_mode_index,
         key="dl_mode"
     )
-    
+
     st.divider()
-    
+
     if "Next Draw Date" in mode:
         _render_next_draw_mode(analyzer, game)
     else:
@@ -6187,10 +7313,18 @@ def _render_previous_draw_mode(analyzer: SuperIntelligentAIAnalyzer, game: str) 
         st.warning(f"⚠️ No historical draw data found for {game}")
         return
     
-    # Date selector
+    # Date selector — auto-select the pending draw date when coming from the banner
+    _auto_date = st.session_state.get('sia_auto_learning_date')
+    _date_index = 0
+    if _auto_date and _auto_date in past_dates:
+        _date_index = past_dates.index(_auto_date)
+        # Clear so it only pre-selects once; user can change freely afterward
+        st.session_state.pop('sia_auto_learning_date', None)
+
     selected_date = st.selectbox(
         "Select Draw Date",
         past_dates,
+        index=_date_index,
         key="prev_draw_date"
     )
     
@@ -6314,14 +7448,17 @@ def _render_previous_draw_mode(analyzer: SuperIntelligentAIAnalyzer, game: str) 
                 st.markdown("This shows which AI models contributed to each prediction set:")
                 
                 for rank, pred in enumerate(sorted_predictions, 1):
-                    # Get the prediction numbers (convert to strings for comparison)
-                    pred_numbers = [str(num_data['number']) for num_data in pred['numbers']]
-                    
+                    # Get the prediction numbers as ints for comparison
+                    pred_numbers = sorted(int(num_data['number']) for num_data in pred['numbers'])
+
                     # Find matching prediction in attribution data
                     matching_attr = None
                     for attr in predictions_with_attribution:
-                        attr_numbers = attr.get('numbers', [])
-                        if sorted(attr_numbers) == sorted(pred_numbers):
+                        try:
+                            attr_numbers = sorted(int(n) for n in attr.get('numbers', []))
+                        except (TypeError, ValueError):
+                            continue
+                        if attr_numbers == pred_numbers:
                             matching_attr = attr
                             break
                     
@@ -6425,13 +7562,77 @@ def _render_previous_draw_mode(analyzer: SuperIntelligentAIAnalyzer, game: str) 
                             gap_score = max(0, 1.0 - (gap_diff / 10.0))
                             factor_scores['gap_patterns'].append(gap_score)
                         
-                        # Add other factors with simple estimations
-                        factor_scores['zone_distribution'].append(0.5)  # Placeholder
-                        factor_scores['even_odd_ratio'].append(0.5)
-                        factor_scores['cold_penalty'].append(0.5)
-                        factor_scores['decade_coverage'].append(0.5)
-                        factor_scores['pattern_fingerprint'].append(0.5)
-                        factor_scores['position_weighting'].append(0.5)
+                        # Zone distribution score
+                        zone_dist = analysis.get('zone_distribution', {})
+                        winning_zones = zone_dist.get('winning_distribution', {})
+                        if winning_zones:
+                            _low_b = max_number // 3
+                            _mid_b = (max_number * 2) // 3
+                            pred_zones = {'low': 0, 'mid': 0, 'high': 0}
+                            for _n in pred_set:
+                                if _n <= _low_b:
+                                    pred_zones['low'] += 1
+                                elif _n <= _mid_b:
+                                    pred_zones['mid'] += 1
+                                else:
+                                    pred_zones['high'] += 1
+                            zone_diff = sum(abs(winning_zones.get(z, 0) - pred_zones[z]) for z in ['low', 'mid', 'high'])
+                            factor_scores['zone_distribution'].append(max(0.0, 1.0 - (zone_diff / max(1, len(pred_set)))))
+                        else:
+                            factor_scores['zone_distribution'].append(0.0)
+
+                        # Even/odd ratio score
+                        even_odd = analysis.get('even_odd_ratio', {})
+                        winning_ratio = even_odd.get('winning_ratio', None)
+                        if winning_ratio is not None:
+                            even_count = sum(1 for _n in pred_set if _n % 2 == 0)
+                            predicted_ratio = even_count / max(1, len(pred_set))
+                            factor_scores['even_odd_ratio'].append(max(0.0, 1.0 - abs(winning_ratio - predicted_ratio)))
+                        else:
+                            factor_scores['even_odd_ratio'].append(0.0)
+
+                        # Cold penalty score
+                        cold_numbers = analysis.get('cold_numbers', [])
+                        if cold_numbers:
+                            cold_matches = sum(1 for _n in pred_set if _n in cold_numbers)
+                            factor_scores['cold_penalty'].append(cold_matches / max(1, len(pred_set)))
+                        else:
+                            factor_scores['cold_penalty'].append(0.0)
+
+                        # Decade coverage score
+                        decade_cov = analysis.get('decade_coverage', {})
+                        winning_decade_count = decade_cov.get('winning_decade_count', 0)
+                        if winning_decade_count:
+                            pred_decades = set((_n - 1) // 10 for _n in pred_set)
+                            decade_diff = abs(winning_decade_count - len(pred_decades))
+                            factor_scores['decade_coverage'].append(max(0.0, 1.0 - (decade_diff / 5.0)))
+                        else:
+                            factor_scores['decade_coverage'].append(0.0)
+
+                        # Pattern fingerprint score
+                        winning_pattern = analysis.get('winning_pattern_fingerprint', '')
+                        if winning_pattern:
+                            pred_pattern = _create_pattern_fingerprint(pred_set)
+                            min_len = min(len(winning_pattern), len(pred_pattern))
+                            if min_len > 0:
+                                pat_matches = sum(1 for _i in range(min_len) if winning_pattern[_i] == pred_pattern[_i])
+                                factor_scores['pattern_fingerprint'].append(pat_matches / min_len)
+                            else:
+                                factor_scores['pattern_fingerprint'].append(0.0)
+                        else:
+                            factor_scores['pattern_fingerprint'].append(0.0)
+
+                        # Position weighting score
+                        position_accuracy = analysis.get('position_accuracy', {})
+                        if position_accuracy:
+                            sorted_pred = sorted(pred_set)
+                            pos_score = sum(
+                                position_accuracy.get(f'position_{_i+1}', {}).get('accuracy', 0.0)
+                                for _i, _n in enumerate(sorted_pred)
+                            ) / max(1, len(sorted_pred))
+                            factor_scores['position_weighting'].append(pos_score)
+                        else:
+                            factor_scores['position_weighting'].append(0.0)
                     
                     # Update adaptive weights based on success
                     adaptive_system.update_weights_from_success(
@@ -6439,7 +7640,18 @@ def _render_previous_draw_mode(analyzer: SuperIntelligentAIAnalyzer, game: str) 
                         top_predictions=top_predictions,
                         factor_scores=factor_scores
                     )
-                    
+
+                    # P5: Detect cross-factor interactions and persist them so
+                    # get_adaptive_weights() can apply joint multipliers next generation
+                    try:
+                        adaptive_system.detect_cross_factor_interactions(
+                            predictions=top_predictions,
+                            winning_numbers=actual_results,
+                            factor_scores=factor_scores
+                        )
+                    except Exception:
+                        pass
+
                     # Track anti-patterns from worst predictions
                     adaptive_system.track_anti_patterns(
                         worst_predictions=worst_predictions,
@@ -6464,14 +7676,14 @@ def _render_previous_draw_mode(analyzer: SuperIntelligentAIAnalyzer, game: str) 
                     )
                     
                     # === PHASE 2: UPDATE CLUSTER CONCENTRATION WEIGHT ===
-                    # Automatically adjust concentration weight based on cluster success
-                    if cluster_result.get('cluster_detected'):
-                        coverage_count = cluster_result.get('coverage_count', 0)
-                        new_concentration_weight = adaptive_system.update_cluster_concentration_weight(
-                            cluster_coverage=coverage_count,
-                            total_winners=len(actual_results['numbers'])
-                        )
-                        cluster_result['concentration_weight_updated'] = new_concentration_weight
+                    # Always call — even when no cluster is detected — so the EMA receives
+                    # negative feedback and the weight doesn't drift upward unchecked.
+                    coverage_count = cluster_result.get('coverage_count', 0)
+                    new_concentration_weight = adaptive_system.update_cluster_concentration_weight(
+                        cluster_coverage=coverage_count,
+                        total_winners=len(actual_results['numbers'])
+                    )
+                    cluster_result['concentration_weight_updated'] = new_concentration_weight
                     
                     # Get updated intelligence stats
                     total_cycles = adaptive_system.meta_learning_data.get('total_learning_cycles', 0)
@@ -6568,6 +7780,26 @@ def _render_previous_draw_mode(analyzer: SuperIntelligentAIAnalyzer, game: str) 
                                 help=f"Current adaptive weight for {factor}"
                             )
                     
+                    # P6: Learning Effectiveness Trend chart
+                    _hr_history = adaptive_system.meta_learning_data.get('hit_rate_history', [])
+                    if len(_hr_history) >= 2:
+                        st.markdown("#### 📉 Learning Effectiveness Trend")
+                        _hr_cycles = [h['cycle'] for h in _hr_history]
+                        _hr_rates  = [h['hit_rate'] for h in _hr_history]
+                        _hr_df = pd.DataFrame({'Cycle': _hr_cycles, 'Hit Rate': _hr_rates})
+                        st.line_chart(_hr_df.set_index('Cycle'), use_container_width=True, height=180)
+                        # Warn if last 3 cycles show declining hit rate
+                        if len(_hr_rates) >= 3:
+                            _recent = _hr_rates[-3:]
+                            if _recent[-1] < _recent[0] - 0.10:
+                                st.warning(
+                                    f"⚠️ **Learning may be degrading** — hit rate dropped from "
+                                    f"{_recent[0]:.0%} to {_recent[-1]:.0%} over the last 3 cycles. "
+                                    "Consider selecting different learning files or resetting adaptive weights."
+                                )
+                            else:
+                                st.caption(f"Current hit rate: **{_hr_rates[-1]:.0%}** — learning is healthy.")
+
                     # Display learning insights
                     st.markdown("#### 📈 Learning Insights")
                     
@@ -6812,7 +8044,69 @@ def _render_previous_draw_mode(analyzer: SuperIntelligentAIAnalyzer, game: str) 
                         else:
                             st.write("No pattern fingerprint available")
 
-    
+                    # ===== P10: FORWARD-LOOKING LEARNING PREVIEW =====
+                    # Show how the new learning file has shifted number probabilities,
+                    # so the user can see what has changed before their next generation.
+                    st.divider()
+                    st.markdown("#### 🔭 Forward-Looking Preview")
+                    st.caption("How this learning cycle will influence your **next** generation run.")
+
+                    _fwd_analysis = learning_data.get('analysis', {})
+                    _fwd_num_freq = _fwd_analysis.get('number_frequency', {})
+                    _fwd_hot_raw  = _fwd_num_freq.get('hot_numbers', [])
+                    _fwd_cold     = _fwd_analysis.get('cold_numbers', [])
+                    _fwd_hot = [item['number'] if isinstance(item, dict) else item
+                                for item in _fwd_hot_raw[:10]]
+                    _fwd_cold_nums = [item if isinstance(item, int) else item.get('number', 0)
+                                      for item in _fwd_cold[:10]]
+
+                    _fwd_col1, _fwd_col2 = st.columns(2)
+                    with _fwd_col1:
+                        if _fwd_hot:
+                            st.markdown("**📈 Numbers with HIGHER probability next run:**")
+                            st.success(", ".join(str(n) for n in sorted(_fwd_hot)))
+                            st.caption("These appeared frequently in learning data — hot_numbers weight will boost them.")
+                        else:
+                            st.info("No hot-number boost detected.")
+
+                    with _fwd_col2:
+                        _fwd_avoid = list(_fwd_cold_nums)
+                        # Also include numbers dominant in recent anti-patterns
+                        _ap_nums: Dict[int, int] = {}
+                        for _ap in adaptive_system.meta_learning_data.get('anti_patterns', [])[-20:]:
+                            for _apn in _ap.get('numbers', []):
+                                _ap_nums[_apn] = _ap_nums.get(_apn, 0) + 1
+                        _top_ap = [n for n, _ in sorted(_ap_nums.items(), key=lambda x: x[1], reverse=True)[:5]
+                                   if n not in _fwd_hot]
+                        _fwd_avoid = list(dict.fromkeys(_fwd_avoid + _top_ap))[:10]
+                        if _fwd_avoid:
+                            st.markdown("**📉 Numbers with LOWER probability next run:**")
+                            st.error(", ".join(str(n) for n in sorted(_fwd_avoid)))
+                            st.caption("Cold numbers + frequent anti-pattern members — will be de-prioritised.")
+                        else:
+                            st.info("No cold-number penalty detected.")
+
+                    # Show which factor weights changed most this cycle
+                    _weight_hist = adaptive_system.meta_learning_data.get('weight_history', [])
+                    if len(_weight_hist) >= 2:
+                        _prev_w = _weight_hist[-2]['weights']
+                        _curr_w = _weight_hist[-1]['weights']
+                        _deltas = {f: _curr_w.get(f, 0) - _prev_w.get(f, 0)
+                                   for f in _curr_w if f in _prev_w}
+                        _top_delta = sorted(_deltas.items(), key=lambda x: abs(x[1]), reverse=True)[:4]
+                        if any(abs(d) > 0.001 for _, d in _top_delta):
+                            st.markdown("**⚖️ Factor weight shifts this cycle:**")
+                            _delta_cols = st.columns(len(_top_delta))
+                            for _di, (_fn, _fd) in enumerate(_top_delta):
+                                with _delta_cols[_di]:
+                                    st.metric(
+                                        _fn.replace('_', ' ').title()[:14],
+                                        f"{_curr_w.get(_fn, 0):.1%}",
+                                        delta=f"{_fd:+.1%}",
+                                        help=f"Weight changed by {_fd:+.1%} this cycle"
+                                    )
+
+
     except Exception as e:
         st.error(f"Error processing predictions: {e}")
         import traceback
@@ -7229,7 +8523,7 @@ def _compile_comprehensive_learning_data(
 ) -> Dict:
     """Compile comprehensive learning data from prediction results."""
     
-    # Position accuracy analysis
+    # Position accuracy analysis — exact per-draw position matches
     position_accuracy = {}
     for pos in range(1, len(actual_results['numbers']) + 1):
         position_accuracy[f'position_{pos}'] = {
@@ -7237,18 +8531,35 @@ def _compile_comprehensive_learning_data(
             'total': len(sorted_predictions),
             'accuracy': 0.0
         }
-    
-    # Count position matches
+
+    # Count exact position matches
     for pred in sorted_predictions:
         pred_numbers = [n['number'] for n in pred['numbers']]
         for pos, (actual, predicted) in enumerate(zip(sorted(actual_results['numbers']), sorted(pred_numbers)), 1):
             if actual == predicted:
                 position_accuracy[f'position_{pos}']['correct'] += 1
-    
-    # Calculate accuracies
+
+    # Calculate exact-match accuracies
     for pos_key in position_accuracy:
         pos_data = position_accuracy[pos_key]
         pos_data['accuracy'] = pos_data['correct'] / pos_data['total'] if pos_data['total'] > 0 else 0
+
+    # Enhance with historical positional frequency (Priority 3):
+    # Replace near-zero exact-match accuracy with the more meaningful per-position
+    # hot-number frequency, which drives the 15% position_weighting factor.
+    try:
+        _hist_pos_freq = _analyze_position_frequency(game)
+        for _pos_key, _pos_hist in _hist_pos_freq.items():
+            if _pos_key in position_accuracy:
+                # Keep exact-match data but override accuracy with historical frequency signal
+                position_accuracy[_pos_key]['accuracy']    = _pos_hist['accuracy']
+                position_accuracy[_pos_key]['hot_numbers'] = _pos_hist['hot_numbers']
+                position_accuracy[_pos_key]['frequency_map'] = _pos_hist['frequency_map']
+                position_accuracy[_pos_key]['total_draws_analyzed'] = _pos_hist['total_draws']
+            else:
+                position_accuracy[_pos_key] = _pos_hist
+    except Exception:
+        pass  # Non-fatal — fall back to exact-match accuracy
     
     # Sum analysis
     winning_sum = sum(actual_results['numbers'])
@@ -7394,6 +8705,98 @@ def _compile_comprehensive_learning_data(
                 insights.append(f"Found {csv_patterns['matching_jackpot_draws']} historical draws with similar jackpot")
     
     return learning_data
+
+
+def _analyze_position_frequency(game: str, max_draws: int = 300) -> Dict:
+    """
+    Compute per-sorted-position frequency of numbers across historical draws.
+
+    Returns a dict keyed by 'position_1' … 'position_N' where each value contains:
+        - 'accuracy'      : average frequency of the top-5 most common numbers for that
+                           position (used as the signal weight in _calculate_learning_score_advanced)
+        - 'hot_numbers'   : top-5 numbers most often drawn at this sorted position
+        - 'frequency_map' : {num_str: relative_frequency} for ALL numbers at this position
+        - 'total_draws'   : number of draws analysed
+    """
+    game_folder = _sanitize_game_name(game)
+    data_dir = Path("data") / game_folder
+
+    if not data_dir.exists():
+        return {}
+
+    draw_size  = 7 if 'max' in game.lower() else 6
+    max_number = 50 if 'max' in game.lower() else 49
+
+    # position_counts[pos_idx][number] = count
+    position_counts: List[Dict[int, int]] = [{} for _ in range(draw_size)]
+    total_draws = 0
+
+    for csv_file in sorted(data_dir.glob("*.csv"), reverse=True):
+        if total_draws >= max_draws:
+            break
+        try:
+            df = pd.read_csv(csv_file)
+            if 'draw_date' in df.columns:
+                df = df.sort_values('draw_date', ascending=False)
+
+            for _, row in df.iterrows():
+                if total_draws >= max_draws:
+                    break
+                numbers: List[int] = []
+
+                # Try n1..nN columns first
+                for _i in range(1, draw_size + 1):
+                    for _prefix in ('n', 'number_'):
+                        _col = f'{_prefix}{_i}'
+                        if _col in df.columns:
+                            try:
+                                _v = int(row[_col])
+                                if 1 <= _v <= max_number:
+                                    numbers.append(_v)
+                                    break
+                            except (ValueError, TypeError):
+                                pass
+
+                # Fallback: comma-separated 'numbers' column
+                if len(numbers) < draw_size and 'numbers' in df.columns:
+                    try:
+                        numbers = [
+                            int(x.strip())
+                            for x in str(row['numbers']).split(',')
+                            if x.strip().lstrip('-').isdigit()
+                            and 1 <= int(x.strip()) <= max_number
+                        ]
+                    except (ValueError, TypeError):
+                        pass
+
+                if len(numbers) == draw_size:
+                    for pos_idx, num in enumerate(sorted(numbers)):
+                        position_counts[pos_idx][num] = position_counts[pos_idx].get(num, 0) + 1
+                    total_draws += 1
+        except Exception:
+            continue
+
+    if total_draws == 0:
+        return {}
+
+    result: Dict = {}
+    for pos_idx, counts in enumerate(position_counts):
+        if not counts:
+            continue
+        pos_key    = f'position_{pos_idx + 1}'
+        total_here = sum(counts.values())
+        freq_map   = {num: cnt / total_here for num, cnt in counts.items()}
+        hot_nums   = sorted(counts, key=lambda n: counts[n], reverse=True)[:5]
+        # 'accuracy' = mean frequency of top-5 numbers — measures how predictable this position is
+        top_freq   = sum(freq_map.get(n, 0) for n in hot_nums) / max(1, len(hot_nums))
+        result[pos_key] = {
+            'accuracy'     : float(top_freq),
+            'hot_numbers'  : hot_nums,
+            'frequency_map': {str(k): float(v) for k, v in freq_map.items()},
+            'total_draws'  : total_draws,
+        }
+
+    return result
 
 
 def _analyze_raw_csv_patterns(game: str, jackpot: Optional[float], winning_numbers: List[int]) -> Dict:
@@ -8231,136 +9634,191 @@ def _load_draw_profile(profile_path: Path) -> Optional[Dict]:
 
 
 def _validate_set_against_profile(prediction_set: List[int], profile_data: Dict, game: str) -> Dict:
-    """Validate if a prediction set matches the draw profile patterns - STRICT MODE."""
+    """
+    Score a prediction set against a draw profile using SOFT conformance scoring.
+
+    Instead of a binary pass/fail gate (which causes hundreds of regeneration attempts),
+    each of the 7 checks now contributes a partial score (0.0–1.0).  The final
+    `conformance_score` is the weighted average of all component scores.
+
+    `valid` is retained for backwards compatibility but now means conformance_score >= 0.40,
+    so only very poor matches (< 40%) are flagged for optional regeneration.
+    """
     if not profile_data:
-        return {'valid': True, 'issues': []}
-    
-    issues = []
-    
+        return {'valid': True, 'conformance_score': 1.0, 'component_scores': {}, 'issues': []}
+
     # Determine number range for the game
     if "6/49" in game or "6_49" in game:
         max_num = 49
-        nums_per_draw = 6
     else:  # Lotto Max
         max_num = 50
-        nums_per_draw = 7
-    
-    mid_point = profile_data.get('core_patterns', {}).get('high_low_split_point', (max_num + 1) // 2)
+
+    mid_point  = profile_data.get('core_patterns', {}).get('high_low_split_point', (max_num + 1) // 2)
     sorted_nums = sorted(prediction_set)
-    
-    # Helper: Check if number is prime
-    def is_prime(n):
+
+    def is_prime(n: int) -> bool:
         if n < 2:
             return False
         for i in range(2, int(n**0.5) + 1):
             if n % i == 0:
                 return False
         return True
-    
-    # ===== 1. VALIDATE ODD/EVEN - MUST MATCH TOP 3 MOST COMMON =====
-    odd_count = sum(1 for n in sorted_nums if n % 2 == 1)
-    even_count = len(sorted_nums) - odd_count
-    oe_pattern = f"{odd_count} Odd / {even_count} Even"
-    
+
+    component_scores: Dict[str, float] = {}
+    issues: List[str] = []
+
+    # ===== 1. ODD/EVEN — ranked position score (top-1 = 1.0, top-3 = 0.6, outside = 0.2) =====
+    odd_count   = sum(1 for n in sorted_nums if n % 2 == 1)
+    even_count  = len(sorted_nums) - odd_count
+    oe_pattern  = f"{odd_count} Odd / {even_count} Even"
     oe_distribution = profile_data.get('core_patterns', {}).get('odd_even_distribution', {})
     if oe_distribution:
-        # Get top 3 most common patterns
-        top_3_oe = sorted(oe_distribution.items(), key=lambda x: x[1], reverse=True)[:3]
-        top_3_oe_patterns = [pattern for pattern, count in top_3_oe]
-        
-        if oe_pattern not in top_3_oe_patterns:
-            issues.append(f"Odd/Even {oe_pattern} not in top 3 patterns: {', '.join(top_3_oe_patterns)}")
-    
-    # ===== 2. VALIDATE HIGH/LOW - MUST MATCH TOP 3 MOST COMMON =====
-    low_count = sum(1 for n in sorted_nums if n <= mid_point)
+        ranked_oe = sorted(oe_distribution.items(), key=lambda x: x[1], reverse=True)
+        ranked_oe_patterns = [p for p, _ in ranked_oe]
+        if oe_pattern == ranked_oe_patterns[0]:
+            component_scores['odd_even'] = 1.0
+        elif oe_pattern in ranked_oe_patterns[:3]:
+            component_scores['odd_even'] = 0.6
+        else:
+            component_scores['odd_even'] = 0.2
+            issues.append(f"Odd/Even {oe_pattern} outside top-3 profile patterns")
+    else:
+        component_scores['odd_even'] = 0.5  # No data — neutral
+
+    # ===== 2. HIGH/LOW — same ranked position scoring =====
+    low_count  = sum(1 for n in sorted_nums if n <= mid_point)
     high_count = len(sorted_nums) - low_count
     hl_pattern = f"{low_count} Low / {high_count} High"
-    
     hl_distribution = profile_data.get('core_patterns', {}).get('high_low_distribution', {})
     if hl_distribution:
-        # Get top 3 most common patterns
-        top_3_hl = sorted(hl_distribution.items(), key=lambda x: x[1], reverse=True)[:3]
-        top_3_hl_patterns = [pattern for pattern, count in top_3_hl]
-        
-        if hl_pattern not in top_3_hl_patterns:
-            issues.append(f"High/Low {hl_pattern} not in top 3 patterns: {', '.join(top_3_hl_patterns)}")
-    
-    # ===== 3. VALIDATE SUM - USE MODE RANGE WITH ±15 TOLERANCE =====
+        ranked_hl = sorted(hl_distribution.items(), key=lambda x: x[1], reverse=True)
+        ranked_hl_patterns = [p for p, _ in ranked_hl]
+        if hl_pattern == ranked_hl_patterns[0]:
+            component_scores['high_low'] = 1.0
+        elif hl_pattern in ranked_hl_patterns[:3]:
+            component_scores['high_low'] = 0.6
+        else:
+            component_scores['high_low'] = 0.2
+            issues.append(f"High/Low {hl_pattern} outside top-3 profile patterns")
+    else:
+        component_scores['high_low'] = 0.5
+
+    # ===== 3. SUM — Gaussian distance from profile mean/std =====
     total_sum = sum(sorted_nums)
-    sum_stats = profile_data.get('sum_analysis', {})
+    sum_stats  = profile_data.get('sum_analysis', {})
     if sum_stats:
-        mode_range_str = sum_stats.get('mode_range', '')
-        if mode_range_str and '-' in mode_range_str:
-            # Parse mode range (e.g., "135-149")
-            try:
-                mode_min, mode_max = map(int, mode_range_str.split('-'))
-                # Allow ±15 tolerance around mode range
-                tolerance = 15
-                adjusted_min = mode_min - tolerance
-                adjusted_max = mode_max + tolerance
-                
-                if not (adjusted_min <= total_sum <= adjusted_max):
-                    issues.append(f"Sum {total_sum} outside mode range {mode_min}-{mode_max} (±{tolerance} tolerance)")
-            except (ValueError, AttributeError):
-                # Fallback to min/max if mode_range parsing fails
-                sum_min = sum_stats.get('min', 0)
-                sum_max = sum_stats.get('max', 999)
-                if not (sum_min <= total_sum <= sum_max):
-                    issues.append(f"Sum {total_sum} outside profile range {sum_min}-{sum_max}")
-    
-    # ===== 4. VALIDATE CONSECUTIVE PAIRS - MUST MATCH TOP 2 MOST COMMON =====
-    consecutive_count = sum(1 for i in range(len(sorted_nums)-1) if sorted_nums[i+1] == sorted_nums[i] + 1)
-    
-    consecutive_distribution = profile_data.get('advanced_insights', {}).get('consecutive_distribution', {})
-    if consecutive_distribution:
-        # Get top 2 most common consecutive counts
-        top_2_consecutive = sorted(consecutive_distribution.items(), key=lambda x: x[1], reverse=True)[:2]
-        top_2_consecutive_counts = [int(count) for count, freq in top_2_consecutive]
-        
-        if consecutive_count not in top_2_consecutive_counts:
-            issues.append(f"Consecutive pairs {consecutive_count} not in top 2: {top_2_consecutive_counts}")
-    
-    # ===== 5. VALIDATE PRIME NUMBERS - MUST MATCH TOP 2 MOST COMMON =====
-    prime_count = sum(1 for n in sorted_nums if is_prime(n))
-    
-    prime_distribution = profile_data.get('advanced_insights', {}).get('prime_distribution', {})
-    if prime_distribution:
-        # Get top 2 most common prime counts
-        top_2_primes = sorted(prime_distribution.items(), key=lambda x: x[1], reverse=True)[:2]
-        top_2_prime_counts = [int(count) for count, freq in top_2_primes]
-        
-        if prime_count not in top_2_prime_counts:
-            issues.append(f"Prime numbers {prime_count} not in top 2: {top_2_prime_counts}")
-    
-    # ===== 6. VALIDATE MAXIMUM GAP - WITHIN ±4 OF AVERAGE =====
-    gaps = [sorted_nums[i+1] - sorted_nums[i] for i in range(len(sorted_nums)-1)]
+        _sum_mean = float(sum_stats.get('mean', 0) or 0)
+        _sum_std  = float(sum_stats.get('std',  0) or 0) or 1.0
+        # Score = Gaussian decay: 1.0 at mean, ~0.0 at ±3σ
+        _z = abs(total_sum - _sum_mean) / _sum_std
+        component_scores['sum'] = float(max(0.0, 1.0 - (_z / 3.0)))
+        if _z > 2.0:
+            issues.append(f"Sum {total_sum} is {_z:.1f}σ from profile mean {_sum_mean:.0f}")
+    else:
+        component_scores['sum'] = 0.5
+
+    # ===== 4. CONSECUTIVE PAIRS — ranked position score =====
+    consecutive_count = sum(
+        1 for i in range(len(sorted_nums) - 1) if sorted_nums[i+1] == sorted_nums[i] + 1
+    )
+    consecutive_dist = profile_data.get('advanced_insights', {}).get('consecutive_distribution', {})
+    if consecutive_dist:
+        ranked_cons = sorted(consecutive_dist.items(), key=lambda x: x[1], reverse=True)
+        ranked_cons_counts = [int(c) for c, _ in ranked_cons]
+        if consecutive_count == ranked_cons_counts[0]:
+            component_scores['consecutive'] = 1.0
+        elif consecutive_count in ranked_cons_counts[:2]:
+            component_scores['consecutive'] = 0.7
+        else:
+            component_scores['consecutive'] = 0.3
+    else:
+        component_scores['consecutive'] = 0.5
+
+    # ===== 5. PRIME COUNT — ranked position score =====
+    prime_count    = sum(1 for n in sorted_nums if is_prime(n))
+    prime_dist     = profile_data.get('advanced_insights', {}).get('prime_distribution', {})
+    if prime_dist:
+        ranked_prime = sorted(prime_dist.items(), key=lambda x: x[1], reverse=True)
+        ranked_prime_counts = [int(c) for c, _ in ranked_prime]
+        if prime_count == ranked_prime_counts[0]:
+            component_scores['primes'] = 1.0
+        elif prime_count in ranked_prime_counts[:2]:
+            component_scores['primes'] = 0.7
+        else:
+            component_scores['primes'] = 0.3
+    else:
+        component_scores['primes'] = 0.5
+
+    # ===== 6. MAX GAP — Gaussian distance from profile mean gap =====
+    gaps    = [sorted_nums[i+1] - sorted_nums[i] for i in range(len(sorted_nums) - 1)]
     max_gap = max(gaps) if gaps else 0
-    
     gap_stats = profile_data.get('advanced_insights', {}).get('gap_statistics', {})
     if gap_stats:
-        avg_gap = gap_stats.get('mean', 0)
-        if avg_gap > 0:
-            # Allow ±4 tolerance from average
-            gap_tolerance = 4
-            if not (avg_gap - gap_tolerance <= max_gap <= avg_gap + gap_tolerance):
-                issues.append(f"Max gap {max_gap} outside average {avg_gap:.1f} (±{gap_tolerance} tolerance)")
-    
-    # ===== 7. VALIDATE EXCLUDED NUMBERS =====
+        _gap_mean = float(gap_stats.get('mean', 0) or 0)
+        _gap_std  = float(gap_stats.get('std',  0) or 0) or 1.0
+        _gz = abs(max_gap - _gap_mean) / _gap_std
+        component_scores['max_gap'] = float(max(0.0, 1.0 - (_gz / 3.0)))
+    else:
+        component_scores['max_gap'] = 0.5
+
+    # ===== 7. EXCLUDED NUMBERS — proportional penalty =====
     excluded_numbers = profile_data.get('number_patterns', {}).get('excluded_numbers', [])
     if excluded_numbers:
         used_excluded = [n for n in sorted_nums if n in excluded_numbers]
+        exclusion_penalty = len(used_excluded) / len(sorted_nums)
+        component_scores['excluded'] = max(0.0, 1.0 - exclusion_penalty * 2)
         if used_excluded:
             issues.append(f"Uses typically excluded numbers: {used_excluded}")
-    
+    else:
+        component_scores['excluded'] = 1.0
+
+    # ===== 8. POSITION FREQUENCY (P2) — average per-position rank score =====
+    # For each sorted position, score 1.0 if the number is in that position's top-3,
+    # 0.6 if in top-6, 0.3 otherwise.
+    pos_freq = profile_data.get('number_patterns', {}).get('position_frequency', {})
+    if pos_freq:
+        pos_scores = []
+        for pos_idx, num in enumerate(sorted_nums, 1):
+            pos_data = pos_freq.get(str(pos_idx), [])
+            top_nums = [entry[0] if isinstance(entry, list) else entry for entry in pos_data]
+            if num in top_nums[:3]:
+                pos_scores.append(1.0)
+            elif num in top_nums[:6]:
+                pos_scores.append(0.6)
+            else:
+                pos_scores.append(0.3)
+        component_scores['position'] = float(sum(pos_scores) / len(pos_scores)) if pos_scores else 0.5
+    else:
+        component_scores['position'] = 0.5  # No data — neutral
+
+    # ===== WEIGHTED CONFORMANCE SCORE =====
+    # Reduced existing weights slightly to accommodate position component (P2)
+    weights = {
+        'odd_even'   : 0.18,
+        'high_low'   : 0.18,
+        'sum'        : 0.22,
+        'consecutive': 0.09,
+        'primes'     : 0.09,
+        'max_gap'    : 0.09,
+        'excluded'   : 0.05,
+        'position'   : 0.10,   # P2
+    }
+    conformance_score = sum(
+        component_scores.get(k, 0.5) * w for k, w in weights.items()
+    )
+
     return {
-        'valid': len(issues) == 0,
-        'issues': issues,
-        'odd_even': oe_pattern,
-        'high_low': hl_pattern,
-        'sum': total_sum,
-        'consecutive': consecutive_count,
-        'primes': prime_count,
-        'max_gap': max_gap
+        'valid'            : conformance_score >= 0.40,
+        'conformance_score': round(float(conformance_score), 4),
+        'component_scores' : component_scores,
+        'issues'           : issues,
+        'odd_even'         : oe_pattern,
+        'high_low'         : hl_pattern,
+        'sum'              : total_sum,
+        'consecutive'      : consecutive_count,
+        'primes'           : prime_count,
+        'max_gap'          : max_gap,
+        'position_score'   : component_scores.get('position', 0.5),
     }
 
 

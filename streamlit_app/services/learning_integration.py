@@ -327,14 +327,14 @@ class LearningDataGenerator:
         self.output_dir.mkdir(parents=True, exist_ok=True)
     
     def save_training_data(self, training_data: Dict[str, Any]) -> str:
-        """Save training data to JSON and CSV formats"""
+        """Save training data to JSON and CSV formats, and append to learning_log.csv."""
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        
+
         # Save as JSON
         json_file = self.output_dir / f"training_data_{timestamp}.json"
         with open(json_file, 'w') as f:
             json.dump(training_data, f, indent=2)
-        
+
         # Save as CSV for easier analysis
         csv_file = self.output_dir / f"training_data_{timestamp}.csv"
         csv_data = {
@@ -346,10 +346,71 @@ class LearningDataGenerator:
             'best_match_count': [training_data['features']['best_match_count']],
             'average_matches_per_set': [training_data['features']['average_matches_per_set']]
         }
-        
         df = pd.DataFrame(csv_data)
         df.to_csv(csv_file, index=False)
-        
+
+        # ── Append to learning_log.csv so ModelPerformanceAnalyzer can read it ──
+        # One row per model used, so per-model trends can be tracked over time.
+        log_file     = self.output_dir / "learning_log.csv"
+        history_file = self.output_dir / "model_accuracy_history.json"
+
+        ensemble_accuracy = training_data['features']['overall_accuracy_percent']
+        models_used       = training_data['metadata'].get('models_used', ['unknown'])
+
+        # If the caller provided per-model accuracy breakdowns (e.g. from
+        # prediction_ai's model analysis), use those; otherwise fall back to
+        # the ensemble-level accuracy for every model.
+        per_model_accuracy: Dict[str, float] = training_data['metadata'].get('per_model_accuracy', {})
+
+        # Load per-model accuracy history so deltas are computed correctly for
+        # each model independently (not mixed with the ensemble average).
+        model_accuracy_history: Dict[str, list] = {}
+        if history_file.exists():
+            try:
+                with open(history_file, 'r') as _hf:
+                    model_accuracy_history = json.load(_hf)
+            except Exception:
+                pass
+
+        log_rows = []
+        for model_name in models_used:
+            # Use per-model accuracy when available, else ensemble accuracy
+            model_acc = float(per_model_accuracy.get(model_name, ensemble_accuracy))
+
+            # Compute delta from the same model's previous recorded accuracy
+            model_hist = model_accuracy_history.get(model_name, [])
+            prev_acc   = float(model_hist[-1]) if model_hist else model_acc  # 0 delta on first entry
+            accuracy_delta = model_acc - prev_acc
+
+            log_rows.append({
+                'timestamp'              : training_data['timestamp'],
+                'model'                  : model_name,
+                'accuracy'               : model_acc,
+                'accuracy_delta'         : accuracy_delta,
+                'ensemble_accuracy'      : ensemble_accuracy,
+                'average_matches_per_set': training_data['features']['average_matches_per_set'],
+                'best_match_count'       : training_data['features']['best_match_count'],
+            })
+
+            # Update per-model history (keep last 100 values)
+            model_hist.append(model_acc)
+            if len(model_hist) > 100:
+                model_hist = model_hist[-100:]
+            model_accuracy_history[model_name] = model_hist
+
+        # Persist updated per-model accuracy history
+        try:
+            with open(history_file, 'w') as _hf:
+                json.dump(model_accuracy_history, _hf, indent=2)
+        except Exception:
+            pass
+
+        log_df = pd.DataFrame(log_rows)
+        if log_file.exists():
+            log_df.to_csv(log_file, mode='a', header=False, index=False)
+        else:
+            log_df.to_csv(log_file, index=False)
+
         return str(json_file)
     
     def aggregate_training_data(self, days: int = 7) -> Tuple[pd.DataFrame, int]:
