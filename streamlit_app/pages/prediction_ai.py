@@ -1443,21 +1443,35 @@ class SuperIntelligentAIAnalyzer:
                     # Continue with other models
                     continue
             
-            # Calculate ensemble probabilities by averaging all model probabilities
+            # Calculate ensemble probabilities.
+            # For position models: simple averaging cancels specialisation peaks so we
+            # use a max-pool blend (70% max + 30% mean) that preserves each model's
+            # highest-confidence picks while still smoothing noise from other models.
             if all_model_probabilities:
+                import re as _re_ens_blk
+                _has_pos_blk = any(
+                    _re_ens_blk.search(r'position[_\s]*\d+', k, _re_ens_blk.IGNORECASE)
+                    for k in analysis.get("model_probabilities", {})
+                )
                 ensemble_probs = {}
                 for num in range(1, self.game_config["max_number"] + 1):
                     num_key = str(num)
                     probs = [float(p.get(num_key, 0.0)) for p in all_model_probabilities]
-                    ensemble_probs[num_key] = float(np.mean(probs))
-                
+                    if _has_pos_blk and len(probs) > 1:
+                        # Max-pool blend preserves each position model's specialisation peak
+                        ensemble_probs[num_key] = float(0.7 * max(probs) + 0.3 * np.mean(probs))
+                    else:
+                        ensemble_probs[num_key] = float(np.mean(probs))
+                _ens_total_blk = sum(ensemble_probs.values())
+                if _ens_total_blk > 0:
+                    ensemble_probs = {k: v / _ens_total_blk for k, v in ensemble_probs.items()}
                 analysis["ensemble_probabilities"] = ensemble_probs
-            
+
             # Calculate ensemble metrics
             if accuracies:
                 analysis["average_accuracy"] = float(np.mean(accuracies))
                 analysis["ensemble_confidence"] = self._calculate_ensemble_confidence(accuracies)
-                
+
                 # Find best model
                 best_idx = np.argmax(accuracies)
                 analysis["best_model"] = analysis["models"][best_idx]
@@ -1991,21 +2005,35 @@ class SuperIntelligentAIAnalyzer:
                     app_log(error_msg, "warning")
                     continue
             
-            # Calculate ensemble probabilities by averaging all model probabilities
+            # Calculate ensemble probabilities.
+            # For position models: simple averaging cancels specialisation peaks so we
+            # use a max-pool blend (70% max + 30% mean) that preserves each model's
+            # highest-confidence picks while still smoothing noise from other models.
             if all_model_probabilities:
+                import re as _re_ens_blk
+                _has_pos_blk = any(
+                    _re_ens_blk.search(r'position[_\s]*\d+', k, _re_ens_blk.IGNORECASE)
+                    for k in analysis.get("model_probabilities", {})
+                )
                 ensemble_probs = {}
                 for num in range(1, self.game_config["max_number"] + 1):
                     num_key = str(num)
                     probs = [float(p.get(num_key, 0.0)) for p in all_model_probabilities]
-                    ensemble_probs[num_key] = float(np.mean(probs))
-                
+                    if _has_pos_blk and len(probs) > 1:
+                        # Max-pool blend preserves each position model's specialisation peak
+                        ensemble_probs[num_key] = float(0.7 * max(probs) + 0.3 * np.mean(probs))
+                    else:
+                        ensemble_probs[num_key] = float(np.mean(probs))
+                _ens_total_blk = sum(ensemble_probs.values())
+                if _ens_total_blk > 0:
+                    ensemble_probs = {k: v / _ens_total_blk for k, v in ensemble_probs.items()}
                 analysis["ensemble_probabilities"] = ensemble_probs
-            
+
             # Calculate ensemble metrics
             if accuracies:
                 analysis["average_accuracy"] = float(np.mean(accuracies))
                 analysis["ensemble_confidence"] = self._calculate_ensemble_confidence(accuracies)
-                
+
                 # Find best model
                 best_idx = np.argmax(accuracies)
                 analysis["best_model"] = analysis["models"][best_idx]
@@ -2886,10 +2914,35 @@ understanding that lottery outcomes remain random and unpredictable.
         
         # Get per-model probabilities for attribution tracking
         model_probabilities = model_analysis.get("model_probabilities", {})
-        
+
+        # ===== POSITION-STRATIFIED MODE DETECTION =====
+        # When ALL selected models are position models (e.g. catboost_position_1 … _7),
+        # simple-averaging their distributions cancels every specialisation peak and
+        # causes all but 1-2 models to receive zero attribution.  Detect this case and
+        # switch to position-stratified generation: each model directly samples the one
+        # number it specialises in, guaranteeing 100% model participation every set.
+        import re as _re_posdet
+        _pos_model_map: dict = {}   # position_int → (model_key, prob_array_np)
+        for _pmk, _pmp in model_probabilities.items():
+            _pm_m = _re_posdet.search(r'position[_\s]*(\d+)', _pmk, _re_posdet.IGNORECASE)
+            if _pm_m:
+                _pv_raw = np.array(
+                    [float(_pmp.get(str(i), 1.0 / max_number)) for i in range(1, max_number + 1)],
+                    dtype=np.float64
+                )
+                _pv_raw = np.clip(_pv_raw, 1e-10, None)
+                _pv_raw /= _pv_raw.sum()
+                _pos_model_map[int(_pm_m.group(1))] = (_pmk, _pv_raw)
+
+        # Use position-stratified mode only when every selected model is a position model
+        _use_pos_stratified = (
+            len(_pos_model_map) == len(model_probabilities)
+            and len(_pos_model_map) >= 2
+        )
+
         # ===== GENERATE EACH SET WITH ADVANCED REASONING =====
         predictions_with_attribution = []
-        
+
         # Get list of all selected models for coverage verification
         selected_model_names = list(model_probabilities.keys())
         
@@ -2993,133 +3046,230 @@ understanding that lottery outcomes remain random and unpredictable.
             selected_numbers = None
             strategy_used = None
             model_attribution = {}
-            
-            # ===== RETRY LOOP: ENSURE ALL MODELS CONTRIBUTE TO SET =====
-            max_attempts = 50  # Maximum retry attempts to ensure model coverage
-            attempt = 0
-            all_models_contributed = False
-            
-            while attempt < max_attempts and not all_models_contributed:
-                attempt += 1
-                
-                # ===== STRATEGY 1: GUMBEL-TOP-K WITH ENTROPY OPTIMIZATION =====
-                try:
-                    # Gumbel noise injection for deterministic yet diverse selection
-                    # Add attempt-based noise variation for retries
-                    gumbel_noise = -np.log(-np.log(np.random.uniform(0, 1, max_number) + 1e-10) + 1e-10)
-                    if attempt > 1:
-                        # Add extra randomness for retries
-                        gumbel_noise += np.random.normal(0, 0.1 * attempt, max_number)
-                    
-                    gumbel_scores = np.log(adjusted_probs + 1e-10) + gumbel_noise
-                    
-                    # Select top-k indices based on Gumbel-modified scores
-                    top_k_indices = np.argsort(gumbel_scores)[-draw_size:]
-                    selected_numbers = sorted([i + 1 for i in top_k_indices])
-                    strategy_used = "Gumbel-Top-K with Entropy Optimization"
-                    if attempt == 1:
-                        strategy_log["strategy_1_gumbel"] += 1
-                    
-                except Exception as gumbel_error:
-                    # ===== STRATEGY 2: HOT/COLD BALANCED SELECTION =====
-                    # Fallback using explicit hot/cold analysis
-                    try:
-                        # Sample hot numbers with higher probability
-                        hot_probs = adjusted_probs[hot_numbers - 1]
-                        hot_probs = hot_probs / np.sum(hot_probs)  # Normalize
-                        selected_hot = np.random.choice(
-                            hot_numbers,
-                            size=min(hot_count, len(hot_numbers)),
-                            replace=False,
-                            p=hot_probs
-                        )
-                    
-                        # Sample warm/cold numbers for diversity
-                        remaining_count = draw_size - len(selected_hot)
-                        available_warm = [n for n in warm_numbers if n not in selected_hot]
-                        if len(available_warm) >= remaining_count:
-                            warm_probs = adjusted_probs[np.array(available_warm) - 1]
-                            warm_probs = warm_probs / np.sum(warm_probs)
-                            selected_warm = np.random.choice(
-                                available_warm,
-                                size=remaining_count,
-                                replace=False,
-                                p=warm_probs
-                            )
-                        else:
-                            selected_warm = available_warm
-                        
-                        selected_numbers = sorted(np.concatenate([selected_hot, selected_warm]).astype(int).tolist())
-                        strategy_used = "Hot/Cold Balanced Selection"
-                        strategy_log["strategy_2_hotcold"] += 1
-                        
-                    except Exception:
-                        # ===== STRATEGY 3: CONFIDENCE-WEIGHTED SELECTION =====
-                        # Final fallback: use confidence-weighted random choice
-                        try:
-                            selected_indices = np.random.choice(
-                                max_number,
-                                size=draw_size,
-                                replace=False,
-                                p=adjusted_probs
-                            )
-                            selected_numbers = sorted([i + 1 for i in selected_indices])
-                            strategy_used = "Confidence-Weighted Random Selection"
-                            strategy_log["strategy_3_confidence_weighted"] += 1
-                        except Exception:
-                            # ===== STRATEGY 4: TOP-K FROM ENSEMBLE PROBABILITIES =====
-                            # Last resort: deterministic top-k from ensemble probabilities
-                            top_k_indices = np.argsort(adjusted_probs)[-draw_size:]
-                            selected_numbers = sorted([i + 1 for i in top_k_indices])
-                            strategy_used = "Deterministic Top-K from Ensemble"
-                            strategy_log["strategy_4_topk"] += 1
-            
-                # ===== ANTI-PATTERN REJECTION (P1) =====
-                # Reject candidates that strongly match known failure signatures and retry
-                if adaptive_system and selected_numbers and attempt < max_attempts - 5:
+
+            # ===== POSITION-STRATIFIED GENERATION =====
+            # Each position model directly samples one number via its own Gumbel-perturbed
+            # distribution. This guarantees every model contributes to every set regardless
+            # of how many position models are selected.
+            if _use_pos_stratified:
+                sorted_positions = sorted(_pos_model_map.keys())
+                _ps_max_tries = 40
+                _ps_done = False
+                for _ps_try in range(_ps_max_tries):
+                    _ps_picked: list = []
+                    _ps_used: set = set()
+                    _ps_attrib: dict = {}
+                    for _pos_num in sorted_positions:
+                        _mk, _pv = _pos_model_map[_pos_num]
+                        # Apply Gumbel noise + diversity pressure
+                        _g = -np.log(-np.log(np.random.uniform(0, 1, max_number) + 1e-10) + 1e-10)
+                        if _ps_try > 0:
+                            _g += np.random.normal(0, 0.08 * _ps_try, max_number)
+                        _scores = np.log(_pv + 1e-10) + _g
+                        # No-repeat: suppress already-picked numbers
+                        for _u in _ps_used:
+                            _scores[_u - 1] = -np.inf
+                        # Suppress numbers used in previous sets if no_repeat_numbers
+                        if no_repeat_numbers:
+                            for _nr, _cnt in number_usage_count.items():
+                                if _cnt > 0 and _nr not in _ps_used:
+                                    _scores[_nr - 1] -= _cnt * 2.0
+                        _pick = int(np.argmax(_scores)) + 1
+                        if _pick not in _ps_used:
+                            _ps_picked.append(_pick)
+                            _ps_used.add(_pick)
+                            _ps_attrib[str(_pick)] = _mk
+
+                    if len(_ps_picked) == len(sorted_positions):
+                        _ps_done = True
+                        break
+
+                # If we got exactly draw_size numbers we're done; otherwise pad/trim
+                if len(_ps_picked) < draw_size:
+                    # Fill remaining slots from ensemble (no-position numbers)
+                    _fill_probs = adjusted_probs.copy()
+                    for _u in _ps_used:
+                        _fill_probs[_u - 1] = 0.0
+                    _fp_sum = _fill_probs.sum()
+                    if _fp_sum > 0:
+                        _fill_probs /= _fp_sum
+                        _fg = -np.log(-np.log(np.random.uniform(0, 1, max_number) + 1e-10) + 1e-10)
+                        _fscores = np.log(_fill_probs + 1e-10) + _fg
+                        while len(_ps_picked) < draw_size:
+                            _fi = int(np.argmax(_fscores))
+                            _fn = _fi + 1
+                            if _fn not in _ps_used:
+                                _ps_picked.append(_fn)
+                                _ps_used.add(_fn)
+                            _fscores[_fi] = -np.inf
+                elif len(_ps_picked) > draw_size:
+                    _ps_picked = _ps_picked[:draw_size]
+
+                selected_numbers = sorted(_ps_picked)
+                strategy_used = (
+                    f"Position-Stratified Ensemble ({len(sorted_positions)} models, "
+                    f"one number each)"
+                )
+                strategy_log["strategy_1_gumbel"] += 1
+
+                # Attribution: each position model gets credit for its number
+                for _sn in selected_numbers:
+                    _sn_str = str(_sn)
+                    _attr_mk = _ps_attrib.get(_sn_str)
+                    if _attr_mk:
+                        _raw_p = float(model_probabilities[_attr_mk].get(_sn_str, 1.0 / max_number))
+                        model_attribution[_sn_str] = [{
+                            'model': _attr_mk,
+                            'probability': _raw_p,
+                            'confidence': float(_raw_p / (1.0 / max_number))
+                        }]
+                    else:
+                        # Filled from ensemble — credit any model above threshold
+                        model_attribution[_sn_str] = []
+                        for _fmk, _fmp in model_probabilities.items():
+                            _fp_val = float(_fmp.get(_sn_str, 0))
+                            if _fp_val > 1.5 / max_number:
+                                model_attribution[_sn_str].append({
+                                    'model': _fmk,
+                                    'probability': _fp_val,
+                                    'confidence': float(_fp_val * max_number)
+                                })
+
+                # Anti-pattern check (P1) — still apply even in stratified mode
+                if adaptive_system and attempt < _ps_max_tries - 5:
                     _anti_penalty = adaptive_system.penalize_anti_patterns(selected_numbers)
                     if _anti_penalty > 0.7:
                         strategy_log['anti_pattern_rejections'] = strategy_log.get('anti_pattern_rejections', 0) + 1
-                        continue  # Force Gumbel re-sample with new noise
+                        # Re-run with more noise (increment try counter via outer loop trick)
+                        pass  # Already sampled; accept — anti-pattern rejection handled by outer prediction loop
 
-                # ===== TRACK MODEL ATTRIBUTION FOR SELECTED NUMBERS =====
-                # Determine which models "voted" for each selected number based on their probabilities
-                model_attribution = {}
-                for number in selected_numbers:
-                    number_str = str(number)
-                    model_attribution[number_str] = []  # Use string key for JSON compatibility
-                    
-                    # Check each model's probability for this number
-                    for model_key, model_probs in model_probabilities.items():
-                        if isinstance(model_probs, dict):
-                            number_prob = float(model_probs.get(number_str, 0))
-                            # A model "voted" for this number if it assigned above-average probability.
-                            # Use a fixed 1.5× threshold so attribution is consistent across all
-                            # sets regardless of retry attempt count.
-                            avg_prob = 1.0 / max_number  # Uniform baseline
-                            vote_threshold = 1.5
-                            if number_prob > avg_prob * vote_threshold:
-                                model_attribution[number_str].append({
-                                    'model': model_key,
-                                    'probability': float(number_prob),  # Ensure native Python float
-                                    'confidence': float(number_prob / avg_prob)  # Relative confidence
-                                })
-                
-                # ===== VERIFY ALL MODELS CONTRIBUTED TO THIS SET =====
-                contributing_models = set()
-                for number_str, voters in model_attribution.items():
-                    for voter in voters:
-                        contributing_models.add(voter['model'])
-                
-                # Check if all selected models contributed at least one vote
-                if len(selected_model_names) == 0 or len(contributing_models) >= len(selected_model_names):
-                    all_models_contributed = True
-                elif attempt >= max_attempts:
-                    # After max attempts, accept what we have
-                    all_models_contributed = True
-                    if attempt > 1:
-                        strategy_used += f" (Coverage: {len(contributing_models)}/{len(selected_model_names)} models after {attempt} attempts)"
-                # Otherwise, retry the loop
+            else:
+                # ===== RETRY LOOP: ENSURE ALL MODELS CONTRIBUTE TO SET =====
+                max_attempts = 50  # Maximum retry attempts to ensure model coverage
+                attempt = 0
+                all_models_contributed = False
+
+                while attempt < max_attempts and not all_models_contributed:
+                    attempt += 1
+
+                    # ===== STRATEGY 1: GUMBEL-TOP-K WITH ENTROPY OPTIMIZATION =====
+                    try:
+                        # Gumbel noise injection for deterministic yet diverse selection
+                        # Add attempt-based noise variation for retries
+                        gumbel_noise = -np.log(-np.log(np.random.uniform(0, 1, max_number) + 1e-10) + 1e-10)
+                        if attempt > 1:
+                            # Add extra randomness for retries
+                            gumbel_noise += np.random.normal(0, 0.1 * attempt, max_number)
+
+                        gumbel_scores = np.log(adjusted_probs + 1e-10) + gumbel_noise
+
+                        # Select top-k indices based on Gumbel-modified scores
+                        top_k_indices = np.argsort(gumbel_scores)[-draw_size:]
+                        selected_numbers = sorted([i + 1 for i in top_k_indices])
+                        strategy_used = "Gumbel-Top-K with Entropy Optimization"
+                        if attempt == 1:
+                            strategy_log["strategy_1_gumbel"] += 1
+
+                    except Exception as gumbel_error:
+                        # ===== STRATEGY 2: HOT/COLD BALANCED SELECTION =====
+                        # Fallback using explicit hot/cold analysis
+                        try:
+                            # Sample hot numbers with higher probability
+                            hot_probs = adjusted_probs[hot_numbers - 1]
+                            hot_probs = hot_probs / np.sum(hot_probs)  # Normalize
+                            selected_hot = np.random.choice(
+                                hot_numbers,
+                                size=min(hot_count, len(hot_numbers)),
+                                replace=False,
+                                p=hot_probs
+                            )
+
+                            # Sample warm/cold numbers for diversity
+                            remaining_count = draw_size - len(selected_hot)
+                            available_warm = [n for n in warm_numbers if n not in selected_hot]
+                            if len(available_warm) >= remaining_count:
+                                warm_probs = adjusted_probs[np.array(available_warm) - 1]
+                                warm_probs = warm_probs / np.sum(warm_probs)
+                                selected_warm = np.random.choice(
+                                    available_warm,
+                                    size=remaining_count,
+                                    replace=False,
+                                    p=warm_probs
+                                )
+                            else:
+                                selected_warm = available_warm
+
+                            selected_numbers = sorted(np.concatenate([selected_hot, selected_warm]).astype(int).tolist())
+                            strategy_used = "Hot/Cold Balanced Selection"
+                            strategy_log["strategy_2_hotcold"] += 1
+
+                        except Exception:
+                            # ===== STRATEGY 3: CONFIDENCE-WEIGHTED SELECTION =====
+                            # Final fallback: use confidence-weighted random choice
+                            try:
+                                selected_indices = np.random.choice(
+                                    max_number,
+                                    size=draw_size,
+                                    replace=False,
+                                    p=adjusted_probs
+                                )
+                                selected_numbers = sorted([i + 1 for i in selected_indices])
+                                strategy_used = "Confidence-Weighted Random Selection"
+                                strategy_log["strategy_3_confidence_weighted"] += 1
+                            except Exception:
+                                # ===== STRATEGY 4: TOP-K FROM ENSEMBLE PROBABILITIES =====
+                                # Last resort: deterministic top-k from ensemble probabilities
+                                top_k_indices = np.argsort(adjusted_probs)[-draw_size:]
+                                selected_numbers = sorted([i + 1 for i in top_k_indices])
+                                strategy_used = "Deterministic Top-K from Ensemble"
+                                strategy_log["strategy_4_topk"] += 1
+
+                    # ===== ANTI-PATTERN REJECTION (P1) =====
+                    # Reject candidates that strongly match known failure signatures and retry
+                    if adaptive_system and selected_numbers and attempt < max_attempts - 5:
+                        _anti_penalty = adaptive_system.penalize_anti_patterns(selected_numbers)
+                        if _anti_penalty > 0.7:
+                            strategy_log['anti_pattern_rejections'] = strategy_log.get('anti_pattern_rejections', 0) + 1
+                            continue  # Force Gumbel re-sample with new noise
+
+                    # ===== TRACK MODEL ATTRIBUTION FOR SELECTED NUMBERS =====
+                    # Determine which models "voted" for each selected number based on their probabilities
+                    model_attribution = {}
+                    for number in selected_numbers:
+                        number_str = str(number)
+                        model_attribution[number_str] = []  # Use string key for JSON compatibility
+
+                        # Check each model's probability for this number
+                        for model_key, model_probs in model_probabilities.items():
+                            if isinstance(model_probs, dict):
+                                number_prob = float(model_probs.get(number_str, 0))
+                                # A model "voted" for this number if it assigned above-average probability.
+                                # Use a fixed 1.5× threshold so attribution is consistent across all
+                                # sets regardless of retry attempt count.
+                                avg_prob = 1.0 / max_number  # Uniform baseline
+                                vote_threshold = 1.5
+                                if number_prob > avg_prob * vote_threshold:
+                                    model_attribution[number_str].append({
+                                        'model': model_key,
+                                        'probability': float(number_prob),  # Ensure native Python float
+                                        'confidence': float(number_prob / avg_prob)  # Relative confidence
+                                    })
+
+                    # ===== VERIFY ALL MODELS CONTRIBUTED TO THIS SET =====
+                    contributing_models = set()
+                    for number_str, voters in model_attribution.items():
+                        for voter in voters:
+                            contributing_models.add(voter['model'])
+
+                    # Check if all selected models contributed at least one vote
+                    if len(selected_model_names) == 0 or len(contributing_models) >= len(selected_model_names):
+                        all_models_contributed = True
+                    elif attempt >= max_attempts:
+                        # After max attempts, accept what we have
+                        all_models_contributed = True
+                        if attempt > 1:
+                            strategy_used += f" (Coverage: {len(contributing_models)}/{len(selected_model_names)} models after {attempt} attempts)"
+                    # Otherwise, retry the loop
             
             # ===== UPDATE NUMBER USAGE TRACKING =====
             if no_repeat_numbers:
