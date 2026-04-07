@@ -5203,7 +5203,6 @@ def _render_prediction_generator(analyzer: SuperIntelligentAIAnalyzer) -> None:
                 #   35% — vote density (fraction of numbers that received model votes)
                 #   20% — profile conformance (if a draw profile was used, else neutral 0.5)
                 _gc_scores: list = []
-                _n_models_used = len(model_probabilities) if model_probabilities else 1
                 for _si, _sp in enumerate(predictions):
                     _attr_data = (
                         predictions_with_attribution[_si]
