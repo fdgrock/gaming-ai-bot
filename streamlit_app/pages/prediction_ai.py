@@ -5196,11 +5196,76 @@ def _render_prediction_generator(analyzer: SuperIntelligentAIAnalyzer) -> None:
                             f"(sorted best-to-worst)"
                         )
                 
+                # ===== COMPUTE GENERATION CONFIDENCE SCORES & RANKING =====
+                # Score each set so we can rank them at generation time before any
+                # draw results are known.  Score = weighted blend of:
+                #   45% — avg model confidence (how strongly models preferred these numbers)
+                #   35% — vote density (fraction of numbers that received model votes)
+                #   20% — profile conformance (if a draw profile was used, else neutral 0.5)
+                _gc_scores: list = []
+                _n_models_used = len(model_probabilities) if model_probabilities else 1
+                for _si, _sp in enumerate(predictions):
+                    _attr_data = (
+                        predictions_with_attribution[_si]
+                        if _si < len(predictions_with_attribution) else {}
+                    )
+                    _ma = _attr_data.get('model_attribution', {}) if isinstance(_attr_data, dict) else {}
+                    # Avg model confidence across numbers in this set
+                    _confs = []
+                    _nvoted = 0
+                    for _num in _sp:
+                        _voters = _ma.get(str(_num), [])
+                        if _voters:
+                            _nvoted += 1
+                            _confs.append(
+                                sum(v.get('confidence', 1.0) for v in _voters) / len(_voters)
+                            )
+                        else:
+                            _confs.append(1.0)  # uniform baseline = 1.0
+                    _avg_conf = sum(_confs) / len(_confs) if _confs else 1.0
+                    # Normalise confidence: 1.0 = uniform, cap useful range at 6×
+                    _conf_score = min(1.0, max(0.0, (_avg_conf - 1.0) / 5.0))
+                    # Vote density: what fraction of numbers had at least one model vote
+                    _vote_density = _nvoted / max(1, len(_sp))
+                    # Profile conformance
+                    _pconf = 0.5  # neutral when no profile used
+                    if profile_validation_results and _si < len(profile_validation_results):
+                        _pconf = profile_validation_results[_si].get('conformance_score', 0.5)
+                    _score = round(
+                        _conf_score * 0.45 + _vote_density * 0.35 + _pconf * 0.20, 4
+                    )
+                    _gc_scores.append(_score)
+
+                # Build ranked order: sort by score descending, preserve original set index
+                _rank_pairs = sorted(
+                    enumerate(_gc_scores), key=lambda x: -x[1]
+                )  # [(orig_idx, score), ...]
+                # ranked_sets: list of (rank_1based, orig_0based_idx, numbers, score)
+                _generation_ranked = [
+                    {
+                        'rank': _rank + 1,
+                        'original_set_index': _orig_idx,  # 0-based
+                        'set_number': _orig_idx + 1,      # 1-based display
+                        'numbers': sorted(predictions[_orig_idx]),
+                        'confidence_score': _gc_scores[_orig_idx],
+                    }
+                    for _rank, (_orig_idx, _) in enumerate(_rank_pairs)
+                ]
+                # Also store rank per original-set-index for quick lookup
+                _rank_by_orig = {r['original_set_index']: r['rank'] for r in _generation_ranked}
+
+                # Embed rank info into predictions_with_attribution
+                for _si in range(len(predictions_with_attribution)):
+                    if isinstance(predictions_with_attribution[_si], dict):
+                        predictions_with_attribution[_si]['generation_rank'] = _rank_by_orig.get(_si)
+                        predictions_with_attribution[_si]['confidence_score'] = _gc_scores[_si] if _si < len(_gc_scores) else None
+
                 # Save to session and file with attribution data
                 st.session_state.sia_predictions = predictions
                 st.session_state.sia_strategy_report = strategy_report
                 st.session_state.sia_predictions_with_attribution = predictions_with_attribution
                 st.session_state.sia_strategy_log = strategy_log
+                st.session_state.sia_generation_ranked = _generation_ranked
                 
                 # Add learning metadata to saved file
                 if learning_data:
@@ -5211,6 +5276,17 @@ def _render_prediction_generator(analyzer: SuperIntelligentAIAnalyzer) -> None:
                     filepath = analyzer.save_predictions_advanced(predictions, analysis, optimal_with_learning, final_sets, predictions_with_attribution)
                 else:
                     filepath = analyzer.save_predictions_advanced(predictions, analysis, optimal, final_sets, predictions_with_attribution)
+
+                # Patch saved file to include generation_ranking (not a hot path — one small file write)
+                try:
+                    import json as _json_patch
+                    with open(filepath, 'r') as _pf:
+                        _pdata = _json_patch.load(_pf)
+                    _pdata['generation_ranking'] = _generation_ranked
+                    with open(filepath, 'w') as _pf:
+                        _json_patch.dump(_pdata, _pf, indent=2, default=str)
+                except Exception:
+                    pass  # Non-critical — learning tab will degrade gracefully
                 
                 st.success(f"✅ Successfully generated {final_sets} AI-optimized prediction sets!")
                 
@@ -5469,119 +5545,162 @@ def _render_prediction_generator(analyzer: SuperIntelligentAIAnalyzer) -> None:
                 st.error(traceback.format_exc())
                 return
         
-        # Display predictions with enhanced visuals
-        st.markdown(f"### 🎰 Generated Prediction Sets ({final_sets} total)")
-        
-        # Create enhanced dataframe with confidence scores
-        sets_data = []
-        for i, pred in enumerate(predictions, 1):
-            pred_numbers = ", ".join(map(str, sorted(pred)))
-            sets_data.append({
-                "Set #": i,
-                "Numbers": pred_numbers,
-                "Count": len(pred)
-            })
-        
-        pred_df = pd.DataFrame(sets_data)
-        st.dataframe(pred_df, use_container_width=True, hide_index=True)
-        
-        # Display sets as game balls for visual appeal
-        st.markdown("### 🎲 Visual Prediction Sets")
-        for i, pred in enumerate(predictions, 1):
-            with st.container(border=True):
-                st.markdown(f"**Set {i}**")
-                
-                # Display as game balls
-                num_cols = st.columns(len(pred))
-                for col, num in zip(num_cols, sorted(pred)):
-                    with col:
-                        st.markdown(
-                            f'''
-                            <div style="
-                                text-align: center;
-                                padding: 0;
-                                margin: 0 auto;
-                                width: 50px;
-                                height: 50px;
-                                background: linear-gradient(135deg, #1e3a8a 0%, #3b82f6 50%, #1e40af 100%);
-                                border-radius: 50%;
-                                color: white;
-                                font-weight: 900;
-                                font-size: 24px;
-                                box-shadow: 0 4px 8px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.3);
-                                display: flex;
-                                align-items: center;
-                                justify-content: center;
-                                border: 2px solid rgba(255,255,255,0.2);
-                            ">{num}</div>
-                            ''',
-                            unsafe_allow_html=True
-                        )
-        
-        st.divider()
-        
-        # Download options
-        col1, col2 = st.columns(2)
-        
-        with col1:
-            csv_data = pred_df.to_csv(index=False)
-            st.download_button(
-                "📥 Download Sets (CSV)",
-                csv_data,
-                file_name=f"ai_predictions_{analyzer.game_folder}_{final_sets}sets_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
-                mime="text/csv",
-                use_container_width=True
+        # ===== RANKED PREDICTION DISPLAY =====
+        # Pull the generation ranking computed during this run (or from session state
+        # if the user is viewing after a previous run on the same session).
+        _disp_ranked = st.session_state.get('sia_generation_ranked', [])
+        _disp_preds  = st.session_state.get('sia_predictions', predictions)
+        _disp_attr   = st.session_state.get('sia_predictions_with_attribution', predictions_with_attribution)
+
+        st.markdown(f"### 🎰 AI-Ranked Prediction Sets ({len(_disp_preds)} total)")
+        st.caption(
+            "Sets are ranked by the AI's generation-time confidence — a blend of model vote "
+            "strength, consensus breadth, and draw-profile conformance. Rank is computed before "
+            "any draw results are known and is stored with the prediction file for later learning."
+        )
+
+        # ── Ranking summary table ──────────────────────────────────────────────
+        _rank_table = []
+        for _rr in _disp_ranked:
+            _tier = (
+                "🏆 Top 5" if _rr['rank'] <= 5 else
+                "⭐ Top 10" if _rr['rank'] <= 10 else
+                f"Rank {_rr['rank']}"
             )
-        
+            _rank_table.append({
+                'Rank': _rr['rank'],
+                'Tier': _tier,
+                'Set #': _rr['set_number'],
+                'Numbers': ', '.join(map(str, _rr['numbers'])),
+                'AI Confidence': f"{_rr['confidence_score']:.1%}",
+            })
+        if _rank_table:
+            st.dataframe(pd.DataFrame(_rank_table), use_container_width=True, hide_index=True)
+
+        # ── Helper: render one set as game balls ──────────────────────────────
+        def _render_ranked_set(ranked_entry: dict, border_color: str, label_html: str) -> None:
+            """Render a single ranked prediction set with game balls."""
+            _nums = ranked_entry['numbers']
+            _ball_cols = st.columns(len(_nums))
+            for _bc, _bn in zip(_ball_cols, _nums):
+                with _bc:
+                    st.markdown(
+                        f'<div style="text-align:center;width:50px;height:50px;'
+                        f'background:linear-gradient(135deg,#1e3a8a 0%,#3b82f6 50%,#1e40af 100%);'
+                        f'border-radius:50%;color:white;font-weight:900;font-size:22px;'
+                        f'box-shadow:0 4px 8px rgba(0,0,0,0.3),inset 0 1px 0 rgba(255,255,255,0.3);'
+                        f'display:flex;align-items:center;justify-content:center;'
+                        f'border:2px solid rgba(255,255,255,0.2);margin:0 auto;">{_bn}</div>',
+                        unsafe_allow_html=True,
+                    )
+
+        # ── TIER 1: Ranks 1-5 ─────────────────────────────────────────────────
+        _tier1 = [r for r in _disp_ranked if r['rank'] <= 5]
+        if _tier1:
+            st.markdown("### 🏆 Top 5 — AI's Highest-Confidence Picks")
+            st.caption("These sets had the strongest model consensus and highest probability scores at generation time.")
+            for _rr in _tier1:
+                with st.container(border=True):
+                    _attr_i = _rr['original_set_index']
+                    _cs = _rr['confidence_score']
+                    _conf_bar = "█" * int(_cs * 10) + "░" * (10 - int(_cs * 10))
+                    st.markdown(
+                        f"**Rank #{_rr['rank']} — Set #{_rr['set_number']}** &nbsp;&nbsp; "
+                        f"AI Confidence: `{_cs:.1%}` `{_conf_bar}`",
+                        unsafe_allow_html=True,
+                    )
+                    _render_ranked_set(_rr, "#f59e0b", "top5")
+                    # Show which models contributed most to this set
+                    _ma_i = (
+                        _disp_attr[_attr_i].get('model_attribution', {})
+                        if _attr_i < len(_disp_attr) and isinstance(_disp_attr[_attr_i], dict)
+                        else {}
+                    )
+                    if _ma_i:
+                        _mv_models = set()
+                        for _vlist in _ma_i.values():
+                            for _v in _vlist:
+                                _mv_models.add(_v.get('model', ''))
+                        if _mv_models:
+                            st.caption(f"Contributing models: {', '.join(sorted(_mv_models))}")
+
+        # ── TIER 2: Ranks 6-10 ────────────────────────────────────────────────
+        _tier2 = [r for r in _disp_ranked if 6 <= r['rank'] <= 10]
+        if _tier2:
+            st.markdown("### ⭐ Ranks 6–10")
+            for _rr in _tier2:
+                with st.container(border=True):
+                    _cs = _rr['confidence_score']
+                    st.markdown(
+                        f"**Rank #{_rr['rank']} — Set #{_rr['set_number']}** &nbsp;&nbsp; "
+                        f"AI Confidence: `{_cs:.1%}`",
+                        unsafe_allow_html=True,
+                    )
+                    _render_ranked_set(_rr, "#6b7280", "top10")
+
+        # ── TIER 3: Ranks 11+ ─────────────────────────────────────────────────
+        _tier3 = [r for r in _disp_ranked if r['rank'] > 10]
+        if _tier3:
+            with st.expander(f"📋 Ranks 11–{len(_disp_ranked)} (remaining {len(_tier3)} sets)", expanded=False):
+                for _rr in _tier3:
+                    with st.container(border=True):
+                        _cs = _rr['confidence_score']
+                        st.markdown(
+                            f"**Rank #{_rr['rank']} — Set #{_rr['set_number']}** &nbsp;&nbsp; "
+                            f"AI Confidence: `{_cs:.1%}`",
+                            unsafe_allow_html=True,
+                        )
+                        _render_ranked_set(_rr, "#374151", "rest")
+
+        st.divider()
+
+        # ── Download options ───────────────────────────────────────────────────
+        _dl_df = pd.DataFrame(_rank_table) if _rank_table else pd.DataFrame(
+            [{"Rank": i + 1, "Set #": i + 1, "Numbers": ", ".join(map(str, sorted(p)))}
+             for i, p in enumerate(_disp_preds)]
+        )
+        col1, col2 = st.columns(2)
+        with col1:
+            st.download_button(
+                "📥 Download Ranked Sets (CSV)",
+                _dl_df.to_csv(index=False),
+                file_name=f"ai_predictions_ranked_{analyzer.game_folder}_{len(_disp_preds)}sets_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
+                mime="text/csv",
+                use_container_width=True,
+            )
         with col2:
-            # Convert numpy types to native Python types for JSON serialization
-            def convert_to_native_types(obj):
-                """Recursively convert numpy types to native Python types."""
+            def _to_native(obj):
                 if isinstance(obj, dict):
-                    return {k: convert_to_native_types(v) for k, v in obj.items()}
+                    return {k: _to_native(v) for k, v in obj.items()}
                 elif isinstance(obj, list):
-                    return [convert_to_native_types(item) for item in obj]
+                    return [_to_native(i) for i in obj]
                 elif isinstance(obj, (np.integer, np.int64, np.int32)):
                     return int(obj)
                 elif isinstance(obj, (np.floating, np.float64, np.float32)):
                     return float(obj)
                 elif isinstance(obj, np.ndarray):
                     return obj.tolist()
-                else:
-                    return obj
-            
-            json_safe_data = {
-                "sets": convert_to_native_types(predictions),
-                "analysis": convert_to_native_types(analysis),
-                "optimal": convert_to_native_types(optimal)
+                return obj
+            _json_export = {
+                "generation_ranking": _to_native(_disp_ranked),
+                "sets": _to_native(_disp_preds),
+                "analysis": _to_native(analysis),
+                "optimal": _to_native(optimal),
             }
-            json_data = json.dumps(json_safe_data, indent=2)
             st.download_button(
                 "📥 Download Full Data (JSON)",
-                json_data,
-                file_name=f"ai_predictions_{analyzer.game_folder}_{final_sets}sets_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json",
+                json.dumps(_json_export, indent=2),
+                file_name=f"ai_predictions_ranked_{analyzer.game_folder}_{len(_disp_preds)}sets_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json",
                 mime="application/json",
-                use_container_width=True
+                use_container_width=True,
             )
-        
+
         st.info(f"💾 Predictions saved to: `{filepath}`")
-        
-        st.success(f"""
-        ✅ **Prediction Generation Complete!**
-        
-        **Your AI-Generated Lottery Strategy:**
-        - **Sets Generated:** {final_sets}
-        - **Algorithm Used:** Super Intelligent Ensemble Voting
-        - **Models Combined:** {len(analysis['models'])} ({', '.join([m['type'] for m in analysis['models']])})
-        - **Expected Win Probability:** {optimal['win_probability']:.1%}
-        - **Confidence Level:** {optimal['ensemble_confidence']:.1%}
-        
-        **Next Steps:**
-        1. Review your predictions above
-        2. Download in your preferred format
-        3. Use these sets for the next draw
-        4. Visit the "Prediction Analysis" tab to compare against actual results
-        """)
+        st.success(
+            f"✅ **{len(_disp_preds)} sets generated & ranked!** "
+            f"Top 5 are the AI's highest-confidence picks. "
+            f"Visit **AI Learning** after the draw to see how the rankings held up."
+        )
 
 
 # ============================================================================
@@ -7629,8 +7748,102 @@ def _render_previous_draw_mode(analyzer: SuperIntelligentAIAnalyzer, game: str) 
                             else:
                                 st.markdown(f"**Set #{pred['original_index'] + 1}:** No model attribution (random selection)")
         
+        # ===== GENERATION RANKING vs ACTUAL RANKING COMPARISON =====
+        _gen_ranking = pred_data.get('generation_ranking', [])
+        if _gen_ranking:
+            with st.expander("📊 **Generation Rank vs Actual Result Rank**", expanded=True):
+                st.markdown(
+                    "Compare the AI's predicted confidence rankings (computed at generation time, "
+                    "before the draw) against the actual result rankings (sorted by match count). "
+                    "This shows how well the model's confidence scores predict real-world accuracy."
+                )
+
+                # Build actual rank map: original_set_index → actual_rank (by match count)
+                _act_rank_map: dict = {}
+                for _ar, _sp in enumerate(sorted_predictions, 1):
+                    _act_rank_map[_sp['original_index']] = _ar  # original_index is 0-based
+
+                # Build comparison table
+                _cmp_rows = []
+                for _gr in _gen_ranking:
+                    _orig = _gr['original_set_index']
+                    _gen_r = _gr['rank']
+                    _act_r = _act_rank_map.get(_orig, len(sorted_predictions))
+                    _delta = _act_r - _gen_r  # positive = ranked lower than expected
+                    _delta_str = (
+                        f"▲ {abs(_delta)} better" if _delta < 0 else
+                        f"▼ {abs(_delta)} worse" if _delta > 0 else
+                        "✅ exact"
+                    )
+                    _top5_gen = "🏆" if _gen_r <= 5 else ("⭐" if _gen_r <= 10 else "")
+                    _top5_act = "🏆" if _act_r <= 5 else ("⭐" if _act_r <= 10 else "")
+                    _cmp_rows.append({
+                        'Set #': _gr['set_number'],
+                        'Gen Rank': f"{_top5_gen} #{_gen_r}",
+                        'Actual Rank': f"{_top5_act} #{_act_r}",
+                        'Shift': _delta_str,
+                        'AI Confidence': f"{_gr['confidence_score']:.1%}",
+                        'Numbers': ', '.join(map(str, _gr['numbers'])),
+                    })
+
+                # Sort by generation rank for clean display
+                _cmp_rows.sort(key=lambda x: int(x['Gen Rank'].split('#')[1]))
+                st.dataframe(pd.DataFrame(_cmp_rows), use_container_width=True, hide_index=True)
+
+                # ── Ranking accuracy metrics ──────────────────────────────────
+                _gen_top5_indices  = {r['original_set_index'] for r in _gen_ranking if r['rank'] <= 5}
+                _act_top5_indices  = {sp['original_index'] for sp in sorted_predictions[:5]}
+                _overlap_top5 = len(_gen_top5_indices & _act_top5_indices)
+
+                _gen_top10_indices = {r['original_set_index'] for r in _gen_ranking if r['rank'] <= 10}
+                _act_top10_indices = {sp['original_index'] for sp in sorted_predictions[:10]}
+                _overlap_top10 = len(_gen_top10_indices & _act_top10_indices)
+
+                st.markdown("#### 🎯 Ranking Accuracy")
+                _ra1, _ra2, _ra3 = st.columns(3)
+                _ra1.metric(
+                    "Top-5 Overlap",
+                    f"{_overlap_top5}/5",
+                    help="How many of the AI's top-5 picks were actually in the top-5 by match count"
+                )
+                _ra2.metric(
+                    "Top-10 Overlap",
+                    f"{_overlap_top10}/10",
+                    help="How many of the AI's top-10 picks were actually in the top-10 by match count"
+                )
+                # Spearman-like rank correlation for displayed sets
+                _n_cmp = min(len(_gen_ranking), len(sorted_predictions))
+                if _n_cmp >= 2:
+                    import scipy.stats as _spst
+                    _gen_r_vec = [_act_rank_map.get(r['original_set_index'], _n_cmp + 1) for r in _gen_ranking[:_n_cmp]]
+                    _act_r_vec = list(range(1, _n_cmp + 1))
+                    try:
+                        _rho, _pval = _spst.spearmanr(_gen_r_vec, _act_r_vec)
+                        _ra3.metric(
+                            "Rank Correlation",
+                            f"{_rho:.2f}",
+                            help="Spearman ρ: 1.0 = perfect order, 0 = random, -1 = reversed"
+                        )
+                    except Exception:
+                        _ra3.metric("Rank Correlation", "N/A")
+                else:
+                    _ra3.metric("Rank Correlation", "N/A")
+
+                if _overlap_top5 >= 3:
+                    st.success(f"✅ Strong ranking accuracy — {_overlap_top5}/5 top predictions confirmed by actual results.")
+                elif _overlap_top5 >= 1:
+                    st.info(f"ℹ️ Partial ranking accuracy — {_overlap_top5}/5 top predictions confirmed.")
+                else:
+                    st.warning("⚠️ Top-5 generation ranks did not match actual top-5. This result will be used as a learning signal to improve future ranking.")
+
+                st.caption(
+                    "💡 **Learning signal**: After clicking **Apply Learning Analysis** below, "
+                    "the ranking accuracy data above feeds into the adaptive system to improve "
+                    "future confidence score calibration."
+                )
+
         st.divider()
-        
+
         # Use Raw CSVs checkbox
         use_raw_csv = st.checkbox(
             "📁 Include Raw CSV Pattern Analysis",
@@ -7638,7 +7851,7 @@ def _render_previous_draw_mode(analyzer: SuperIntelligentAIAnalyzer, game: str) 
             help="Analyze historical patterns from raw CSV files (slower but more comprehensive)",
             key="use_raw_csv"
         )
-        
+
         # Apply Learning button
         if st.button("🔬 Apply Learning Analysis", use_container_width=True, key="apply_learning_prev"):
             with st.spinner("Performing deep learning analysis..."):
