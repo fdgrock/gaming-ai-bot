@@ -7274,20 +7274,96 @@ def _render_next_draw_mode(analyzer: SuperIntelligentAIAnalyzer, game: str) -> N
             st.error("No predictions found in file")
             return
         
-        with st.expander("📄 Selected Prediction File Details", expanded=False):
-            st.markdown(f"**File:** `{selected_file.name}`")
-            st.markdown(f"**Total Sets:** {len(predictions)}")
-            st.markdown(f"**Algorithm:** {pred_data.get('algorithm', 'N/A')}")
-            st.markdown(f"**Timestamp:** {pred_data.get('timestamp', 'N/A')}")
-            
-            st.markdown("---")
-            st.markdown("**Predicted Sets:**")
-            for idx, pred in enumerate(predictions, 1):
-                if isinstance(pred, dict):
-                    numbers = sorted([int(n) for n in pred.get('numbers', [])])
-                else:
-                    numbers = sorted([int(n) for n in pred])
-                st.markdown(f"Set #{idx}: {', '.join(map(str, numbers))}")
+        # ── File metadata ──────────────────────────────────────────────────────
+        _ld_meta1, _ld_meta2, _ld_meta3 = st.columns(3)
+        _ld_meta1.metric("Total Sets", len(predictions))
+        _ld_meta2.metric("Algorithm", pred_data.get('algorithm', 'N/A')[:30])
+        _ld_meta3.metric("Generated", pred_data.get('timestamp', 'N/A')[:16])
+
+        # ── Ranked display (same three-tier layout as Generate Predictions tab) ─
+        _ld_ranked = pred_data.get('generation_ranking', [])
+
+        if not _ld_ranked:
+            # File was generated before ranking was added — build a plain list
+            st.info("ℹ️ This file was generated before AI ranking was available. Sets shown in generation order.")
+            with st.expander("📋 All Prediction Sets", expanded=False):
+                for _idx, _pred in enumerate(predictions, 1):
+                    _nums = sorted(int(n) for n in (_pred.get('numbers', _pred) if isinstance(_pred, dict) else _pred))
+                    st.markdown(f"**Set #{_idx}:** {', '.join(map(str, _nums))}")
+        else:
+            st.markdown(f"#### 🏅 AI-Ranked Sets — {selected_file.name}")
+            st.caption(
+                "Ranked by AI confidence at generation time (model vote strength + consensus + "
+                "profile conformance). These ranks were computed before any draw results were known."
+            )
+
+            # Summary table
+            _ld_rank_rows = []
+            for _rr in _ld_ranked:
+                _ld_rank_rows.append({
+                    'Rank': _rr['rank'],
+                    'Tier': "🏆 Top 5" if _rr['rank'] <= 5 else ("⭐ Top 10" if _rr['rank'] <= 10 else f"#{_rr['rank']}"),
+                    'Set #': _rr['set_number'],
+                    'Numbers': ', '.join(map(str, _rr['numbers'])),
+                    'AI Confidence': f"{_rr['confidence_score']:.1%}",
+                })
+            st.dataframe(pd.DataFrame(_ld_rank_rows), use_container_width=True, hide_index=True)
+
+            # Helper for ball display
+            def _ld_render_balls(numbers: list) -> None:
+                _cols = st.columns(len(numbers))
+                for _bc, _bn in zip(_cols, numbers):
+                    with _bc:
+                        st.markdown(
+                            f'<div style="text-align:center;width:50px;height:50px;'
+                            f'background:linear-gradient(135deg,#1e3a8a 0%,#3b82f6 50%,#1e40af 100%);'
+                            f'border-radius:50%;color:white;font-weight:900;font-size:22px;'
+                            f'box-shadow:0 4px 8px rgba(0,0,0,0.3),inset 0 1px 0 rgba(255,255,255,0.3);'
+                            f'display:flex;align-items:center;justify-content:center;'
+                            f'border:2px solid rgba(255,255,255,0.2);margin:0 auto;">{_bn}</div>',
+                            unsafe_allow_html=True,
+                        )
+
+            # Tier 1: Top 5
+            _ld_tier1 = [r for r in _ld_ranked if r['rank'] <= 5]
+            if _ld_tier1:
+                st.markdown("##### 🏆 Top 5 — Highest AI Confidence")
+                for _rr in _ld_tier1:
+                    with st.container(border=True):
+                        _cs = _rr['confidence_score']
+                        _bar = "█" * int(_cs * 10) + "░" * (10 - int(_cs * 10))
+                        st.markdown(
+                            f"**Rank #{_rr['rank']} — Set #{_rr['set_number']}** &nbsp;&nbsp; "
+                            f"AI Confidence: `{_cs:.1%}` `{_bar}`",
+                            unsafe_allow_html=True,
+                        )
+                        _ld_render_balls(_rr['numbers'])
+
+            # Tier 2: Ranks 6-10
+            _ld_tier2 = [r for r in _ld_ranked if 6 <= r['rank'] <= 10]
+            if _ld_tier2:
+                st.markdown("##### ⭐ Ranks 6–10")
+                for _rr in _ld_tier2:
+                    with st.container(border=True):
+                        st.markdown(
+                            f"**Rank #{_rr['rank']} — Set #{_rr['set_number']}** &nbsp;&nbsp; "
+                            f"AI Confidence: `{_rr['confidence_score']:.1%}`",
+                            unsafe_allow_html=True,
+                        )
+                        _ld_render_balls(_rr['numbers'])
+
+            # Tier 3: Ranks 11+
+            _ld_tier3 = [r for r in _ld_ranked if r['rank'] > 10]
+            if _ld_tier3:
+                with st.expander(f"📋 Ranks 11–{len(_ld_ranked)} ({len(_ld_tier3)} remaining sets)", expanded=False):
+                    for _rr in _ld_tier3:
+                        with st.container(border=True):
+                            st.markdown(
+                                f"**Rank #{_rr['rank']} — Set #{_rr['set_number']}** &nbsp;&nbsp; "
+                                f"AI Confidence: `{_rr['confidence_score']:.1%}`",
+                                unsafe_allow_html=True,
+                            )
+                            _ld_render_balls(_rr['numbers'])
         
         st.divider()
         
