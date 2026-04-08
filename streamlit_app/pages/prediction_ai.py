@@ -7746,44 +7746,126 @@ def _render_previous_draw_mode(analyzer: SuperIntelligentAIAnalyzer, game: str) 
         )
         
         sorted_predictions = _sort_predictions_by_accuracy(matched_predictions, actual_results['numbers'])
-        
-        st.markdown(f"#### 🎲 Prediction Results (Sorted by Accuracy)")
-        st.markdown(f"**Total Sets:** {len(sorted_predictions)}")
-        
-        # Display sorted predictions with matches
-        for rank, pred in enumerate(sorted_predictions, 1):  # Show ALL sets
-            correct_count = pred['correct_count']
-            has_bonus = pred['has_bonus']
-            
-            status_emoji = "🏆" if correct_count >= 4 else "✅" if correct_count >= 2 else "➖"
-            
-            with st.expander(
-                f"{status_emoji} **Rank {rank}** - Set #{pred['original_index'] + 1} "
-                f"({correct_count} correct{' + BONUS' if has_bonus else ''})",
-                expanded=(rank <= 5)
-            ):
-                # Display the numbers with appropriate colors
-                cols = st.columns(len(pred['numbers']))
-                for col, num_data in zip(cols, pred['numbers']):
-                    num = num_data['number']
-                    is_correct = num_data['is_correct']
-                    is_bonus = num_data['is_bonus']
-                    
-                    # Determine color based on match status
-                    if is_bonus:
-                        color = "gold"
-                    elif is_correct:
-                        color = "green"
-                    else:
-                        color = "blue"
-                    
-                    with col:
-                        # Pass color parameter to the function
-                        st.markdown(_get_ball_html(num, color=color), unsafe_allow_html=True)
-                
-                legend = "🟢 Correct | 🟡 Bonus | 🔵 Miss"
-                st.caption(legend)
-        
+
+        # Build a map: original_set_index → matched prediction dict (has correct_count, numbers, etc.)
+        _prev_match_map: dict = {}
+        for _ar, _sp in enumerate(sorted_predictions, 1):
+            _prev_match_map[_sp['original_index']] = {'actual_rank': _ar, 'pred': _sp}
+
+        st.markdown(f"#### 🎲 Prediction Results — {len(sorted_predictions)} Sets")
+        st.caption("🟢 Correct match &nbsp;|&nbsp; 🟡 Bonus &nbsp;|&nbsp; 🔵 Miss")
+
+        # Helper: render one set's match balls
+        def _prev_render_match_balls(pred_entry: dict) -> None:
+            _cols = st.columns(len(pred_entry['numbers']))
+            for _bc, _nd in zip(_cols, pred_entry['numbers']):
+                _color = "gold" if _nd['is_bonus'] else ("green" if _nd['is_correct'] else "blue")
+                with _bc:
+                    st.markdown(_get_ball_html(_nd['number'], color=_color), unsafe_allow_html=True)
+
+        _gen_ranking = pred_data.get('generation_ranking', [])
+
+        if _gen_ranking:
+            # ── DUAL-PERSPECTIVE VIEW: Generation rank primary, actual result shown per set ──
+            st.markdown(
+                "Sets are shown in **AI generation rank order** (confidence computed before the draw). "
+                "Each set also shows its **actual result rank** (by match count) so you can see how "
+                "well the AI's confidence predicted real-world accuracy."
+            )
+
+            def _prev_render_gen_set(gen_entry: dict) -> None:
+                _orig = gen_entry['original_set_index']
+                _cs   = gen_entry['confidence_score']
+                _bar  = "█" * int(_cs * 10) + "░" * (10 - int(_cs * 10))
+                _match_info = _prev_match_map.get(_orig)
+                if _match_info:
+                    _act_r   = _match_info['actual_rank']
+                    _pred_e  = _match_info['pred']
+                    _correct = _pred_e['correct_count']
+                    _bonus   = _pred_e['has_bonus']
+                    _result_emoji = "🏆" if _correct >= 4 else ("✅" if _correct >= 2 else "➖")
+                    _act_tier = "🏆" if _act_r <= 5 else ("⭐" if _act_r <= 10 else "")
+                    st.markdown(
+                        f"**Gen Rank #{gen_entry['rank']} — Set #{gen_entry['set_number']}** &nbsp;&nbsp; "
+                        f"AI Confidence: `{_cs:.1%}` `{_bar}`  \n"
+                        f"{_result_emoji} **Actual Rank {_act_tier} #{_act_r}** — "
+                        f"{_correct} correct{' + BONUS' if _bonus else ''}",
+                        unsafe_allow_html=True,
+                    )
+                    _prev_render_match_balls(_pred_e)
+                else:
+                    st.markdown(
+                        f"**Gen Rank #{gen_entry['rank']} — Set #{gen_entry['set_number']}** &nbsp;&nbsp; "
+                        f"AI Confidence: `{_cs:.1%}`",
+                        unsafe_allow_html=True,
+                    )
+
+            # Tier 1 — Gen top 5
+            _pv_t1 = [r for r in _gen_ranking if r['rank'] <= 5]
+            if _pv_t1:
+                st.markdown("##### 🏆 AI Top 5 — Highest Generation Confidence")
+                for _rr in _pv_t1:
+                    with st.container(border=True):
+                        _prev_render_gen_set(_rr)
+
+            # Tier 2 — Gen ranks 6-10
+            _pv_t2 = [r for r in _gen_ranking if 6 <= r['rank'] <= 10]
+            if _pv_t2:
+                st.markdown("##### ⭐ Gen Ranks 6–10")
+                for _rr in _pv_t2:
+                    with st.container(border=True):
+                        _prev_render_gen_set(_rr)
+
+            # Tier 3 — Gen ranks 11+
+            _pv_t3 = [r for r in _gen_ranking if r['rank'] > 10]
+            if _pv_t3:
+                with st.expander(f"📋 Gen Ranks 11–{len(_gen_ranking)} ({len(_pv_t3)} sets)", expanded=False):
+                    for _rr in _pv_t3:
+                        with st.container(border=True):
+                            _prev_render_gen_set(_rr)
+
+            # ── Also show top performers by actual result that fell outside gen top 10 ──
+            _act_top5_not_gen_top10 = [
+                sp for sp in sorted_predictions[:5]
+                if _prev_match_map.get(sp['original_index'], {}).get('actual_rank', 99) <= 5
+                and not any(
+                    r['original_set_index'] == sp['original_index'] and r['rank'] <= 10
+                    for r in _gen_ranking
+                )
+            ]
+            if _act_top5_not_gen_top10:
+                st.markdown("##### 💡 Surprise Performers — Actual Top 5 Outside AI Top 10")
+                st.caption("These sets matched the most numbers but were not in the AI's top-10 confidence tier.")
+                for _sp in _act_top5_not_gen_top10:
+                    _gen_r_for_sp = next(
+                        (r['rank'] for r in _gen_ranking if r['original_set_index'] == _sp['original_index']), '?'
+                    )
+                    with st.container(border=True):
+                        _correct = _sp['correct_count']
+                        _bonus   = _sp['has_bonus']
+                        st.markdown(
+                            f"**Set #{_sp['original_index'] + 1}** — "
+                            f"Actual Rank #{_prev_match_map[_sp['original_index']]['actual_rank']} "
+                            f"| Gen Rank #{_gen_r_for_sp} — "
+                            f"{_correct} correct{' + BONUS' if _bonus else ''}",
+                            unsafe_allow_html=True,
+                        )
+                        _prev_render_match_balls(_sp)
+
+        else:
+            # No generation ranking saved — fall back to accuracy-sorted view
+            st.info("ℹ️ This file has no AI generation ranking (generated before this feature was added). Showing sets sorted by match count.")
+            for _ar, _sp in enumerate(sorted_predictions, 1):
+                _correct = _sp['correct_count']
+                _bonus   = _sp['has_bonus']
+                _emoji   = "🏆" if _correct >= 4 else ("✅" if _correct >= 2 else "➖")
+                with st.expander(
+                    f"{_emoji} **Actual Rank {_ar}** — Set #{_sp['original_index'] + 1} "
+                    f"({_correct} correct{' + BONUS' if _bonus else ''})",
+                    expanded=(_ar <= 5),
+                ):
+                    _prev_render_match_balls(_sp)
+
         # Display model attribution in a separate expander
         predictions_with_attribution = pred_data.get('predictions_with_attribution', [])
         
