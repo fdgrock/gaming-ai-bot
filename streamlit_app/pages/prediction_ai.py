@@ -5651,6 +5651,106 @@ def _render_prediction_generator(analyzer: SuperIntelligentAIAnalyzer) -> None:
                         )
                         _render_ranked_set(_rr, "#374151", "rest")
 
+        # ===== TOP RECURRENCE SETS =====
+        # Count how many times each number appears across ALL generated sets,
+        # then slice those top-N numbers into unique sets of draw_size.
+        # E.g. Lotto Max (draw_size=7): set 1 = ranks 1-7, set 2 = ranks 8-14, etc.
+        # Up to 5 sets max.  All sets are unique (non-overlapping).
+        st.divider()
+        st.markdown("### 🔁 Top Recurrence Across All Sets")
+        st.caption(
+            "Numbers ranked by how often they appear across every generated prediction set. "
+            "Sliced into unique sets of the draw size — the first set contains the most-predicted "
+            "numbers, the second set the next most-predicted, and so on (up to 5 sets)."
+        )
+
+        # Build frequency map
+        _rec_freq: dict = {}
+        for _rp in _disp_preds:
+            _rp_nums = list(_rp) if not isinstance(_rp, dict) else _rp.get('numbers', [])
+            for _rn in _rp_nums:
+                _rn = int(_rn)
+                _rec_freq[_rn] = _rec_freq.get(_rn, 0) + 1
+
+        if _rec_freq:
+            # Sort numbers by frequency descending, then by number ascending as tiebreak
+            _sorted_by_freq = sorted(_rec_freq.items(), key=lambda x: (-x[1], x[0]))
+
+            # How many balls per set (use analyzer.game_config if available, else infer)
+            try:
+                _rec_draw_size = analyzer.game_config.draw_size
+            except Exception:
+                _rec_draw_size = 7 if 'max' in analyzer.game.lower() else 6
+
+            # Slice into non-overlapping sets
+            _rec_numbers_ordered = [n for n, _ in _sorted_by_freq]
+            _rec_sets = []
+            _max_rec_sets = 5
+            for _rs_i in range(_max_rec_sets):
+                _start = _rs_i * _rec_draw_size
+                _end   = _start + _rec_draw_size
+                _slice = _rec_numbers_ordered[_start:_end]
+                if len(_slice) < _rec_draw_size:
+                    break  # Not enough remaining unique numbers for a full set
+                _rec_sets.append(_slice)
+
+            if _rec_sets:
+                # Frequency table (top numbers only — those used in the recurrence sets)
+                _top_n_shown = min(len(_rec_numbers_ordered), _max_rec_sets * _rec_draw_size)
+                _freq_rows = [
+                    {
+                        'Rank': _fi + 1,
+                        'Number': _rec_numbers_ordered[_fi],
+                        'Appearances': _rec_freq[_rec_numbers_ordered[_fi]],
+                        'Frequency': f"{_rec_freq[_rec_numbers_ordered[_fi]] / max(1, len(_disp_preds)):.0%}",
+                        'Recurrence Set': f"Set {_fi // _rec_draw_size + 1}",
+                    }
+                    for _fi in range(_top_n_shown)
+                ]
+                with st.expander("📊 Number Frequency Table", expanded=False):
+                    st.dataframe(pd.DataFrame(_freq_rows), use_container_width=True, hide_index=True)
+
+                # Display recurrence sets as game balls
+                for _rs_idx, _rs_nums in enumerate(_rec_sets, 1):
+                    with st.container(border=True):
+                        _rs_sorted = sorted(_rs_nums)
+                        _top_freq  = _rec_freq.get(_rs_sorted[0], 0)
+                        _bot_freq  = _rec_freq.get(_rs_sorted[-1], 0)
+                        st.markdown(
+                            f"**Recurrence Set {_rs_idx}** &nbsp;— "
+                            f"numbers ranked #{(_rs_idx - 1) * _rec_draw_size + 1}–"
+                            f"#{_rs_idx * _rec_draw_size} by appearances "
+                            f"(range: {_bot_freq}–{_top_freq} times)",
+                            unsafe_allow_html=True,
+                        )
+                        _rc_cols = st.columns(len(_rs_sorted))
+                        for _rc_col, _rc_num in zip(_rc_cols, _rs_sorted):
+                            with _rc_col:
+                                _freq_val = _rec_freq.get(_rc_num, 0)
+                                # Shade balls: deeper blue = appeared more often
+                                _intensity = min(1.0, _freq_val / max(1, len(_disp_preds)))
+                                _r = int(30  + (1 - _intensity) * 60)
+                                _g = int(58  + (1 - _intensity) * 40)
+                                _b = int(138 + _intensity * 80)
+                                _bg = f"linear-gradient(135deg, rgb({_r},{_g},{_b}) 0%, rgb({min(255,_r+50)},{min(255,_g+50)},{_b}) 100%)"
+                                st.markdown(
+                                    f'<div style="text-align:center;width:50px;height:50px;'
+                                    f'background:{_bg};border-radius:50%;color:white;'
+                                    f'font-weight:900;font-size:22px;'
+                                    f'box-shadow:0 4px 8px rgba(0,0,0,0.3),'
+                                    f'inset 0 1px 0 rgba(255,255,255,0.3);'
+                                    f'display:flex;align-items:center;justify-content:center;'
+                                    f'border:2px solid rgba(255,255,255,0.2);margin:0 auto;">'
+                                    f'{_rc_num}</div>'
+                                    f'<div style="text-align:center;font-size:11px;'
+                                    f'color:#6b7280;margin-top:2px;">×{_freq_val}</div>',
+                                    unsafe_allow_html=True,
+                                )
+            else:
+                st.info("Not enough unique numbers across prediction sets to form a complete recurrence set.")
+        else:
+            st.info("No predictions available to compute recurrence.")
+
         st.divider()
 
         # ── Download options ───────────────────────────────────────────────────
