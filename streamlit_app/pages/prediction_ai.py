@@ -8771,8 +8771,7 @@ def _render_top_recurrence(predictions: List, draw_size: int, context_key: str =
         }
         for _fi in range(_top_n)
     ]
-    with st.expander("📊 Number Frequency Table", expanded=False,
-                     key=f"recurrence_freq_table_{context_key}"):
+    with st.expander("📊 Number Frequency Table", expanded=False):
         st.dataframe(pd.DataFrame(_freq_rows), use_container_width=True, hide_index=True)
 
     # Ball display — one container per recurrence set
