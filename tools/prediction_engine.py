@@ -1164,7 +1164,115 @@ class PredictionEngine:
         
         self.game_config = self.prob_gen.game_config[self.game_lower]
         self.num_numbers = self.game_config["number_range"][1]
-    
+
+    @staticmethod
+    def _alpha(health_score: float) -> float:
+        """Single authoritative alpha formula: maps [0,1] health_score → [0.5, 0.95]."""
+        return 0.5 + 0.45 * health_score
+
+    def _apply_learning_adjustments(
+        self,
+        probs: np.ndarray,
+        learning_data: dict,
+        max_number: int,
+        draw_size: int,
+        trace,
+    ) -> np.ndarray:
+        """Apply hot/cold/position/sum learning adjustments. Returns re-normalised array."""
+        if not learning_data:
+            return probs
+
+        adjusted = probs.copy()
+        hot_numbers_learning = learning_data.get('analysis', {}).get('number_frequency', {})
+        cold_numbers_learning = learning_data.get('analysis', {}).get('cold_numbers', [])
+        position_accuracy = learning_data.get('analysis', {}).get('position_accuracy', {})
+        target_sum = learning_data.get('avg_sum', 0)
+        sum_range = learning_data.get('sum_range', {'min': 0, 'max': 999})
+
+        hot_numbers_weight = 0.15
+        cold_penalty_weight = 0.12
+        position_weight = 0.10
+        sum_weight = 0.08
+
+        hot_count = 0
+        for num_str, freq_data in (hot_numbers_learning or {}).items():
+            try:
+                num_idx = int(num_str) - 1
+                if 0 <= num_idx < max_number:
+                    freq = freq_data.get('frequency', freq_data) if isinstance(freq_data, dict) else freq_data
+                    adjusted[num_idx] *= 1.0 + float(freq) * hot_numbers_weight
+                    hot_count += 1
+            except (ValueError, KeyError, TypeError):
+                continue
+
+        cold_count = 0
+        for num in (cold_numbers_learning or []):
+            try:
+                num_idx = int(num) - 1
+                if 0 <= num_idx < max_number:
+                    adjusted[num_idx] *= 1.0 - cold_penalty_weight
+                    cold_count += 1
+            except (ValueError, TypeError):
+                continue
+
+        position_adjustments = 0
+        if position_accuracy:
+            total_acc = sum(
+                d.get('accuracy', 0) for d in position_accuracy.values() if isinstance(d, dict) and d.get('accuracy', 0) > 0
+            )
+            acc_count = sum(1 for d in position_accuracy.values() if isinstance(d, dict) and d.get('accuracy', 0) > 0)
+            if acc_count > 0 and (total_acc / acc_count) > 0.05:
+                adjusted *= 1.0 + (total_acc / acc_count) * position_weight
+                position_adjustments = acc_count
+
+        if target_sum > 0 and sum_range.get('min', 0) > 0:
+            expected_per_number = target_sum / draw_size
+            for num in range(1, max_number + 1):
+                deviation = abs(num - expected_per_number) / max(expected_per_number, 1e-8)
+                if deviation < 0.5:
+                    adjusted[num - 1] *= 1.0 + sum_weight * (1 - deviation)
+
+        total = np.sum(adjusted)
+        if total > 0:
+            adjusted /= total
+            trace.log('INFO', 'LEARNING_APPLIED', 'Applied learning data adjustments', {
+                'hot_numbers_boosted': hot_count,
+                'cold_numbers_penalized': cold_count,
+                'position_adjustments': position_adjustments,
+                'sum_target': float(f'{target_sum:.1f}') if target_sum > 0 else None,
+            })
+        return adjusted
+
+    @staticmethod
+    def _apply_diversity_penalties(
+        probs: np.ndarray,
+        number_usage_count: dict,
+        diversity_mode: str,
+        max_number: int,
+        trace,
+    ) -> np.ndarray:
+        """Apply diversity penalties based on number usage counts. Returns re-normalised array."""
+        adjusted = probs.copy()
+        for num in range(1, max_number + 1):
+            usage_count = number_usage_count.get(num, 0)
+            if diversity_mode == "pure_unique" and usage_count > 0:
+                adjusted[num - 1] = 0.0
+            elif diversity_mode == "calibrated_diversity":
+                adjusted[num - 1] *= 1.0 / (1.0 + usage_count ** 2)
+
+        total = np.sum(adjusted)
+        if total > 0:
+            adjusted /= total
+            trace.log('INFO', 'DIVERSITY_PENALTY', f'Applied {diversity_mode} penalties', {
+                'unique_numbers_used': sum(1 for v in number_usage_count.values() if v > 0),
+                'total_numbers': max_number,
+            })
+            return adjusted
+
+        # Fallback: all numbers eliminated — revert
+        trace.log('WARNING', 'DIVERSITY_FALLBACK', 'All numbers eliminated, reverting to un-penalised')
+        return probs.copy()
+
     def predict_single_model(
         self,
         model_name: str,
@@ -1252,141 +1360,27 @@ class PredictionEngine:
                 health_score,
                 historical_probs
             )
-            alpha = 0.3 + (0.6 * health_score)
-            trace.log('INFO', 'BIAS_CORRECTION', f'Applied bias correction', {
+            alpha = self._alpha(health_score)
+            trace.log('INFO', 'BIAS_CORRECTION', 'Applied bias correction', {
                 'alpha': float(f'{alpha:.3f}'),
-                'health_score': float(f'{health_score:.3f}')
+                'health_score': float(f'{health_score:.3f}'),
             })
-            
+
             # 3. Enforce range
             safeguarded_probs = self.prob_gen.enforce_range(corrected_probs)
             trace.log('INFO', 'RANGE_ENFORCE', f'Enforced number range [1, {self.prob_gen.num_numbers}]')
-            
-            # 3.3. Apply learning data adjustments (if provided)
-            if learning_data:
-                learning_adjusted_probs = safeguarded_probs.copy()
-                
-                # Extract learning insights
-                hot_numbers_learning = learning_data.get('analysis', {}).get('number_frequency', {})
-                cold_numbers_learning = learning_data.get('analysis', {}).get('cold_numbers', [])
-                position_accuracy = learning_data.get('analysis', {}).get('position_accuracy', {})
-                target_sum = learning_data.get('avg_sum', 0)
-                sum_range = learning_data.get('sum_range', {'min': 0, 'max': 999})
-                
-                # 1. Boost probabilities for hot numbers from learning
-                hot_numbers_weight = 0.15  # Learning boost strength
-                hot_count = 0
-                if hot_numbers_learning:
-                    for num_str, freq_data in hot_numbers_learning.items():
-                        try:
-                            num_idx = int(num_str) - 1
-                            if 0 <= num_idx < max_number:
-                                freq = freq_data.get('frequency', freq_data) if isinstance(freq_data, dict) else freq_data
-                                boost_factor = 1.0 + (float(freq) * hot_numbers_weight)
-                                learning_adjusted_probs[num_idx] *= boost_factor
-                                hot_count += 1
-                        except (ValueError, KeyError, TypeError):
-                            continue
-                
-                # 2. Penalize cold numbers from learning
-                cold_penalty_weight = 0.12
-                cold_count = 0
-                if cold_numbers_learning:
-                    for num in cold_numbers_learning:
-                        try:
-                            num_idx = int(num) - 1
-                            if 0 <= num_idx < max_number:
-                                penalty_factor = 1.0 - cold_penalty_weight
-                                learning_adjusted_probs[num_idx] *= penalty_factor
-                                cold_count += 1
-                        except (ValueError, TypeError):
-                            continue
-                
-                # 3. Apply position accuracy weighting
-                position_weight = 0.10
-                position_adjustments = 0
-                if position_accuracy:
-                    # Calculate average position accuracy as an overall boost indicator
-                    total_accuracy = 0
-                    accuracy_count = 0
-                    for pos_key, pos_data in position_accuracy.items():
-                        if isinstance(pos_data, dict):
-                            accuracy = pos_data.get('accuracy', 0)
-                            if accuracy > 0:
-                                total_accuracy += accuracy
-                                accuracy_count += 1
-                    
-                    # If we have good overall position accuracy, apply a modest global boost
-                    if accuracy_count > 0:
-                        avg_accuracy = total_accuracy / accuracy_count
-                        if avg_accuracy > 0.05:  # Above 5% average accuracy
-                            position_boost = 1.0 + (avg_accuracy * position_weight)
-                            learning_adjusted_probs = learning_adjusted_probs * position_boost
-                            position_adjustments = accuracy_count
-                
-                # 4. Sum-based probability adjustment
-                # Favor numbers that are more likely to produce sums near the target
-                sum_weight = 0.08
-                if target_sum > 0 and sum_range.get('min', 0) > 0:
-                    # Calculate expected contribution of each number to the target sum
-                    expected_per_number = target_sum / draw_size
-                    sum_adjustments = 0
-                    
-                    for num in range(1, max_number + 1):
-                        num_idx = num - 1
-                        # Numbers close to expected contribution get slight boost
-                        deviation = abs(num - expected_per_number) / expected_per_number
-                        if deviation < 0.5:  # Within 50% of expected contribution
-                            sum_boost = 1.0 + (sum_weight * (1 - deviation))
-                            learning_adjusted_probs[num_idx] *= sum_boost
-                            sum_adjustments += 1
-                
-                # Re-normalize after learning adjustments
-                if np.sum(learning_adjusted_probs) > 0:
-                    safeguarded_probs = learning_adjusted_probs / np.sum(learning_adjusted_probs)
-                    trace.log('INFO', 'LEARNING_APPLIED', f'Applied comprehensive learning data adjustments', {
-                        'hot_numbers_boosted': hot_count,
-                        'cold_numbers_penalized': cold_count,
-                        'position_adjustments': position_adjustments,
-                        'sum_target': float(f'{target_sum:.1f}') if target_sum > 0 else None,
-                        'sum_range': f"{sum_range.get('min', 0):.0f}-{sum_range.get('max', 999):.0f}",
-                        'weights': {
-                            'hot_boost': float(f'{hot_numbers_weight:.2f}'),
-                            'cold_penalty': float(f'{cold_penalty_weight:.2f}'),
-                            'position_weight': float(f'{position_weight:.2f}'),
-                            'sum_weight': float(f'{sum_weight:.2f}')
-                        }
-                    })
-            
-            # 3.5. Apply diversity penalties (if enabled)
+
+            # 3.3. Apply learning data adjustments
+            safeguarded_probs = self._apply_learning_adjustments(
+                safeguarded_probs, learning_data, max_number, draw_size, trace
+            )
+
+            # 3.5. Apply diversity penalties
             final_probs = safeguarded_probs.copy()
             if no_repeat_numbers and number_usage_count:
-                diversity_adjusted_probs = safeguarded_probs.copy()
-                
-                for num in range(1, max_number + 1):
-                    usage_count = number_usage_count.get(num, 0)
-                    
-                    if diversity_mode == "pure_unique":
-                        # Pure uniqueness: Eliminate already-used numbers
-                        if usage_count > 0:
-                            diversity_adjusted_probs[num - 1] = 0.0
-                    
-                    elif diversity_mode == "calibrated_diversity":
-                        # Calibrated diversity: Apply exponential penalty
-                        penalty_factor = 1.0 / (1.0 + usage_count ** 2)
-                        diversity_adjusted_probs[num - 1] *= penalty_factor
-                
-                # Re-normalize to ensure valid probability distribution
-                if np.sum(diversity_adjusted_probs) > 0:
-                    final_probs = diversity_adjusted_probs / np.sum(diversity_adjusted_probs)
-                    trace.log('INFO', 'DIVERSITY_PENALTY', f'Applied {diversity_mode} penalties', {
-                        'unique_numbers_used': len([k for k, v in number_usage_count.items() if v > 0]),
-                        'total_numbers': max_number
-                    })
-                else:
-                    # Fallback: Use least-used numbers if all eliminated
-                    trace.log('WARNING', 'DIVERSITY_FALLBACK', 'All numbers eliminated, using least-used')
-                    final_probs = safeguarded_probs.copy()
+                final_probs = self._apply_diversity_penalties(
+                    safeguarded_probs, number_usage_count, diversity_mode, max_number, trace
+                )
             
             # 4. Sample using Gumbel-Top-K with temperature control
             sampled_numbers, selected_probs = self.sampling.gumbel_top_k(
@@ -1592,131 +1586,17 @@ class PredictionEngine:
             safeguarded_probs = self.prob_gen.enforce_range(ensemble_probs)
             trace.log('INFO', 'RANGE_ENFORCE', f'Enforced number range [1, {self.prob_gen.num_numbers}]')
             
-            # 5.3. Apply learning data adjustments (if provided)
-            if learning_data:
-                learning_adjusted_probs = safeguarded_probs.copy()
-                
-                # Extract learning insights
-                hot_numbers_learning = learning_data.get('analysis', {}).get('number_frequency', {})
-                cold_numbers_learning = learning_data.get('analysis', {}).get('cold_numbers', [])
-                position_accuracy = learning_data.get('analysis', {}).get('position_accuracy', {})
-                target_sum = learning_data.get('avg_sum', 0)
-                sum_range = learning_data.get('sum_range', {'min': 0, 'max': 999})
-                
-                # 1. Boost probabilities for hot numbers from learning
-                hot_numbers_weight = 0.15  # Learning boost strength
-                hot_count = 0
-                if hot_numbers_learning:
-                    for num_str, freq_data in hot_numbers_learning.items():
-                        try:
-                            num_idx = int(num_str) - 1
-                            if 0 <= num_idx < max_number:
-                                freq = freq_data.get('frequency', freq_data) if isinstance(freq_data, dict) else freq_data
-                                boost_factor = 1.0 + (float(freq) * hot_numbers_weight)
-                                learning_adjusted_probs[num_idx] *= boost_factor
-                                hot_count += 1
-                        except (ValueError, KeyError, TypeError):
-                            continue
-                
-                # 2. Penalize cold numbers from learning
-                cold_penalty_weight = 0.12
-                cold_count = 0
-                if cold_numbers_learning:
-                    for num in cold_numbers_learning:
-                        try:
-                            num_idx = int(num) - 1
-                            if 0 <= num_idx < max_number:
-                                penalty_factor = 1.0 - cold_penalty_weight
-                                learning_adjusted_probs[num_idx] *= penalty_factor
-                                cold_count += 1
-                        except (ValueError, TypeError):
-                            continue
-                
-                # 3. Apply position accuracy weighting
-                position_weight = 0.10
-                position_adjustments = 0
-                if position_accuracy:
-                    # Calculate average position accuracy as an overall boost indicator
-                    total_accuracy = 0
-                    accuracy_count = 0
-                    for pos_key, pos_data in position_accuracy.items():
-                        if isinstance(pos_data, dict):
-                            accuracy = pos_data.get('accuracy', 0)
-                            if accuracy > 0:
-                                total_accuracy += accuracy
-                                accuracy_count += 1
-                    
-                    # If we have good overall position accuracy, apply a modest global boost
-                    if accuracy_count > 0:
-                        avg_accuracy = total_accuracy / accuracy_count
-                        if avg_accuracy > 0.05:  # Above 5% average accuracy
-                            position_boost = 1.0 + (avg_accuracy * position_weight)
-                            learning_adjusted_probs = learning_adjusted_probs * position_boost
-                            position_adjustments = accuracy_count
-                
-                # 4. Sum-based probability adjustment
-                # Favor numbers that are more likely to produce sums near the target
-                sum_weight = 0.08
-                if target_sum > 0 and sum_range.get('min', 0) > 0:
-                    # Calculate expected contribution of each number to the target sum
-                    expected_per_number = target_sum / draw_size
-                    sum_adjustments = 0
-                    
-                    for num in range(1, max_number + 1):
-                        num_idx = num - 1
-                        # Numbers close to expected contribution get slight boost
-                        deviation = abs(num - expected_per_number) / expected_per_number
-                        if deviation < 0.5:  # Within 50% of expected contribution
-                            sum_boost = 1.0 + (sum_weight * (1 - deviation))
-                            learning_adjusted_probs[num_idx] *= sum_boost
-                            sum_adjustments += 1
-                
-                # Re-normalize after learning adjustments
-                if np.sum(learning_adjusted_probs) > 0:
-                    safeguarded_probs = learning_adjusted_probs / np.sum(learning_adjusted_probs)
-                    trace.log('INFO', 'LEARNING_APPLIED', f'Applied comprehensive learning data adjustments', {
-                        'hot_numbers_boosted': hot_count,
-                        'cold_numbers_penalized': cold_count,
-                        'position_adjustments': position_adjustments,
-                        'sum_target': float(f'{target_sum:.1f}') if target_sum > 0 else None,
-                        'sum_range': f"{sum_range.get('min', 0):.0f}-{sum_range.get('max', 999):.0f}",
-                        'weights': {
-                            'hot_boost': float(f'{hot_numbers_weight:.2f}'),
-                            'cold_penalty': float(f'{cold_penalty_weight:.2f}'),
-                            'position_weight': float(f'{position_weight:.2f}'),
-                            'sum_weight': float(f'{sum_weight:.2f}')
-                        }
-                    })
-            
-            # 5.5. Apply diversity penalties (if enabled)
+            # 5.3. Apply learning data adjustments
+            safeguarded_probs = self._apply_learning_adjustments(
+                safeguarded_probs, learning_data, max_number, draw_size, trace
+            )
+
+            # 5.5. Apply diversity penalties
             final_probs = safeguarded_probs.copy()
             if no_repeat_numbers and number_usage_count:
-                diversity_adjusted_probs = safeguarded_probs.copy()
-                
-                for num in range(1, max_number + 1):
-                    usage_count = number_usage_count.get(num, 0)
-                    
-                    if diversity_mode == "pure_unique":
-                        # Pure uniqueness: Eliminate already-used numbers
-                        if usage_count > 0:
-                            diversity_adjusted_probs[num - 1] = 0.0
-                    
-                    elif diversity_mode == "calibrated_diversity":
-                        # Calibrated diversity: Apply exponential penalty
-                        penalty_factor = 1.0 / (1.0 + usage_count ** 2)
-                        diversity_adjusted_probs[num - 1] *= penalty_factor
-                
-                # Re-normalize to ensure valid probability distribution
-                if np.sum(diversity_adjusted_probs) > 0:
-                    final_probs = diversity_adjusted_probs / np.sum(diversity_adjusted_probs)
-                    trace.log('INFO', 'DIVERSITY_PENALTY', f'Applied {diversity_mode} penalties', {
-                        'unique_numbers_used': len([k for k, v in number_usage_count.items() if v > 0]),
-                        'total_numbers': max_number
-                    })
-                else:
-                    # Fallback: Use least-used numbers if all eliminated
-                    trace.log('WARNING', 'DIVERSITY_FALLBACK', 'All numbers eliminated, using least-used')
-                    final_probs = safeguarded_probs.copy()
+                final_probs = self._apply_diversity_penalties(
+                    safeguarded_probs, number_usage_count, diversity_mode, max_number, trace
+                )
             
             # 6. Sample using Gumbel-Top-K
             sampled_numbers, selected_probs = self.sampling.gumbel_top_k(
