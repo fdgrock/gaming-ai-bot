@@ -16,7 +16,7 @@ IMPACT:
 -------
 - For Lotto 6/49: config.get('max_number', 49) would always return 49 (default)
 - For Lotto Max: config.get('max_number', 49) would always return 49 (default) - WRONG!
-  Lotto Max should use max_number=50 (7 numbers from 1-50)
+  Lotto Max should use max_number=52 (7 numbers from 1-52)
 
 This meant:
 1. Lotto Max predictions were silently failing to validate numbers > 49
@@ -50,7 +50,7 @@ def test_comprehensive():
     print("="*80 + "\n")
     
     games = {
-        "Lotto Max": {"expected_max": 50, "main_numbers": 7},
+        "Lotto Max": {"expected_max": 52, "main_numbers": 7},
         "Lotto 6/49": {"expected_max": 49, "main_numbers": 6},
     }
     
@@ -79,7 +79,7 @@ def test_comprehensive():
     print("\nIMPACT OF FIX:")
     print("-" * 80)
     print("✅ Lotto 6/49: Continues to work correctly with max_number=49")
-    print("✅ Lotto Max: NOW FIXED! Uses correct max_number=50 instead of 49")
+    print("✅ Lotto Max: NOW FIXED! Uses correct max_number=52 instead of 49")
     print("✅ All other games: Use their correct max_number values")
     print("\n✅ Predictions should now:")
     print("   - Generate numbers within correct range for each game")

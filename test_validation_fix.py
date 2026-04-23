@@ -24,7 +24,7 @@ def test_validation_for_games():
     
     test_cases = [
         # (game_name, valid_numbers, invalid_numbers)
-        ("Lotto Max", [1, 2, 3, 4, 5, 6], [1, 2, 3, 4, 5, 51]),  # Lotto Max: max is 50
+        ("Lotto Max", [1, 2, 3, 4, 5, 6], [1, 2, 3, 4, 5, 53]),  # Lotto Max: max is 52
         ("Lotto 6/49", [1, 2, 3, 4, 5, 6], [1, 2, 3, 4, 5, 50]),  # Lotto 6/49: max is 49
         ("Daily Grand", [1, 2, 3, 4, 5, 6], [1, 2, 3, 4, 5, 50]),  # Daily Grand: max is 49
         ("Powerball", [1, 2, 3, 4, 5, 6], [1, 2, 3, 4, 5, 70]),  # Powerball: max is 69

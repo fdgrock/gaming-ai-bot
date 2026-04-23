@@ -51,7 +51,7 @@ class SeasonalPatternDetector:
                 return self._empty_seasonal_result()
             
             # Determine game parameters
-            max_number = 50 if 'max' in game_type.lower() else 49
+            max_number = 52 if 'max' in game_type.lower() else 49
             numbers_per_draw = 7 if 'max' in game_type.lower() else 6
             
             # Convert dates to pandas datetime for easier manipulation
@@ -445,7 +445,7 @@ class CyclicalTrendAnalyzer:
                 return self._empty_cyclical_result()
             
             # Determine game parameters
-            max_number = 50 if 'max' in game_type.lower() else 49
+            max_number = 52 if 'max' in game_type.lower() else 49
             numbers_per_draw = 7 if 'max' in game_type.lower() else 6
             
             # Create time series for each number

@@ -199,7 +199,7 @@ def validate_lottery_numbers(numbers: List[int], game_name: str) -> bool:
         "lotto_max": {
             "count": 7,
             "min_number": 1,
-            "max_number": 50,
+            "max_number": 52,
             "unique": True
         },
         "lotto_6_49": {

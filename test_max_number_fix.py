@@ -7,7 +7,7 @@ def test_max_number_extraction():
     """Test that max_number is properly extracted from game configs."""
     
     test_cases = [
-        ("Lotto Max", 50),
+        ("Lotto Max", 52),
         ("Lotto 6/49", 49),
         ("Daily Grand", 49),
         ("Powerball", 69),

@@ -140,7 +140,7 @@ class AdvancedLSTMEnsembleTrainer:
     # Games configuration
     GAMES = {
         'lotto_6_49': GameConfig(name='lotto_6_49', num_numbers=49, num_positions=6),
-        'lotto_max': GameConfig(name='lotto_max', num_numbers=50, num_positions=7)
+        'lotto_max': GameConfig(name='lotto_max', num_numbers=52, num_positions=7)
     }
     
     # Ensemble configuration
@@ -153,70 +153,174 @@ class AdvancedLSTMEnsembleTrainer:
     VALIDATION_SPLIT = 0.15
     TEST_SPLIT = 0.15
     LEARNING_RATE = 0.001
-    LOOKBACK = 100  # 100-draw lookback
-    
+    LOOKBACK_DRAWS = 15  # look back 15 COMPLETE draws (no partial-draw leakage)
+
     def __init__(self, game: str = None):
         """
         Initialize the ensemble trainer.
-        
+
         Args:
             game: Optional game name to filter training. If None, trains all games.
         """
         self.scaler = {}
         self.training_logs = []
         self.game_filter = game  # Optional: can filter to specific game
+
+    def create_draw_aligned_sequences(
+        self,
+        X: np.ndarray,
+        y: np.ndarray,
+        draw_indices: np.ndarray,
+        num_positions: int,
+        target_labels: np.ndarray = None,
+    ):
+        """Create draw-aligned LSTM sequences that prevent within-draw leakage.
+
+        Each sequence contains exactly LOOKBACK_DRAWS complete draws.
+        The target is the SMALLEST DRAWN number of the draw immediately after the
+        window. target_labels (1=drawn, 0=not drawn) is used to identify which
+        rows belong to drawn numbers; falls back to all rows if not supplied.
+
+        Returns:
+            X_seq:         (n, LOOKBACK_DRAWS * num_positions, n_features)
+            y_seq:         (n,)         -- 0-based class of first drawn number
+            t_draw:        (n,)         -- draw_idx of the target draw
+            all_drawn:     list[list]   -- all 0-based drawn class indices per sequence
+        """
+        seq_len = self.LOOKBACK_DRAWS * num_positions
+
+        # Group rows by draw in chronological order
+        unique_draws = sorted(np.unique(draw_indices))
+        draw_to_rows: dict = {}
+        for row_i, d in enumerate(draw_indices):
+            draw_to_rows.setdefault(int(d), []).append(row_i)
+
+        X_seq_list, y_list, t_draw_list, all_drawn_list = [], [], [], []
+
+        # Slide draw-by-draw (stride = 1 draw)
+        for di in range(self.LOOKBACK_DRAWS, len(unique_draws)):
+            target_draw = unique_draws[di]
+            input_draws = unique_draws[di - self.LOOKBACK_DRAWS: di]
+
+            # Collect input rows from the LOOKBACK_DRAWS draws before the target
+            input_rows = []
+            for d in input_draws:
+                input_rows.extend(draw_to_rows.get(int(d), []))
+
+            target_rows = draw_to_rows.get(int(target_draw), [])
+
+            # Identify rows that correspond to actually-drawn numbers (target == 1).
+            # When target_labels is available (all 52 numbers per draw in the feature
+            # matrix), only drawn rows have target==1.  Without labels fall back to
+            # all rows so the function remains backward-compatible.
+            if target_labels is not None:
+                drawn_rows = [r for r in target_rows if target_labels[r] == 1]
+            else:
+                drawn_rows = target_rows
+
+            if not input_rows or not drawn_rows:
+                continue
+
+            X_win = X[input_rows]  # shape: (LOOKBACK_DRAWS * num_pos, n_features) ideally
+            # Pad at front or trim at end if draw sizes are uneven
+            if len(X_win) < seq_len:
+                pad = np.zeros((seq_len - len(X_win), X_win.shape[1]), dtype=np.float32)
+                X_win = np.vstack([pad, X_win])
+            elif len(X_win) > seq_len:
+                X_win = X_win[-seq_len:]
+
+            X_seq_list.append(X_win)
+            # Use first drawn number (sorted by class = sorted by lottery number) as primary target
+            drawn_classes = sorted([int(y[r]) for r in drawn_rows])
+            y_list.append(drawn_classes[0])
+            all_drawn_list.append(drawn_classes)
+            t_draw_list.append(int(target_draw))
+
+        return (
+            np.array(X_seq_list, dtype=np.float32),
+            np.array(y_list, dtype=np.int32),
+            np.array(t_draw_list, dtype=int),
+            all_drawn_list,
+        )
     
-    def create_sequences(self, X: np.ndarray, lookback: int = 100, stride: int = 10) -> np.ndarray:
-        """Create sequences for LSTM input."""
-        sequences = []
-        for i in range(0, len(X) - lookback, stride):
-            sequences.append(X[i:i + lookback])
-        return np.array(sequences)
-    
-    def load_data_and_prepare(self, game_name: str, seed: int = 42) -> Tuple[np.ndarray, np.ndarray]:
-        """Load and prepare data for training."""
+    def load_data_and_prepare(self, game_name: str, seed: int = 42) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+        """Load and prepare data for training.
+
+        Returns:
+            (X, y, draw_indices, target_labels)
+            X             -- normalized feature matrix (n_rows, n_features)
+            y             -- 0-based lottery number labels per row
+            draw_indices  -- draw_idx per row (for skipgram/distribution lookup)
+            target_labels -- 1 if the row's number was drawn in that draw, 0 otherwise
+        """
         logger.info(f"Loading data for {game_name} with seed {seed}...")
-        
-        # Load features
+
         features_path = DATA_DIR / game_name / "temporal_features.parquet"
         if not features_path.exists():
             raise FileNotFoundError(f"Features not found: {features_path}")
-        
+
         df = pd.read_parquet(features_path)
-        
-        # Extract features and labels
-        feature_cols = [col for col in df.columns if col not in ['draw_date', 'result_numbers']]
+
+        # Merge global draw features (per-draw stats -> broadcast to all per-number rows)
+        _draw_col = 'draw_idx' if 'draw_idx' in df.columns else 'draw_index' if 'draw_index' in df.columns else None
+        try:
+            global_df = pd.read_parquet(DATA_DIR / game_name / "global_features.parquet")
+            _gdraw_col = 'draw_idx' if 'draw_idx' in global_df.columns else 'draw_index'
+            _global_feat_cols = [c for c in global_df.columns if c not in {'draw_idx', 'draw_index'}]
+            global_subset = global_df[[_gdraw_col] + _global_feat_cols].rename(
+                columns={_gdraw_col: _draw_col or 'draw_idx'}
+            )
+            df = df.merge(global_subset, on=_draw_col or 'draw_idx', how='left')
+            logger.info(f"Merged global features: +{len(_global_feat_cols)} columns -> {df.shape[1]} total")
+        except Exception as _ge:
+            logger.warning(f"Could not merge global features (continuing with temporal only): {_ge}")
+
+        # Capture draw_indices for target alignment (before dropping the column)
+        if _draw_col and _draw_col in df.columns:
+            draw_indices = df[_draw_col].values.astype(int)
+        else:
+            draw_indices = np.arange(len(df), dtype=int)
+
+        # Capture target labels (1 = this number was drawn in this draw, 0 = not drawn)
+        # The feature matrix includes ALL candidate numbers per draw; target identifies drawn ones.
+        target_labels = df['target'].values.astype(np.int32) if 'target' in df.columns else np.zeros(len(df), dtype=np.int32)
+
+        # Extract features - drop ALL non-feature columns to prevent data leakage
+        _NON_FEAT = {'draw_index', 'draw_idx', 'number', 'target', 'draw_date', 'result_numbers'}
+        feature_cols = [col for col in df.columns if col not in _NON_FEAT]
         X = df[feature_cols].values.astype(np.float32)
-        
-        # Parse result numbers (1-based, need 0-based for sklearn)
-        y_all = []
-        if 'result_numbers' in df.columns:
-            for result_str in df['result_numbers']:
-                try:
-                    numbers = [int(x.strip()) - 1 for x in str(result_str).split(',')]
-                    y_all.append(numbers)
-                except:
-                    pass
-        
+
+        # Extract labels (1-based lottery numbers -> 0-based for sparse_categorical_crossentropy)
+        if 'number' in df.columns:
+            y = (df['number'].values.astype(int) - 1).astype(np.int32)
+        else:
+            y = np.zeros(len(X), dtype=np.int32)
+
         # Normalize features
         if game_name not in self.scaler:
             self.scaler[game_name] = StandardScaler()
             X = self.scaler[game_name].fit_transform(X)
         else:
             X = self.scaler[game_name].transform(X)
-        
-        # Flatten result numbers for simplicity (use first position)
-        y = np.array([y_all[i][0] if i < len(y_all) else 0 for i in range(len(X))], dtype=np.int32)
-        
+
         logger.info(f"Loaded {len(X)} samples with {X.shape[1]} features for {game_name}")
-        
-        return X, y
-    
-    def build_lstm_model(self, game: GameConfig, n_features: int) -> Model:
-        """Build LSTM encoder-decoder architecture."""
-        
-        # Input: 3D tensor [batch, 100, n_features]
-        inputs = layers.Input(shape=(self.LOOKBACK, n_features), name='input_sequence')
+        drawn_count = int(target_labels.sum()) if target_labels is not None else 0
+        logger.info(f"Target labels: {drawn_count} drawn rows out of {len(target_labels)} total")
+
+        return X, y, draw_indices, target_labels
+
+    def build_lstm_model(self, game: GameConfig, n_features: int, seq_len: int = None) -> Model:
+        """Build LSTM encoder-decoder architecture.
+
+        Args:
+            seq_len: Sequence length in rows (LOOKBACK_DRAWS * num_positions).
+                     Derived from game config if not supplied.
+        """
+        if seq_len is None:
+            seq_len = self.LOOKBACK_DRAWS * game.num_positions
+
+        # Input: 3D tensor [batch, seq_len, n_features]
+        inputs = layers.Input(shape=(seq_len, n_features), name='input_sequence')
         
         # Encoder: Bidirectional LSTM with return_sequences for attention
         encoder = layers.Bidirectional(
@@ -237,10 +341,10 @@ class AdvancedLSTMEnsembleTrainer:
             encoder_sequences, state_h
         )
         
-        # Decoder: LSTM with attention context (2D) - need to expand for LSTM input
+        # Decoder: LSTM with attention context, initialized with encoder states
         attention_expanded = layers.Reshape((1, 256))(attention_output)  # [batch, 1, 256]
         decoder = layers.LSTM(256, name='decoder_lstm')
-        decoder_output = decoder(attention_expanded)
+        decoder_output = decoder(attention_expanded, initial_state=[state_h, state_c])
         
         # Output heads (multi-task learning)
         # Primary task (50%)
@@ -259,50 +363,81 @@ class AdvancedLSTMEnsembleTrainer:
         distribution_output = layers.Dense(game.num_numbers, activation='softmax', name='distribution')(distribution)
         
         model = Model(inputs=inputs, outputs=[primary_output, skipgram_output, distribution_output])
-        
-        # Multi-task loss weights
+
+        # Multi-task loss weights:
+        # - primary: sparse_categorical_crossentropy (0-based integer labels)
+        # - skipgram/distribution: categorical_crossentropy (normalized multi-hot vectors)
         model.compile(
             optimizer=keras.optimizers.Adam(learning_rate=self.LEARNING_RATE),
             loss={
                 'primary': 'sparse_categorical_crossentropy',
-                'skipgram': 'sparse_categorical_crossentropy',
-                'distribution': 'sparse_categorical_crossentropy'
+                'skipgram': 'categorical_crossentropy',
+                'distribution': 'categorical_crossentropy'
             },
             loss_weights={'primary': 0.5, 'skipgram': 0.25, 'distribution': 0.25},
             metrics={
                 'primary': 'accuracy',
-                'skipgram': 'accuracy',
-                'distribution': 'accuracy'
             }
         )
-        
+
         return model
     
-    def calculate_metrics(self, y_true: np.ndarray, y_pred: np.ndarray) -> ModelMetrics:
-        """Calculate evaluation metrics."""
-        # Get top-5 and top-10 predictions
+    def calculate_metrics(self, y_true: np.ndarray, y_pred: np.ndarray,
+                          all_drawn_classes: list = None) -> ModelMetrics:
+        """Calculate evaluation metrics.
+
+        Args:
+            y_true:           (n,) array of 0-based primary target (smallest drawn number).
+            y_pred:           (n, num_classes) probability array from the primary head.
+            all_drawn_classes: list of lists — all 0-based drawn class indices per sequence.
+                               When provided, multi-ball hit-rate is used instead of
+                               single-label accuracy, giving a realistic lottery metric.
+        """
         top_5_indices = np.argsort(y_pred, axis=1)[:, -5:]
         top_10_indices = np.argsort(y_pred, axis=1)[:, -10:]
-        
-        top_5_accuracy = np.mean([y in top_5 for y, top_5 in zip(y_true, top_5_indices)])
-        top_10_accuracy = np.mean([y in top_10 for y, top_10 in zip(y_true, top_10_indices)])
+
+        if all_drawn_classes is not None and len(all_drawn_classes) == len(y_pred):
+            # Multi-ball hit rate: fraction of drawn numbers that appear in top-K predictions
+            top_5_sets  = [set(row) for row in top_5_indices]
+            top_10_sets = [set(row) for row in top_10_indices]
+            top_5_accuracy = float(np.mean([
+                len(set(drawn) & t5) / max(len(drawn), 1)
+                for drawn, t5 in zip(all_drawn_classes, top_5_sets)
+            ]))
+            top_10_accuracy = float(np.mean([
+                len(set(drawn) & t10) / max(len(drawn), 1)
+                for drawn, t10 in zip(all_drawn_classes, top_10_sets)
+            ]))
+        else:
+            # Fallback: single-label accuracy against the primary target
+            top_5_accuracy  = float(np.mean([y in t5  for y, t5  in zip(y_true, top_5_indices)]))
+            top_10_accuracy = float(np.mean([y in t10 for y, t10 in zip(y_true, top_10_indices)]))
         
         # KL divergence
         y_pred_normalized = np.clip(y_pred, 1e-7, 1.0)
         uniform = np.ones_like(y_pred) / y_pred.shape[1]
         kl_div = np.mean(np.sum(uniform * np.log(uniform / y_pred_normalized), axis=1))
-        
+
         # Log loss
-        log_loss = -np.mean(np.log(y_pred_normalized[np.arange(len(y_true)), y_true]))
-        
-        # Composite score
-        composite = 0.6 * top_5_accuracy + 0.4 * (1 - np.tanh(kl_div))
-        
+        log_loss_val = -np.mean(np.log(y_pred_normalized[np.arange(len(y_true)), y_true]))
+
+        # Composite score: exp(-kl) keeps calibration signal even when KL >> 1
+        composite = 0.6 * top_5_accuracy + 0.4 * float(np.exp(-max(0.0, kl_div)))
+
+        # Sanity checks - warn if metrics look impossibly good
+        import math as _math
+        if top_5_accuracy > 0.95:
+            logger.warning(f"[SANITY] Suspiciously high Top-5 accuracy: {top_5_accuracy:.4f} - verify target alignment")
+        if log_loss_val <= 0.0:
+            logger.warning(f"[SANITY] Non-positive log-loss: {log_loss_val:.6f} - likely a metric calculation error")
+        if kl_div > _math.log(y_pred.shape[1]) + 1.0:
+            logger.warning(f"[SANITY] KL divergence {kl_div:.4f} exceeds theoretical max - check predictions")
+
         return ModelMetrics(
             top_5_accuracy=top_5_accuracy,
             top_10_accuracy=top_10_accuracy,
             kl_divergence=kl_div,
-            log_loss=log_loss,
+            log_loss=log_loss_val,
             composite_score=composite
         )
     
@@ -314,62 +449,103 @@ class AdvancedLSTMEnsembleTrainer:
         np.random.seed(seed)
         tf.random.set_seed(seed)
         
-        # Load data
-        X, y = self.load_data_and_prepare(game.name, seed)
-        
-        # Create sequences with stride=10
-        stride = 10
-        X_sequences = self.create_sequences(X, self.LOOKBACK, stride=stride)
-        # Apply same stride to targets: take every 10th element starting at LOOKBACK
-        y_sequences = y[self.LOOKBACK::stride]
-        
-        # Ensure alignment - trim to match shortest
-        min_len = min(len(X_sequences), len(y_sequences))
-        X_sequences = X_sequences[:min_len]
-        y_sequences = y_sequences[:min_len]
-        
-        logger.info(f"Sequences created: X={X_sequences.shape}, y={y_sequences.shape}")
-        
-        # Train-val-test split
-        X_train, X_temp, y_train, y_temp = train_test_split(
-            X_sequences, y_sequences, test_size=self.VALIDATION_SPLIT + self.TEST_SPLIT, random_state=seed
+        # Load data (X, y, draw_indices, target_labels)
+        X, y, draw_indices, target_labels = self.load_data_and_prepare(game.name, seed)
+
+        # Draw-aligned sequences: each window = LOOKBACK_DRAWS complete draws,
+        # target = smallest DRAWN number of the NEXT draw.
+        # target_labels identifies which rows correspond to drawn numbers so that
+        # we never use the "row order == class 0" fallback that produced degenerate metrics.
+        X_sequences, y_sequences, target_draw_idxs, all_drawn_classes = self.create_draw_aligned_sequences(
+            X, y, draw_indices, game.num_positions, target_labels
         )
-        X_val, X_test, y_val, y_test = train_test_split(
-            X_temp, y_temp, test_size=self.TEST_SPLIT / (self.VALIDATION_SPLIT + self.TEST_SPLIT), random_state=seed
-        )
-        
+        seq_len = X_sequences.shape[1]  # LOOKBACK_DRAWS * num_positions
+
+        logger.info(f"Draw-aligned sequences: X={X_sequences.shape}, y={y_sequences.shape}, "
+                    f"seq_len={seq_len} ({self.LOOKBACK_DRAWS} draws x {game.num_positions} balls)")
+
+        # Build skipgram (multi-hot, normalized) and distribution targets aligned to sequences
+        n_classes = game.num_numbers
+        _def_sg = np.ones(n_classes, dtype=np.float32) / n_classes
+        _def_dt = np.ones(n_classes, dtype=np.float32) / n_classes
+
+        try:
+            _sg_df  = pd.read_parquet(DATA_DIR / game.name / "skipgram_targets.parquet")
+            _dt_df  = pd.read_parquet(DATA_DIR / game.name / "distribution_targets.parquet")
+            _sg_col = 'draw_idx' if 'draw_idx' in _sg_df.columns else 'draw_index'
+            _dt_col = 'draw_idx' if 'draw_idx' in _dt_df.columns else 'draw_index'
+
+            _sg_lookup: dict = {}
+            for _, _row in _sg_df.iterrows():
+                _vec = np.zeros(n_classes, dtype=np.float32)
+                for _n in _row['target_numbers']:
+                    if 1 <= _n <= n_classes:
+                        _vec[_n - 1] = 1.0
+                _s = _vec.sum()
+                _sg_lookup[int(_row[_sg_col])] = _vec / _s if _s > 0 else _vec
+
+            _dt_lookup: dict = {}
+            for _, _row in _dt_df.iterrows():
+                _arr = np.array(_row['distribution'], dtype=np.float32)
+                _s = _arr.sum()
+                _dt_lookup[int(_row[_dt_col])] = _arr / _s if _s > 0 else _arr
+
+            y_skipgram = np.array([_sg_lookup.get(int(d), _def_sg) for d in target_draw_idxs])
+            y_dist     = np.array([_dt_lookup.get(int(d), _def_dt) for d in target_draw_idxs])
+            logger.info("Using actual skipgram + distribution targets for multi-task heads")
+        except Exception as _te:
+            logger.warning(f"Could not load skipgram/distribution targets, using uniform fallback: {_te}")
+            y_skipgram = np.tile(_def_sg, (len(X_sequences), 1))
+            y_dist     = np.tile(_def_dt, (len(X_sequences), 1))
+
+        # Temporal split - preserve chronological order (draw-aligned sequences are already ordered)
+        n = len(X_sequences)
+        train_end = int(n * (1.0 - self.VALIDATION_SPLIT - self.TEST_SPLIT))
+        val_end   = int(n * (1.0 - self.TEST_SPLIT))
+
+        X_train, X_val, X_test = X_sequences[:train_end], X_sequences[train_end:val_end], X_sequences[val_end:]
+        y_train, y_val, y_test = y_sequences[:train_end], y_sequences[train_end:val_end], y_sequences[val_end:]
+        sg_train, sg_val, sg_test = y_skipgram[:train_end], y_skipgram[train_end:val_end], y_skipgram[val_end:]
+        dt_train, dt_val, dt_test = y_dist[:train_end], y_dist[train_end:val_end], y_dist[val_end:]
+        all_drawn_test = all_drawn_classes[val_end:]  # drawn numbers for multi-ball metric
+
         logger.info(f"Train: {len(X_train)}, Val: {len(X_val)}, Test: {len(X_test)}")
-        
-        # Build model
-        model = self.build_lstm_model(game, X.shape[1])
-        
-        # Train
+
+        # Build model — pass seq_len so the Input layer matches the draw-aligned window size
+        model = self.build_lstm_model(game, X.shape[1], seq_len=seq_len)
+
+        # Train with distinct targets for each head
         history = model.fit(
-            X_train, [y_train, y_train, y_train],
-            validation_data=(X_val, [y_val, y_val, y_val]),
+            X_train, {'primary': y_train, 'skipgram': sg_train, 'distribution': dt_train},
+            validation_data=(X_val, {'primary': y_val, 'skipgram': sg_val, 'distribution': dt_val}),
             epochs=self.EPOCHS,
             batch_size=self.BATCH_SIZE,
             verbose=0,
             callbacks=[
-                keras.callbacks.EarlyStopping(monitor='val_loss', patience=3, restore_best_weights=True)
+                keras.callbacks.EarlyStopping(
+                    monitor='val_loss', patience=10, restore_best_weights=True
+                ),
+                keras.callbacks.ReduceLROnPlateau(
+                    monitor='val_loss', factor=0.5, patience=5, min_lr=1e-6, verbose=0
+                )
             ]
         )
-        
-        # Evaluate
+
+        # Evaluate — multi-ball hit rate against all drawn numbers in each test draw
         predictions, _, _ = model.predict(X_test, verbose=0)
-        metrics = self.calculate_metrics(y_test, predictions)
-        
+        metrics = self.calculate_metrics(y_test, predictions, all_drawn_classes=all_drawn_test)
+
         logger.info(f"Variant {variant_index + 1} Results:")
-        logger.info(f"  Top-5 Accuracy: {metrics.top_5_accuracy:.4f}")
-        logger.info(f"  Top-10 Accuracy: {metrics.top_10_accuracy:.4f}")
+        logger.info(f"  Top-5 Multi-ball Hit Rate: {metrics.top_5_accuracy:.4f}")
+        logger.info(f"  Top-10 Multi-ball Hit Rate: {metrics.top_10_accuracy:.4f}")
         logger.info(f"  KL Divergence: {metrics.kl_divergence:.4f}")
         logger.info(f"  Composite Score: {metrics.composite_score:.4f}")
-        
-        # Save model
+
+        # Save model (.keras format handles custom layers without extra registry)
         model_dir = MODELS_DIR / game.name / "lstm_variants"
         model_dir.mkdir(parents=True, exist_ok=True)
-        
-        model_path = model_dir / f"lstm_variant_{variant_index + 1}_seed_{seed}.h5"
+
+        model_path = model_dir / f"lstm_variant_{variant_index + 1}_seed_{seed}.keras"
         model.save(model_path)
         logger.info(f"Model saved to {model_path}")
         

@@ -99,7 +99,7 @@ class ProbabilityGenerator:
             },
             "lotto_max": {
                 "main_numbers": 7,
-                "number_range": (1, 50),
+                "number_range": (1, 52),
                 "bonus": 1,
                 "display_name": "Lotto Max",
                 "registry_name": "lotto_max"  # Normalized name matching folder structure
@@ -466,7 +466,7 @@ class ProbabilityGenerator:
                             else:
                                 sample_probs = pos_probs
                             
-                            # Add this position's probabilities (classes 0-49 map to numbers 1-50)
+                            # Add this position's probabilities (classes 0-51 map to numbers 1-52)
                             for class_id, prob in enumerate(sample_probs):
                                 if class_id < self.num_numbers:
                                     number_probs[class_id] += prob

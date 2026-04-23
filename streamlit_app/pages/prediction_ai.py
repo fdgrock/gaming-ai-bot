@@ -356,7 +356,7 @@ class AdaptiveLearningSystem:
     
     def _categorize_zones(self, numbers: List[int]) -> Dict[str, int]:
         """Categorize numbers into zones."""
-        max_number = 50 if 'max' in self.game.lower() else 49
+        max_number = 52 if 'max' in self.game.lower() else 49
         low_boundary = max_number // 3
         mid_boundary = (max_number * 2) // 3
         
@@ -1211,6 +1211,182 @@ def _load_models_for_type(type_dir: Path, model_type: str) -> List[Dict[str, Any
     return models
 
 
+def _discover_advanced_models(game: str) -> Dict[str, List[Dict[str, Any]]]:
+    """Discover all trained models in models/advanced/{game}/ and return structured metadata.
+
+    Returns a dict with three keys:
+      "tree"     — XGBoost / LightGBM / CatBoost position-model groups
+      "neural"   — LSTM / CNN / Transformer base models
+      "variants" — LSTM variant and Transformer variant files
+    """
+    project_root = Path(__file__).parent.parent.parent
+    game_folder = _sanitize_game_name(game)
+    adv_dir = project_root / "models" / "advanced" / game_folder
+    result: Dict[str, List[Dict[str, Any]]] = {"tree": [], "neural": [], "variants": []}
+
+    if not adv_dir.exists():
+        return result
+
+    # ── Tree models ──────────────────────────────────────────────────────────
+    tree_summary_path = adv_dir / "training_summary.json"
+    tree_summary: Dict = {}
+    if tree_summary_path.exists():
+        try:
+            with open(tree_summary_path, "r") as f:
+                tree_summary = json.load(f)
+        except Exception:
+            pass
+
+    for arch in ("xgboost", "lightgbm", "catboost"):
+        arch_dir = adv_dir / arch
+        if not arch_dir.exists():
+            continue
+        pkl_files = sorted(arch_dir.glob("position_*.pkl")) + sorted(arch_dir.glob("position_*.joblib"))
+        if not pkl_files:
+            continue
+
+        arch_data = tree_summary.get("architectures", {}).get(arch, {})
+        agg = arch_data.get("aggregate_metrics", {})
+        composite = float(agg.get("composite_score", 0.0))
+        top5 = float(agg.get("mean_top_5_accuracy", agg.get("top_5_accuracy", 0.0)))
+
+        result["tree"].append({
+            "label": f"{arch.upper()} ({len(pkl_files)} position models)",
+            "type": arch,
+            "source": "advanced_tree",
+            "arch_dir": str(arch_dir),
+            "model_files": [str(f) for f in pkl_files],
+            "composite_score": composite,
+            "top5_accuracy": top5,
+            "num_positions": len(pkl_files),
+        })
+
+    # ── Neural base models ───────────────────────────────────────────────────
+    _neural_window: Dict[str, int] = {"lstm": 100, "cnn": 50, "transformer": 20}
+    for arch in ("lstm", "cnn", "transformer"):
+        arch_dir = adv_dir / arch
+        if not arch_dir.exists():
+            continue
+        model_files = list(arch_dir.glob("*.h5")) + list(arch_dir.glob("*.keras"))
+        if not model_files:
+            continue
+        model_path = model_files[0]
+
+        summary_path = adv_dir / f"training_summary_{arch}.json"
+        composite, top5 = 0.0, 0.0
+        if summary_path.exists():
+            try:
+                with open(summary_path, "r") as f:
+                    s = json.load(f)
+                metrics = s.get("metrics", {})
+                composite = float(metrics.get("composite_score", 0.0))
+                top5 = float(metrics.get("top_5_accuracy", 0.0))
+            except Exception:
+                pass
+
+        result["neural"].append({
+            "label": f"{arch.upper()} Base",
+            "type": arch,
+            "source": "advanced_neural",
+            "model_path": str(model_path),
+            "window_size": _neural_window.get(arch, 20),
+            "composite_score": composite,
+            "top5_accuracy": top5,
+        })
+
+    # ── Ensemble variants ────────────────────────────────────────────────────
+    _variant_lookback = 15  # LOOKBACK_DRAWS used by ensemble trainers
+    _game_pos = {"Lotto Max": 7, "Lotto 6/49": 6}
+    for arch in ("lstm", "transformer"):
+        variant_dir = adv_dir / f"{arch}_variants"
+        if not variant_dir.exists():
+            continue
+
+        num_pos = _game_pos.get(game, 6)
+        seq_len = _variant_lookback * num_pos
+
+        # Build a lookup of metrics from metadata.json (best-effort; non-fatal if missing)
+        _meta_lookup: Dict[str, Dict[str, float]] = {}  # key: "variant_N_seed_S" → metrics
+        meta_path = variant_dir / "metadata.json"
+        if meta_path.exists():
+            try:
+                import json as _json_mod
+                with open(meta_path, "r", encoding="utf-8") as _mf:
+                    _meta = _json_mod.load(_mf)
+                for _v in _meta.get("variants", []):
+                    _vi = int(_v.get("variant_index", 0))
+                    _vs = _v.get("seed")
+                    _key = f"variant_{_vi + 1}_seed_{_vs}"
+                    _meta_lookup[_key] = _v.get("metrics", {})
+            except Exception:
+                pass  # proceed with zero metrics for all variants
+
+        # Scan directory for all variant model files regardless of metadata
+        _model_files = sorted(
+            list(variant_dir.glob(f"{arch}_variant_*.keras"))
+            + list(variant_dir.glob(f"{arch}_variant_*.h5"))
+        )
+        _seen_keys: set = set()
+        import re as _re
+        for _vf in _model_files:
+            # Parse variant index and seed from filename: {arch}_variant_{N}_seed_{S}.keras
+            _m = _re.match(
+                rf"{arch}_variant_(\d+)_seed_(\w+)\.(keras|h5)$",
+                _vf.name,
+                _re.IGNORECASE,
+            )
+            if not _m:
+                continue
+            _vidx_1 = int(_m.group(1))   # 1-based index from filename
+            _seed_str = _m.group(2)
+            _key = f"variant_{_vidx_1}_seed_{_seed_str}"
+            if _key in _seen_keys:
+                continue
+            _seen_keys.add(_key)
+
+            _vm = _meta_lookup.get(_key, {})
+            result["variants"].append({
+                "label": f"{arch.upper()} Variant {_vidx_1} (seed {_seed_str})",
+                "type": arch,
+                "source": "advanced_variant",
+                "model_path": str(_vf),
+                "seq_len": seq_len,
+                "num_positions": num_pos,
+                "variant_index": _vidx_1 - 1,
+                "seed": _seed_str,
+                "composite_score": float(_vm.get("composite_score", 0.0)),
+                "top5_accuracy": float(_vm.get("top_5_accuracy", 0.0)),
+            })
+
+    return result
+
+
+def _extract_neural_proba(preds: Any, max_number: int) -> np.ndarray:
+    """Collapse raw neural-network output to a 1-D probability array of length max_number."""
+    if isinstance(preds, list):
+        # Multi-output head — average position distributions
+        arrs = [p[0] if p.ndim > 1 else p for p in preds]
+        out = np.mean(arrs, axis=0)
+    elif preds.ndim > 1:
+        out = preds[0]
+    else:
+        out = preds
+
+    # Resize
+    if len(out) > max_number:
+        out = out[:max_number]
+    elif len(out) < max_number:
+        out = np.concatenate([out, np.full(max_number - len(out), 1e-8)])
+
+    # Softmax normalisation if not already a distribution
+    if not (0.95 <= float(out.sum()) <= 1.05):
+        from scipy.special import softmax as _softmax
+        out = _softmax(out.astype(np.float64))
+
+    out = np.clip(out, 1e-8, None)
+    return out / out.sum()
+
+
 # ============================================================================
 # SUPER INTELLIGENT AI ANALYZER
 # ============================================================================
@@ -1232,7 +1408,7 @@ class SuperIntelligentAIAnalyzer:
     def _get_game_config(self, game: str) -> Dict[str, int]:
         """Get configuration for game."""
         configs = {
-            "Lotto Max": {"draw_size": 7, "max_number": 50},
+            "Lotto Max": {"draw_size": 7, "max_number": 52},
             "Lotto 6/49": {"draw_size": 6, "max_number": 49}
         }
         return configs.get(game, {"draw_size": 6, "max_number": 49})
@@ -1748,13 +1924,71 @@ class SuperIntelligentAIAnalyzer:
                             f"📊 Loaded temporal_features: {_tp_df.shape[0]} rows × {_tp_df.shape[1]} cols"
                         )
 
-                        # All models: drop 'number' → 6 features (same as training)
-                        # Exception: LSTM variants keep all 7 cols (ensemble trainer kept everything)
+                        # ── Feature schema validation ──────────────────────────
+                        # Drop the same non-feature columns that training drops, then
+                        # optionally verify against the model card / feature_schema.json.
+                        _NON_FEAT = {"draw_index", "draw_idx", "number", "target"}
                         _is_variant = (_vm is not None)
+
+                        # Ensemble LSTM variants historically kept all cols; match that behaviour
+                        # until models are retrained under the new schema.
                         if model_type == 'lstm' and _is_variant:
                             _infer_X = _tp_df.values.astype(np.float32)
+                            _infer_feat_cols = _tp_df.columns.tolist()
                         else:
-                            _infer_X = _tp_df.drop(columns=['number'], errors='ignore').values.astype(np.float32)
+                            _infer_feat_cols = [c for c in _tp_df.columns if c not in _NON_FEAT]
+                            _infer_X = _tp_df[_infer_feat_cols].values.astype(np.float32)
+
+                        # Load model card / feature schema if present
+                        _model_card_path = (
+                            model_path.with_suffix(".model_card.json")
+                            if model_path else None
+                        )
+                        _schema_path = (
+                            model_path.parent / "feature_schema.json"
+                            if model_path else None
+                        )
+                        _schema_ok = True
+                        for _sp in [_model_card_path, _schema_path]:
+                            if _sp and _sp.exists():
+                                try:
+                                    import json as _json_sc
+                                    _sc = _json_sc.load(open(_sp))
+                                    _trained_cols = _sc.get("feature_names") or _sc.get("feature_schema", {}).get("feature_names")
+                                    _trained_count = _sc.get("feature_count") or _sc.get("feature_schema", {}).get("feature_count")
+                                    if _trained_cols and _trained_cols != _infer_feat_cols:
+                                        _missing = [c for c in _trained_cols if c not in _infer_feat_cols]
+                                        _extra = [c for c in _infer_feat_cols if c not in _trained_cols]
+                                        _schema_ok = False
+                                        analysis["inference_logs"].append(
+                                            f"⚠️ Feature schema mismatch detected!\n"
+                                            f"  Trained on {len(_trained_cols)} cols, inference has {len(_infer_feat_cols)} cols.\n"
+                                            f"  Missing: {_missing[:5]}{'…' if len(_missing)>5 else ''}\n"
+                                            f"  Extra: {_extra[:5]}{'…' if len(_extra)>5 else ''}\n"
+                                            f"  → Regenerate features and retrain to fix this."
+                                        )
+                                        # Align to trained columns where possible
+                                        _aligned = []
+                                        for _col in _trained_cols:
+                                            if _col in _tp_df.columns:
+                                                _aligned.append(_tp_df[_col].values.astype(np.float32))
+                                            else:
+                                                _aligned.append(np.zeros(len(_tp_df), dtype=np.float32))
+                                        if _aligned:
+                                            _infer_X = np.column_stack(_aligned)
+                                            analysis["inference_logs"].append(
+                                                f"🔧 Auto-aligned feature matrix to {len(_trained_cols)} training columns "
+                                                f"(filled missing with zeros)"
+                                            )
+                                    elif _trained_count and _trained_count == len(_infer_feat_cols):
+                                        analysis["inference_logs"].append(
+                                            f"✅ Feature schema validated: {_trained_count} features match"
+                                        )
+                                except Exception as _sc_err:
+                                    analysis["inference_logs"].append(
+                                        f"ℹ️ Could not read schema from {_sp.name}: {_sc_err}"
+                                    )
+                                break  # only check the first schema file found
 
                         from sklearn.preprocessing import StandardScaler as _StdScaler
                         _scaler = _StdScaler()
@@ -1798,8 +2032,19 @@ class SuperIntelligentAIAnalyzer:
                                 X_latest = [_enc, _dec]
 
                             elif model_type == 'cnn':
-                                # CNN base: (1, 10, 6)
-                                _win = 10
+                                # CNN base: read window_size from model card, default 50
+                                _win = 50
+                                for _sp in [_model_card_path, _schema_path]:
+                                    if _sp and _sp.exists():
+                                        try:
+                                            import json as _json_cnn
+                                            _cnn_sc = _json_cnn.load(open(_sp))
+                                            _ws = _cnn_sc.get("window_size") or _cnn_sc.get("training_config", {}).get("window_size")
+                                            if _ws:
+                                                _win = int(_ws)
+                                        except Exception:
+                                            pass
+                                        break
                                 if len(_infer_X_scaled) < _win:
                                     raise ValueError(
                                         f"Insufficient rows for CNN: need {_win}, "
@@ -1819,8 +2064,23 @@ class SuperIntelligentAIAnalyzer:
                                 )
 
                             elif model_type == 'transformer':
-                                # Transformer base: (1, 6) — single time-step
-                                X_latest = _infer_X_scaled[-1:].reshape(1, _infer_X_scaled.shape[1])
+                                # Transformer base: read window_size from model card, default 20
+                                _t_win = 20
+                                for _sp in [_model_card_path, _schema_path]:
+                                    if _sp and _sp.exists():
+                                        try:
+                                            import json as _json_tr
+                                            _tr_sc = _json_tr.load(open(_sp))
+                                            _ws = _tr_sc.get("window_size") or _tr_sc.get("training_config", {}).get("window_size")
+                                            if _ws:
+                                                _t_win = int(_ws)
+                                        except Exception:
+                                            pass
+                                        break
+                                _t_rows = min(_t_win, len(_infer_X_scaled))
+                                X_latest = _infer_X_scaled[-_t_rows:].reshape(
+                                    1, _t_rows, _infer_X_scaled.shape[1]
+                                )
 
                             else:
                                 # Unknown neural type — safe fallback (last row)
@@ -2053,9 +2313,312 @@ class SuperIntelligentAIAnalyzer:
             
         except Exception as e:
             analysis["inference_logs"].append(f"❌ Error in ML model analysis: {str(e)}")
-        
+
         return analysis
-    
+
+    def analyze_advanced_models(self, selected_models: List[Dict[str, Any]]) -> Dict[str, Any]:
+        """
+        Run inference on models discovered by _discover_advanced_models().
+
+        Each dict in selected_models must carry a 'source' key:
+          'advanced_tree'    — position .pkl files; predict_proba averaged across positions
+          'advanced_neural'  — single .h5 base model; (1, window_size, n_features) input
+          'advanced_variant' — .keras variant; (1, seq_len, n_features) input
+        """
+        import sys, joblib as _jl
+        project_root = Path(__file__).parent.parent.parent
+        if str(project_root) not in sys.path:
+            sys.path.insert(0, str(project_root))
+
+        analysis: Dict[str, Any] = {
+            "models": [],
+            "total_selected": len(selected_models),
+            "average_accuracy": 0.0,
+            "ensemble_confidence": 0.0,
+            "best_model": None,
+            "ensemble_probabilities": {},
+            "model_probabilities": {},
+            "inference_logs": [],
+            "inference_type_summary": {},
+        }
+
+        if not selected_models:
+            return analysis
+
+        max_number = self.game_config["max_number"]
+        game_folder = _sanitize_game_name(self.game)
+
+        # ── Load shared feature matrix ────────────────────────────────────────
+        _tp_path = (
+            project_root / "data" / "features" / "advanced"
+            / game_folder / "temporal_features.parquet"
+        )
+        if not _tp_path.exists():
+            analysis["inference_logs"].append(
+                f"❌ temporal_features.parquet not found: {_tp_path}. "
+                "Generate features in Data Training first."
+            )
+            return analysis
+
+        try:
+            _tp_df = pd.read_parquet(_tp_path)
+            analysis["inference_logs"].append(
+                f"📊 Loaded temporal_features: {_tp_df.shape[0]} rows × {_tp_df.shape[1]} cols"
+            )
+        except Exception as _fe:
+            analysis["inference_logs"].append(f"❌ Failed to load feature parquet: {_fe}")
+            return analysis
+
+        _NON_FEAT = {"draw_index", "draw_idx", "number", "target"}
+        from sklearn.preprocessing import StandardScaler as _SS
+
+        # Note: _X_neural removed — all neural models (base + variants) were trained
+        # with temporal + global merged (16 features), same as tree models.
+        # Use _X_tree for all model types.
+
+        # ── Tree feature matrix (temporal + global merged, mirrors training) ───
+        _global_path = _tp_path.parent / "global_features.parquet"
+        _tree_df = _tp_df.copy()
+        if _global_path.exists():
+            try:
+                _g_df = pd.read_parquet(_global_path)
+                _tdraw = 'draw_idx' if 'draw_idx' in _tree_df.columns else None
+                _gdraw = 'draw_idx' if 'draw_idx' in _g_df.columns else None
+                if _tdraw and _gdraw:
+                    _tree_df = _tree_df.merge(
+                        _g_df, on=_tdraw, how='left'
+                    )
+                    analysis["inference_logs"].append(
+                        f"📊 Merged global_features: tree df now {_tree_df.shape[1]} cols"
+                    )
+            except Exception as _gfe:
+                analysis["inference_logs"].append(
+                    f"⚠️ Could not merge global_features: {_gfe}"
+                )
+        _tree_feat_cols = [c for c in _tree_df.columns if c not in _NON_FEAT]
+        _X_tree = _SS().fit_transform(
+            _tree_df[_tree_feat_cols].values.astype(np.float32)
+        )
+        analysis["inference_logs"].append(
+            f"🔬 Tree feature matrix: {_X_tree.shape[0]} rows × {_X_tree.shape[1]} features"
+        )
+
+        # ── Keras custom-object factory ───────────────────────────────────────
+        def _keras_custom_objects() -> Dict[str, Any]:
+            _co: Dict[str, Any] = {}
+            try:
+                import tensorflow as _tf
+                from tensorflow.keras import layers as _kl
+
+                try:
+                    from tools.advanced_lstm_ensemble import AttentionLayer as _AL
+                    _co['AttentionLayer'] = _AL
+                except Exception:
+                    pass
+
+                for _mod in (
+                    'tools.advanced_transformer_model_trainer',
+                    'tools.advanced_transformer_ensemble',
+                ):
+                    try:
+                        import importlib
+                        _m = importlib.import_module(_mod)
+                        for _cls in ('PositionalEncoding', 'TransformerBlock',
+                                     'MultiHeadAttention', 'FeedForwardNetwork',
+                                     'LearnedPositionalEncoding'):
+                            if _cls not in _co and hasattr(_m, _cls):
+                                _co[_cls] = getattr(_m, _cls)
+                    except Exception:
+                        pass
+
+                def _get_positions(x):
+                    return _tf.range(_tf.shape(x)[1])
+                _co['get_positions'] = _get_positions
+
+                class _NEL(_kl.Layer):
+                    def call(self, inputs):
+                        if isinstance(inputs, (list, tuple)):
+                            return _tf.not_equal(inputs[0], inputs[1])
+                        return _tf.not_equal(inputs, 0)
+                _co['NotEqual'] = _NEL
+
+            except Exception:
+                pass
+            return _co
+
+        accuracies: List[float] = []
+        all_model_probs: List[Dict[str, float]] = []
+
+        for model_info in selected_models:
+            source = model_info.get("source", "")
+            label = model_info.get("label", "Unknown")
+            model_type = model_info.get("type", "unknown")
+            top5 = float(model_info.get("top5_accuracy", 0.0))
+            _inference_type = "real"
+
+            try:
+                number_probabilities: Optional[np.ndarray] = None
+
+                # ── Tree: per-position ensemble (uses temporal+global features) ─
+                if source == "advanced_tree":
+                    _mfiles = model_info.get("model_files", [])
+                    if not _mfiles:
+                        raise FileNotFoundError(f"No position model files listed for {label}")
+                    # Use the tree feature matrix (temporal + global merged, matches training)
+                    X_row = _X_tree[-1:].reshape(1, _X_tree.shape[1])
+                    pos_probs: List[np.ndarray] = []
+                    for _mf in _mfiles:
+                        try:
+                            _pm = _jl.load(_mf)
+                            if hasattr(_pm, 'predict_proba'):
+                                _raw = _pm.predict_proba(X_row)
+                                if isinstance(_raw, list):
+                                    _subs = [p[0] if p.ndim > 1 else p for p in _raw]
+                                    pos_probs.append(np.mean(_subs, axis=0))
+                                else:
+                                    pos_probs.append(_raw[0])
+                        except Exception as _pe:
+                            analysis["inference_logs"].append(
+                                f"  ⚠️ {Path(_mf).name}: {str(_pe)[:80]}"
+                            )
+                    if not pos_probs:
+                        raise ValueError(f"All position models failed for {label}")
+                    # Max-pool blend: 40% max + 60% mean across position models.
+                    # Reducing the max weight from 0.7→0.4 prevents the most biased
+                    # position model (e.g. position 1 heavily favouring number 1) from
+                    # dominating the final probability vector.
+                    _pos_arr = np.array(pos_probs, dtype=np.float64)
+                    _max_p = _pos_arr.max(axis=0)
+                    _mean_p = _pos_arr.mean(axis=0)
+                    _avg = 0.4 * _max_p + 0.6 * _mean_p
+                    if len(_avg) > max_number:
+                        _avg = _avg[:max_number]
+                    elif len(_avg) < max_number:
+                        _avg = np.concatenate([_avg, np.full(max_number - len(_avg), 1e-8)])
+                    analysis["inference_logs"].append(
+                        f"✅ {label}: max-pool blended {len(pos_probs)}/{len(_mfiles)} position models"
+                    )
+                    number_probabilities = _avg
+
+                # ── Neural base (uses temporal + global features, matches training) ──
+                elif source == "advanced_neural":
+                    from tensorflow import keras as _keras
+                    _co = _keras_custom_objects()
+                    _mpath = Path(model_info["model_path"])
+                    if not _mpath.exists():
+                        raise FileNotFoundError(f"Model file not found: {_mpath}")
+                    _nm = _keras.models.load_model(_mpath, custom_objects=_co)
+                    _win = int(model_info.get("window_size", 20))
+                    _rows = min(_win, len(_X_tree))
+
+                    # Detect encoder-decoder (2-input) LSTM base model
+                    _n_inputs = len(_nm.inputs) if hasattr(_nm, 'inputs') else 1
+                    if _n_inputs >= 2:
+                        # Encoder-decoder: [encoder_seq, decoder_seed]
+                        _enc = _X_tree[-_rows:].reshape(1, _rows, _X_tree.shape[1])
+                        _dec = _X_tree[-1:].reshape(1, 1, _X_tree.shape[1])
+                        _Xin: Any = [_enc, _dec]
+                        analysis["inference_logs"].append(
+                            f"🔬 {label}: encoder-decoder inputs "
+                            f"enc={_enc.shape}, dec={_dec.shape}"
+                        )
+                    else:
+                        _Xin = _X_tree[-_rows:].reshape(1, _rows, _X_tree.shape[1])
+                        analysis["inference_logs"].append(
+                            f"🔬 {label}: input shape {_Xin.shape}"
+                        )
+                    _preds = _nm.predict(_Xin, verbose=0)
+                    number_probabilities = _extract_neural_proba(_preds, max_number)
+                    analysis["inference_logs"].append(f"✅ {label}: inference complete")
+
+                # ── Variant (uses temporal + global features, matches training) ───
+                elif source == "advanced_variant":
+                    from tensorflow import keras as _keras
+                    _co = _keras_custom_objects()
+                    _mpath = Path(model_info["model_path"])
+                    if not _mpath.exists():
+                        raise FileNotFoundError(f"Variant file not found: {_mpath}")
+                    _vm = _keras.models.load_model(_mpath, custom_objects=_co)
+                    # Read actual seq_len from the model's input shape — metadata
+                    # estimate (LOOKBACK_DRAWS × num_positions) may differ from what
+                    # was used at training time (e.g. transformer variants use window=20).
+                    _seq = int(model_info.get("seq_len", 90))
+                    try:
+                        _model_seq = int(_vm.input_shape[1])
+                        if _model_seq and _model_seq > 0:
+                            _seq = _model_seq
+                    except Exception:
+                        pass
+                    _rows = min(_seq, len(_X_tree))
+                    _Xin = _X_tree[-_rows:]
+                    if _rows < _seq:
+                        _pad = np.zeros((_seq - _rows, _X_tree.shape[1]), dtype=np.float32)
+                        _Xin = np.vstack([_pad, _Xin])
+                    _Xin = _Xin.reshape(1, _seq, _X_tree.shape[1])
+                    analysis["inference_logs"].append(
+                        f"🔬 {label}: input shape {_Xin.shape}"
+                    )
+                    _preds = _vm.predict(_Xin, verbose=0)
+                    number_probabilities = _extract_neural_proba(_preds, max_number)
+                    analysis["inference_logs"].append(f"✅ {label}: inference complete")
+
+                else:
+                    raise ValueError(f"Unknown model source: '{source}'")
+
+                # Normalise and store
+                number_probabilities = np.clip(number_probabilities, 1e-8, None)
+                number_probabilities = number_probabilities / number_probabilities.sum()
+                prob_dict: Dict[str, float] = {
+                    str(i + 1): float(number_probabilities[i]) for i in range(max_number)
+                }
+                analysis["model_probabilities"][label] = prob_dict
+                all_model_probs.append(prob_dict)
+                accuracies.append(top5)
+                analysis["models"].append({
+                    "name": label,
+                    "type": model_type,
+                    "accuracy": top5,
+                    "confidence": self._calculate_confidence(top5),
+                    "real_probabilities": prob_dict,
+                    "inference_type": _inference_type,
+                    "metadata": model_info,
+                })
+
+            except Exception as _me:
+                analysis["inference_logs"].append(f"❌ {label}: {str(_me)[:150]}")
+                continue
+
+        # ── Ensemble blend ────────────────────────────────────────────────────
+        if all_model_probs:
+            _ens: Dict[str, float] = {}
+            for _n in range(1, max_number + 1):
+                _k = str(_n)
+                _vals = [float(p.get(_k, 0.0)) for p in all_model_probs]
+                if len(_vals) > 1:
+                    _ens[_k] = float(0.7 * max(_vals) + 0.3 * float(np.mean(_vals)))
+                else:
+                    _ens[_k] = float(_vals[0])
+            _tot = sum(_ens.values())
+            if _tot > 0:
+                _ens = {k: v / _tot for k, v in _ens.items()}
+            analysis["ensemble_probabilities"] = _ens
+
+        if accuracies:
+            analysis["average_accuracy"] = float(np.mean(accuracies))
+            analysis["ensemble_confidence"] = self._calculate_ensemble_confidence(accuracies)
+            analysis["best_model"] = analysis["models"][int(np.argmax(accuracies))]
+
+        _tc: Dict[str, int] = {}
+        for _m in analysis["models"]:
+            _t = _m.get("inference_type", "unknown")
+            _tc[_t] = _tc.get(_t, 0) + 1
+        analysis["inference_type_summary"] = _tc
+        analysis["inference_logs"].append(
+            f"✅ Advanced Analysis: {len(analysis['models'])}/{len(selected_models)} models OK, "
+            f"ensemble over {max_number} numbers"
+        )
+        return analysis
+
     def _calculate_confidence(self, accuracy: float) -> float:
         """
         Calculate confidence score from accuracy.
@@ -2772,6 +3335,11 @@ understanding that lottery outcomes remain random and unpredictable.
             _dl_dir = Path("data") / "learning" / _dl_game_folder
             if _dl_dir.exists():
                 _dl_files = sorted(_dl_dir.glob("draw_*_learning.json"), reverse=True)[:5]
+
+                # Use the pre-computed ghost set (built once before the set loop)
+                # so CSV is not re-read on every iteration.
+                _dl_ghost_nums: set = _precomp_ghost_nums
+
                 _dl_accumulator = np.zeros(max_number)
                 _dl_count = 0
                 for _dl_idx, _dl_path in enumerate(_dl_files):
@@ -2789,16 +3357,20 @@ understanding that lottery outcomes remain random and unpredictable.
                                 else:
                                     _dl_num, _dl_freq = int(_item), 1.0
                                 if 1 <= _dl_num <= max_number:
-                                    _dl_accumulator[_dl_num - 1] += _dl_freq * _file_decay
+                                    # Ghost numbers get at most 30% of their normal blend
+                                    # weight — one recent win can't override thousands of
+                                    # draws of near-zero history for newly introduced numbers.
+                                    _dl_ghost_cap = 0.30 if _dl_num in _dl_ghost_nums else 1.0
+                                    _dl_accumulator[_dl_num - 1] += _dl_freq * _file_decay * _dl_ghost_cap
                             _dl_count += 1
                     except Exception:
                         continue
                 if _dl_count > 0 and _dl_accumulator.sum() > 0:
                     _dl_probs = np.clip(_dl_accumulator, 1e-6, None)
                     _dl_probs = _dl_probs / _dl_probs.sum()
-                    # P3: Scale blend weight 10%→25% based on accumulated learning cycles.
-                    # Early cycles: 10% (conservative, few real signals).
-                    # After ~300 cycles: reaches 25% cap (well-calibrated system).
+                    # P3: Scale blend weight 5%→10% based on accumulated learning cycles.
+                    # Capped at 10% (down from 25%) to prevent hot-number feedback loops
+                    # where biased predictions → hot-number labels → further boosting.
                     _dl_meta_cycles = 0
                     try:
                         _dl_meta_path = Path("data") / "learning" / _dl_game_folder / "meta_learning.json"
@@ -2807,14 +3379,56 @@ understanding that lottery outcomes remain random and unpredictable.
                                 _dl_meta_cycles = int(json.load(_dlm).get('total_learning_cycles', 0))
                     except Exception:
                         pass
-                    _learning_blend_weight = min(0.25, 0.10 + _dl_meta_cycles / 300.0)
+                    _learning_blend_weight = min(0.10, 0.05 + _dl_meta_cycles / 600.0)
                     prob_values = (1 - _learning_blend_weight) * prob_values + _learning_blend_weight * _dl_probs
                     prob_values = prob_values / prob_values.sum()
                     strategy_log['recent_draw_files_blended'] = _dl_count
                     strategy_log['learning_blend_weight'] = round(_learning_blend_weight, 3)
                     strategy_log['learning_cycles_for_blend'] = _dl_meta_cycles
+
+                # ---- Penalized-number suppression ----
+                # Numbers that were heavily overpredicted but WRONG in recent draws
+                # get a mild downweight (multiply their probability by 0.85).
+                # This counteracts the prediction-frequency feedback loop.
+                _pen_accumulator: dict = {}
+                for _dl_idx2, _dl_path2 in enumerate(_dl_files):
+                    try:
+                        with open(_dl_path2, 'r') as _dlh2:
+                            _dl_data2 = json.load(_dlh2)
+                        _pen_list = _dl_data2.get('analysis', {}).get('number_frequency', {}).get('penalized_numbers', [])
+                        _file_decay2 = 1.0 - (_dl_idx2 * 0.15)
+                        for _pen_item in _pen_list[:5]:  # top 5 per file only
+                            _pen_num = int(_pen_item.get('number', 0)) if isinstance(_pen_item, dict) else int(_pen_item)
+                            if 1 <= _pen_num <= max_number:
+                                _pen_accumulator[_pen_num] = _pen_accumulator.get(_pen_num, 0.0) + _file_decay2
+                    except Exception:
+                        continue
+                if _pen_accumulator:
+                    for _pen_num, _pen_score in _pen_accumulator.items():
+                        if _pen_score >= 0.8:
+                            # Suppression scales with accumulated penalty so persistent
+                            # over-predictors get demoted progressively:
+                            #   score=0.8  → ×0.85 (15% cut)
+                            #   score=1.0  → ×0.82 (18% cut)
+                            #   score=2.0  → ×0.67 (33% cut)
+                            #   score=2.5+ → ×0.55 floor (45% cut)
+                            _pen_factor = max(0.55, 0.85 - (_pen_score - 0.8) * 0.15)
+                            prob_values[_pen_num - 1] *= _pen_factor
+                    prob_values = prob_values / prob_values.sum()
+                    strategy_log['penalized_numbers_suppressed'] = list(_pen_accumulator.keys())
         except Exception as _dl_err:
             strategy_log['recent_draw_blend_error'] = str(_dl_err)[:80]
+
+        # ── Historical frequency gravity correction ────────────────────────────
+        # The position-based tree models systematically over-weight low-zone numbers
+        # (model for position 1 always predicts small numbers; when max-pooled across
+        # positions, numbers 1-6 absorb 20-28% of probability vs ~13.5% expected).
+        # Blending 22% of actual historical draw frequency corrects this without
+        # discarding the model signal.  The pre-computed _precomp_hist_freq is a
+        # 3-year rolling frequency from raw CSV — it tracks game distribution changes.
+        if _precomp_hist_freq is not None and len(_precomp_hist_freq) == max_number:
+            prob_values = 0.78 * prob_values + 0.22 * _precomp_hist_freq
+            prob_values /= prob_values.sum()
 
         # ===== COMPUTE DRAW AGE FOR TEMPORAL DECAY (Priority 4) =====
         # Compute once here so GA scoring, Phase 3 ranking, and adaptive weights all share it.
@@ -2893,11 +3507,34 @@ understanding that lottery outcomes remain random and unpredictable.
             if prob_sum > 0:
                 prob_values = prob_values / prob_sum
         
+        # ===== PROBABILITY CAP — prevent any single number dominating all sets =====
+        # After all blending stages (Phase-1, jackpot profile, learning files, hot/cold),
+        # a heavily-boosted number can reach 5-10× the uniform probability.  Cap each
+        # number at 2.5× uniform — tighter than the previous 4× cap — so no single number
+        # is structurally forced into the majority of sets.
+        _uniform_p = 1.0 / max_number
+        _max_allowed_p = 2.5 * _uniform_p
+        _prob_capped = np.minimum(prob_values, _max_allowed_p)
+        # Also enforce a floor so cold numbers aren't driven to near-zero by cold penalty
+        _prob_capped = np.maximum(_prob_capped, 0.1 * _uniform_p)
+        _prob_capped /= _prob_capped.sum()
+        prob_values = _prob_capped
+        strategy_log['prob_cap_applied'] = True
+
         ensemble_confidence = float(model_analysis.get("ensemble_confidence", 0.5))
         diversity_factor = float(optimal_analysis.get("diversity_factor", 1.5))
         hot_cold_ratio = float(optimal_analysis.get("hot_cold_ratio", 1.5))
         distribution_method = optimal_analysis.get("distribution_method", "weighted_ensemble_voting")
-        
+
+        # ===== CROSS-SET FREQUENCY TRACKER =====
+        # Always-on: tracks how often each number appears across already-generated sets.
+        # Used to apply progressive suppression to over-represented numbers regardless
+        # of whether no_repeat_numbers is enabled.
+        _cross_set_count: Dict[int, int] = {}   # number → times selected so far
+        # Maximum fraction of sets a number is allowed to dominate before suppression kicks in
+        # Tightened from 0.35 → 0.25 to suppress dominance sooner
+        _dominance_threshold = 0.25   # suppress if number appears in >25% of sets so far
+
         # ===== PATTERN ANALYSIS FROM MODEL PROBABILITIES =====
         # Identify hot (high probability) and cold (low probability) numbers
         sorted_indices = np.argsort(prob_values)
@@ -2939,18 +3576,87 @@ understanding that lottery outcomes remain random and unpredictable.
 
         # Get list of all selected models for coverage verification
         selected_model_names = list(model_probabilities.keys())
-        
+
+        # ── Pre-compute historical frequencies ONCE (not per set) ──────────────
+        # Used for: (a) historical frequency gravity correction, (b) ghost detection,
+        # (c) learning blend ghost cap.  Reading the CSV 63× per generation was the
+        # main source of per-set latency; loading it once removes that cost.
+        _precomp_hist_freq = np.ones(max_number, dtype=np.float64) / max_number
+        _precomp_ghost_nums: set = set()
+        _precomp_ghost_threshold: float = 5.0
+        try:
+            import glob as _pcg
+            _pcg_folder = _sanitize_game_name(self.game)
+            _pcg_csvs = sorted(_pcg.glob(str(Path("data") / _pcg_folder / "*.csv")))
+            if _pcg_csvs:
+                import pandas as _pd_pc
+                _pcg_chunks = [_pd_pc.read_csv(f, usecols=['numbers']) for f in _pcg_csvs[-3:]]
+                _pcg_df = _pd_pc.concat(_pcg_chunks, ignore_index=True)
+                _pcg_cnt: dict = {}
+                for _pcg_row in _pcg_df['numbers'].dropna():
+                    for _pcg_n in str(_pcg_row).split(','):
+                        try:
+                            _pcg_ni = int(_pcg_n.strip())
+                            if 1 <= _pcg_ni <= max_number:
+                                _pcg_cnt[_pcg_ni] = _pcg_cnt.get(_pcg_ni, 0) + 1
+                        except ValueError:
+                            pass
+                if _pcg_cnt:
+                    _pcg_max = max(_pcg_cnt.values())
+                    _precomp_ghost_threshold = max(5.0, _pcg_max * 0.02)
+                    _precomp_ghost_nums = {
+                        n for n in range(1, max_number + 1)
+                        if _pcg_cnt.get(n, 0) < _precomp_ghost_threshold
+                    }
+                    _pcg_freq = np.array(
+                        [float(_pcg_cnt.get(n, 0)) for n in range(1, max_number + 1)],
+                        dtype=np.float64,
+                    )
+                    _pcg_freq = np.clip(_pcg_freq, 1e-3, None)
+                    _precomp_hist_freq = _pcg_freq / _pcg_freq.sum()
+        except Exception:
+            pass  # Non-fatal — fall back to uniform baseline
+
+        # Historical odd/even distribution used to pre-select target per set
+        # Lotto Max: 1=2.9%, 2=17.5%, 3=27.2%, 4=29.1%, 5=20.4%, 6=2.9%
+        # Lotto 6/49: 1=3%, 2=16%, 3=27%, 4=30%, 5=20%, 6=4% (approximate)
+        if max_number > 49:
+            _hist_odd_vals = [1, 2, 3, 4, 5, 6]
+            _hist_odd_wts  = np.array([0.029, 0.175, 0.272, 0.291, 0.204, 0.029])
+        else:
+            _hist_odd_vals = [1, 2, 3, 4, 5, 6]
+            _hist_odd_wts  = np.array([0.030, 0.160, 0.270, 0.300, 0.200, 0.040])
+        _hist_odd_wts = _hist_odd_wts / _hist_odd_wts.sum()
+
         for set_idx in range(num_sets):
             # Apply progressive temperature to ensemble probabilities for diversity
             # Early sets: use exact ensemble probs; Late sets: more uniform/diverse
             set_progress = float(set_idx) / float(num_sets) if num_sets > 1 else 0.5
-            
+
             # Temperature annealing: increase temperature for later sets to widen the
             # distribution and drive diversity. Higher T → flatter → more exploration.
             temperature = 0.6 + (0.4 * set_progress)  # Range [0.6, 1.0] — grows with set index
-            
+
+            # ===== CROSS-SET DOMINANCE SUPPRESSION =====
+            # Applies a sigmoid-shaped penalty to any number that has already appeared
+            # in more than _dominance_threshold fraction of the sets generated so far.
+            # This is always active (not gated on no_repeat_numbers) so that even when
+            # the user allows repetition, no single number colonises >25% of all sets.
+            _cs_base = prob_values.copy()
+            if set_idx >= 1 and _cross_set_count:
+                for _csn, _csc in _cross_set_count.items():
+                    _cs_frac = _csc / set_idx          # fraction of past sets containing this number
+                    if _cs_frac > _dominance_threshold:
+                        # Sigmoid suppression: soft at threshold, hard at 2× threshold
+                        _excess = (_cs_frac - _dominance_threshold) / _dominance_threshold
+                        _cs_penalty = 1.0 / (1.0 + np.exp(4.0 * _excess))   # sigmoid: 0.5→0 as excess grows
+                        _cs_base[_csn - 1] *= _cs_penalty
+                _cs_sum = _cs_base.sum()
+                if _cs_sum > 0:
+                    _cs_base /= _cs_sum
+
             # Apply temperature scaling via softmax for entropy-controlled distribution
-            log_probs = np.log(prob_values + 1e-10)
+            log_probs = np.log(_cs_base + 1e-10)
             scaled_log_probs = log_probs / (temperature + 0.1)
             adjusted_probs = softmax(scaled_log_probs)
             
@@ -2995,289 +3701,318 @@ understanding that lottery outcomes remain random and unpredictable.
                             adjusted_probs[num - 1] = prob_values[num - 1]
                     adjusted_probs = adjusted_probs / np.sum(adjusted_probs)
             
-            # ===== PHASE 2: APPLY CO-OCCURRENCE CONCENTRATION BOOSTING =====
-            # If adaptive learning is enabled and we have cluster history, boost co-occurring numbers.
-            # Apply whenever adaptive_system is set and co-occurrence data exists, regardless of
-            # the concentration weight (which starts at 0 for new users).
-            if adaptive_system and set_idx > 0:  # Skip first set, no prior numbers to correlate
-                concentration_applied = False
-                concentration_weight = adaptive_system.meta_learning_data['factor_weights'].get('cluster_concentration', 0.0)
-                _has_cooccurrence = bool(adaptive_system.meta_learning_data.get('number_cooccurrence'))
-                # P4: Replace the hard 0.03 floor with a smooth ramp that only activates after
-                # 10+ learning cycles, so early predictions aren't biased by noise data.
-                _cooc_cycles = int(adaptive_system.meta_learning_data.get('total_learning_cycles', 0))
-                if _has_cooccurrence and _cooc_cycles >= 10:
-                    # Ramp from 0 → 0.05 over cycles 10–30, then natural weight takes over
-                    _ramp = min(0.05, 0.005 * (_cooc_cycles - 9))
-                    _effective_conc = max(concentration_weight, _ramp)
-                else:
-                    _effective_conc = concentration_weight  # No floor until 10 cycles
-
-                if _effective_conc > 0.0:  # Run whenever there is any co-occurrence signal
-                    # Get numbers from previous sets to build correlation context
-                    recent_numbers = []
-                    lookback = min(3, set_idx)  # Look at last 3 sets
-                    for prev_idx in range(max(0, set_idx - lookback), set_idx):
-                        recent_numbers.extend(predictions[prev_idx])
-                    
-                    if recent_numbers:
-                        # Apply co-occurrence boost to probabilities
-                        cooccurrence_adjusted_probs = adjusted_probs.copy()
-                        
-                        for num in range(1, max_number + 1):
-                            boost = adaptive_system.get_number_cooccurrence_boost(recent_numbers, num)
-                            if boost > 1.0:
-                                cooccurrence_adjusted_probs[num - 1] *= boost
-                                concentration_applied = True
-                        
-                        # Re-normalize after co-occurrence boosting
-                        if concentration_applied:
-                            prob_sum = np.sum(cooccurrence_adjusted_probs)
-                            if prob_sum > 0:
-                                adjusted_probs = cooccurrence_adjusted_probs / prob_sum
-                                strategy_log['phase2_concentration_applied'] = strategy_log.get('phase2_concentration_applied', 0) + 1
+            # Phase 2 co-occurrence boosting is intentionally disabled:
+            # Boosting based on previous-set numbers creates a feedback loop that makes
+            # sets look similar to each other and amplifies any existing model bias.
+            # Diversity is now handled by zone rotation + per-set Dirichlet noise instead.
             
             selected_numbers = None
             strategy_used = None
             model_attribution = {}
 
-            # ===== UNIVERSAL GUARANTEED-CONTRIBUTION GENERATION =====
-            # Each selected model (position, neural, standard, or any mix) directly
-            # Gumbel-samples its single most-confident number.  This eliminates the
-            # structural averaging problem entirely: no model's specialisation peak
-            # can be cancelled by another model's distribution.
+            # ===== STRUCTURAL PORTFOLIO GENERATOR =====
+            # Replaces both the GC-mode and Gumbel-Top-K paths with a zone-aware,
+            # diversity-enforced sampler that guarantees structural validity AND
+            # portfolio spread across all generated sets.
             #
-            # Algorithm:
-            #   1. Every model claims its Gumbel-top-1 number (with diversity noise).
-            #   2. Duplicates → lower-confidence claimant re-samples until resolved.
-            #   3. n_models < draw_size  → fill remaining slots from ensemble.
-            #   4. n_models > draw_size  → greedy keep: highest-confidence unique picks
-            #      across models until draw_size reached.
-            #   5. Fall through to Gumbel strategies only if _use_gc is False (0–1 model).
-            if _use_gc:
-                _gc_model_keys = list(_gc_model_arrays.keys())
-                _gc_n = len(_gc_model_keys)
-                _gc_max_tries = 40
-                _gc_picked: list = []
-                _gc_used: set = set()
-                _gc_attrib: dict = {}   # number_str → model_key (primary contributor)
+            # Design principles:
+            #   1. Zone rotation: rotate through historically-observed zone patterns
+            #      (low 1–16 / mid 17–32 / high 33–49) so the portfolio naturally
+            #      covers the full number space rather than clustering at extremes.
+            #   2. Per-set Dirichlet noise: each set gets a unique probability landscape;
+            #      noise weight grows from 20% (early, trust model) to 55% (late, explore).
+            #   3. Structural constraints: sum must fall in the 5th–95th-pct historical
+            #      range; extreme odd/even ratios (all-odd or all-even) are rejected.
+            #   4. Diversity constraint: a new set must share ≤2 numbers with every
+            #      previously generated set, forcing portfolio spread.
+            #
+            # Historical basis (2,223 Lotto 6/49 draws):
+            #   Sum 5th-95th pct: 96–206  |  Most frequent zone: 2/2/2 (14.4%)
+            #   Most frequent odd count: 3 (33.1%), followed by 4 (24.4%) and 2 (22.8%)
+            if True:  # always take this path (GC mode removed)
+                # --- Zone definitions ---
+                if max_number <= 49:
+                    _z_lo = list(range(1, 17))    # 1–16
+                    _z_mi = list(range(17, 33))   # 17–32
+                    _z_hi = list(range(33, 50))   # 33–49
+                    # Zone patterns and weights from 2,223-draw historical analysis
+                    _z_patterns = [
+                        (2,2,2), (2,1,3), (1,3,2), (1,2,3), (3,1,2),
+                        (2,3,1), (3,2,1), (1,1,4), (4,1,1), (0,3,3),
+                    ]
+                    _z_weights = np.array([0.144,0.099,0.093,0.088,0.088,
+                                           0.072,0.072,0.048,0.034,0.031])
+                    _s_lo, _s_hi = 96, 206   # 5th–95th pct historical sum
+                else:
+                    # Lotto Max: 52 numbers → three historically-calibrated zones
+                    # Boundaries derived from 1,227-draw analysis (data up to Apr 2026)
+                    _z_lo = list(range(1, 18))    # 1–17  (17 numbers)
+                    _z_mi = list(range(18, 35))   # 18–34 (17 numbers)
+                    _z_hi = list(range(35, 53))   # 35–52 (18 numbers)
+                    # Zone patterns ranked by historical frequency (zones: 1-17 / 18-34 / 35-52)
+                    _z_patterns = [
+                        (2,3,2), (3,2,2), (2,2,3), (3,3,1), (3,1,3),
+                        (2,4,1), (1,3,3), (4,2,1), (4,1,2), (2,1,4),
+                        (1,4,2), (1,2,4),
+                    ]
+                    _z_weights = np.array([0.1100, 0.1084, 0.0986, 0.0791, 0.0652,
+                                           0.0628, 0.0587, 0.0570, 0.0456, 0.0432,
+                                           0.0432, 0.0375])
+                    # Note: numbers 51 and 52 were added Apr 2026 (1 draw each).
+                    # Model probabilities for them will be near zero — zone sampling
+                    # naturally avoids them until they build historical frequency.
+                    _s_lo, _s_hi = 117, 233   # 5th–95th pct from 1,227 draws
+                _z_weights /= _z_weights.sum()
+                _zone_lists = [_z_lo, _z_mi, _z_hi]
 
-                for _gc_try in range(_gc_max_tries):
-                    _gc_picked = []
-                    _gc_used = set()
-                    _gc_attrib = {}
-                    # Each model samples its top pick with Gumbel noise
-                    _gc_claims: dict = {}  # model_key → (number, raw_prob)
-                    for _gck in _gc_model_keys:
-                        _gpv = _gc_model_arrays[_gck]
-                        _gg = -np.log(-np.log(np.random.uniform(0, 1, max_number) + 1e-10) + 1e-10)
-                        if _gc_try > 0:
-                            _gg += np.random.normal(0, 0.08 * _gc_try, max_number)
-                        _gscores = np.log(_gpv + 1e-10) + _gg
-                        # Suppress numbers from previous sets when no-repeat is on
-                        if no_repeat_numbers:
-                            for _nr, _cnt in number_usage_count.items():
-                                _gscores[_nr - 1] -= _cnt * 2.0
-                        _gpick = int(np.argmax(_gscores)) + 1
-                        _gc_claims[_gck] = (_gpick, float(_gpv[_gpick - 1]))
+                # --- Structural-fingerprint zone-weight update (learning signal) ---
+                # Two complementary signals are blended into _z_weights here:
+                #
+                # Signal A — recent draw fingerprints (per-draw learning files):
+                #   Each of the 5 most recent learning files contributes its actual
+                #   winning draw's zone_pattern.  Matching patterns get a 30% boost,
+                #   decayed by file age (most recent = 1.0×, oldest = 0.52×).
+                #
+                # Signal B — raw CSV similar-draws (only present when the "Include Raw
+                #   CSV Pattern Analysis" checkbox was checked during Apply Learning
+                #   Analysis).  These are ALL historical draws that shared the SAME
+                #   zone pattern AND a sum within ±20 of the actual winning sum — a much
+                #   larger and richer structural sample.  Each occurrence contributes a
+                #   lighter 15% boost so Signal B never swamps the historical baseline.
+                #
+                # Signal C — jackpot profile dominant zone pattern (only when a draw
+                #   profile is selected via the "Use Draw Profile" checkbox).  The profile
+                #   was built from ALL historical draws within the chosen jackpot bracket,
+                #   so its dominant zone pattern is a high-confidence structural signal.
+                #   Each profile contributes a 25% boost spread evenly across all loaded
+                #   profiles so multi-profile blends stay balanced.
+                #
+                # All signals are additive; the result is renormalised.
+                try:
+                    _sf_game_folder = _sanitize_game_name(self.game)
+                    _sf_dir = Path("data") / "learning" / _sf_game_folder
+                    if _sf_dir.exists():
+                        _sf_files = sorted(_sf_dir.glob("draw_*_learning.json"), reverse=True)[:5]
+                        _sf_z_weights = _z_weights.copy()
+                        _sf_updated = False
+                        for _sf_idx, _sf_path in enumerate(_sf_files):
+                            try:
+                                with open(_sf_path, 'r') as _sfh:
+                                    _sf_data = json.load(_sfh)
+                                _sf_analysis = _sf_data.get('analysis', {})
 
-                    # Resolve duplicates: if two models claim the same number,
-                    # the lower-confidence model re-samples its next-best option.
-                    # Repeat until all claims are unique (or max_number exhausted).
-                    _resolved: dict = {}  # number → (model_key, confidence)
-                    for _gck, (_gpick, _gconf) in sorted(
-                        _gc_claims.items(), key=lambda x: -x[1][1]
-                    ):
-                        if _gpick not in _resolved:
-                            _resolved[_gpick] = (_gck, _gconf)
-                        else:
-                            # Find next-best unused number for this model
-                            _gpv2 = _gc_model_arrays[_gck]
-                            _gg2 = -np.log(-np.log(np.random.uniform(0, 1, max_number) + 1e-10) + 1e-10)
-                            _gsc2 = np.log(_gpv2 + 1e-10) + _gg2
-                            for _taken in _resolved:
-                                _gsc2[_taken - 1] = -np.inf
-                            if no_repeat_numbers:
-                                for _nr, _cnt in number_usage_count.items():
-                                    _gsc2[_nr - 1] -= _cnt * 2.0
-                            _alt = int(np.argmax(_gsc2)) + 1
-                            if _alt not in _resolved:
-                                _resolved[_alt] = (_gck, float(_gpv2[_alt - 1]))
+                                # Signal A: recent winning draw's own zone pattern
+                                _sf_fp = _sf_analysis.get('structural_fingerprint', {})
+                                _sf_zp = _sf_fp.get('zone_pattern', None)
+                                if _sf_zp and len(_sf_zp) == 3:
+                                    _sf_tuple = tuple(int(x) for x in _sf_zp)
+                                    _sf_decay = 1.0 - (_sf_idx * 0.12)  # 1.0→0.52
+                                    for _sf_pi, _sf_pat in enumerate(_z_patterns):
+                                        if tuple(_sf_pat) == _sf_tuple:
+                                            _sf_z_weights[_sf_pi] *= (1.0 + 0.30 * _sf_decay)
+                                            _sf_updated = True
 
-                    # Collect unique model picks
-                    for _gnum, (_gck, _gconf) in _resolved.items():
-                        _gc_picked.append(_gnum)
-                        _gc_used.add(_gnum)
-                        _gc_attrib[str(_gnum)] = _gck
+                                # Signal B: structurally-similar historical draws from raw CSV
+                                _csv_pats = _sf_analysis.get('raw_csv_patterns', {})
+                                _sim_pats = _csv_pats.get('similar_zone_patterns', [])
+                                if _sim_pats:
+                                    _sf_file_decay = 1.0 - (_sf_idx * 0.12)
+                                    for _sp in _sim_pats:
+                                        if len(_sp) == 3:
+                                            _sp_tuple = tuple(int(x) for x in _sp)
+                                            for _sf_pi2, _sf_pat2 in enumerate(_z_patterns):
+                                                if tuple(_sf_pat2) == _sp_tuple:
+                                                    # Light boost per occurrence — capped so no
+                                                    # single pattern can dominate from CSV alone
+                                                    _sf_z_weights[_sf_pi2] *= (1.0 + 0.015 * _sf_file_decay)
+                                                    _sf_updated = True
 
-                    # If n_models > draw_size keep the draw_size highest-confidence picks
-                    if len(_gc_picked) > draw_size:
-                        _gc_picked_sorted = sorted(
-                            [(n, _resolved[n][1]) for n in _gc_picked],
-                            key=lambda x: -x[1]
-                        )
-                        _gc_picked = [x[0] for x in _gc_picked_sorted[:draw_size]]
-                        _gc_used = set(_gc_picked)
-                        _gc_attrib = {str(n): _gc_attrib[str(n)] for n in _gc_picked}
+                            except Exception:
+                                continue
+                        # Signal C — jackpot profile dominant zone pattern
+                        # When a draw profile is loaded, its statistically dominant zone
+                        # pattern (derived from historical jackpot-matched draws) gets a
+                        # 25% boost.  Multiple profiles are averaged so no single profile
+                        # can overwhelm the signal.
+                        if _profiles_to_blend:
+                            for _prof_c in _profiles_to_blend:
+                                _dom_strat = _prof_c.get('dominant_strategy', {})
+                                _dom_zp = _dom_strat.get('zone_pattern', None)
+                                if _dom_zp and len(_dom_zp) == 3:
+                                    _dom_tuple = tuple(int(x) for x in _dom_zp)
+                                    _boost_c = 0.25 / max(1, len(_profiles_to_blend))
+                                    for _sf_pi3, _sf_pat3 in enumerate(_z_patterns):
+                                        if tuple(_sf_pat3) == _dom_tuple:
+                                            _sf_z_weights[_sf_pi3] *= (1.0 + _boost_c)
+                                            _sf_updated = True
 
-                    if len(_gc_picked) >= min(draw_size, _gc_n):
-                        break
+                        # Historical gravity cap — prevent any recent-draw signal from
+                        # boosting a pattern beyond 1.6× its historical baseline weight.
+                        # Without this, a run of draws with the same zone pattern (e.g.
+                        # three consecutive (2,1,4) draws) compounds into that pattern
+                        # dominating generation, starving the mid zone.
+                        for _grav_i in range(len(_sf_z_weights)):
+                            _hist_w = _z_weights[_grav_i]
+                            if _sf_z_weights[_grav_i] > _hist_w * 1.60:
+                                _sf_z_weights[_grav_i] = _hist_w * 1.60
 
-                # Fill remaining slots from ensemble if n_models < draw_size
-                if len(_gc_picked) < draw_size:
-                    _fill_probs = adjusted_probs.copy()
-                    for _fu in _gc_used:
-                        _fill_probs[_fu - 1] = 0.0
-                    _fp_sum = _fill_probs.sum()
-                    if _fp_sum > 0:
-                        _fill_probs /= _fp_sum
-                        _fg2 = -np.log(-np.log(np.random.uniform(0, 1, max_number) + 1e-10) + 1e-10)
-                        _fsc2 = np.log(_fill_probs + 1e-10) + _fg2
-                        while len(_gc_picked) < draw_size:
-                            _fi2 = int(np.argmax(_fsc2))
-                            _fn2 = _fi2 + 1
-                            if _fn2 not in _gc_used:
-                                _gc_picked.append(_fn2)
-                                _gc_used.add(_fn2)
-                            _fsc2[_fi2] = -np.inf
+                        if _sf_updated:
+                            _z_weights = _sf_z_weights / _sf_z_weights.sum()
+                except Exception:
+                    pass  # Non-fatal — fall back to historical weights
 
-                selected_numbers = sorted(_gc_picked)
-                _n_label = f"{_gc_n} model{'s' if _gc_n != 1 else ''}"
-                strategy_used = f"Guaranteed-Contribution Ensemble ({_n_label})"
-                strategy_log["strategy_1_gumbel"] += 1
+                # --- Per-set unique probability landscape ---
+                # Blend model signal (adjusted_probs already has cross-set suppression
+                # and temperature applied) with Dirichlet noise for variety.
+                # Noise weight grows from 20% early → 55% late for progressive exploration.
+                _dir_conc = max(0.4, 3.0 - 2.6 * set_progress)
+                _dir_noise = np.random.dirichlet(np.ones(max_number) * _dir_conc)
+                _noise_w = 0.20 + 0.35 * set_progress
+                _perturbed = (1.0 - _noise_w) * adjusted_probs + _noise_w * _dir_noise
+                _perturbed = np.clip(_perturbed, 1e-10, None)
+                _perturbed /= _perturbed.sum()
 
-                # Build per-number attribution
+                # --- Ghost-number suppression (uses pre-computed data, not per-set CSV) ---
+                if _precomp_ghost_nums:
+                    _gn_changed = False
+                    for _gn_num in _precomp_ghost_nums:
+                        if 1 <= _gn_num <= max_number:
+                            # Suppress proportional to how new the number is:
+                            # at 0 appearances → ×0.02; approaches 1.0 as count → threshold
+                            _gn_cnt_val = 0  # pre-computed ghost set has no per-number count here
+                            _gn_factor = 0.04  # conservative floor for ghost numbers
+                            _perturbed[_gn_num - 1] *= _gn_factor
+                            _gn_changed = True
+                    if _gn_changed:
+                        _perturbed = np.clip(_perturbed, 1e-10, None)
+                        _perturbed /= _perturbed.sum()
+
+                # Pre-select target odd count for this set from historical distribution
+                # Enforced during zone-constrained attempts to match actual draw statistics.
+                _target_odd = int(np.random.choice(_hist_odd_vals, p=_hist_odd_wts))
+
+                # --- Zone-aware Gumbel sampling with structural + diversity checks ---
+                selected_numbers = None
+
+                for _attempt in range(80):
+                    # Attempts 0–49: zone-constrained weighted random selection
+                    # Attempts 50+: unconstrained Gumbel fallback
+                    if _attempt >= 50:
+                        _fg = -np.log(-np.log(
+                            np.random.uniform(0, 1, max_number) + 1e-10) + 1e-10)
+                        if _attempt > 60:
+                            _fg += np.random.normal(0, 0.12 * (_attempt - 60), max_number)
+                        _fsc = np.log(_perturbed + 1e-10) + _fg
+                        _cand = sorted([int(i)+1 for i in np.argsort(_fsc)[-draw_size:]])
+                        if len(_cand) == draw_size:
+                            _msh = max((len(set(_cand) & set(p)) for p in predictions),
+                                       default=0) if predictions else 0
+                            if _msh <= 2 or _attempt >= 70:
+                                selected_numbers = _cand
+                                break
+                        continue
+
+                    # All zone-constrained attempts use weighted random pattern selection.
+                    # OLD: uniform cycling caused (4,1,2) to dominate at 25% despite 4.56%
+                    # historical weight — now ALL attempts sample proportional to _z_weights.
+                    _tc = _z_patterns[int(np.random.choice(len(_z_patterns), p=_z_weights))]
+
+                    # Sample draw_size numbers from their respective zones
+                    _cand = []
+                    for _zlist, _zcount in zip(_zone_lists, _tc):
+                        if _zcount == 0:
+                            continue
+                        # Respect no-repeat constraint within zone when possible
+                        _avail = _zlist
+                        if no_repeat_numbers and number_usage_count:
+                            _nr_avail = [n for n in _zlist
+                                         if number_usage_count.get(n, 0) == 0]
+                            if len(_nr_avail) >= _zcount:
+                                _avail = _nr_avail
+                        _zp = np.array([_perturbed[n-1] for n in _avail])
+                        _zp /= _zp.sum()
+                        _zg = -np.log(-np.log(
+                            np.random.uniform(0, 1, len(_avail)) + 1e-10) + 1e-10)
+                        _zsc = np.log(_zp + 1e-10) + _zg
+                        _cand.extend([_avail[i] for i in np.argsort(_zsc)[-_zcount:]])
+
+                    if len(_cand) < draw_size or len(set(_cand)) < draw_size:
+                        continue
+                    _cand = sorted(set(_cand))
+                    if len(_cand) != draw_size:
+                        continue
+
+                    # Structural check 1: sum in historical range
+                    if not (_s_lo <= sum(_cand) <= _s_hi) and _attempt < 55:
+                        continue
+
+                    # Structural check 2: enforce odd/even count from historical distribution
+                    # Attempts 0–30: require exact target odd count (sampled per-set above)
+                    # Attempts 31–54: allow ±1 tolerance, still reject all-odd/all-even
+                    # Attempts 55+: only reject all-odd or all-even (safety net)
+                    _odd_n = sum(1 for n in _cand if n % 2 == 1)
+                    if _attempt < 31:
+                        if _odd_n != _target_odd:
+                            continue
+                    elif _attempt < 55:
+                        if abs(_odd_n - _target_odd) > 1 or _odd_n == 0 or _odd_n == draw_size:
+                            continue
+                    else:
+                        if _odd_n == 0 or _odd_n == draw_size:
+                            continue
+
+                    # Diversity check: max 2 shared numbers with any prior set
+                    _msh = max((len(set(_cand) & set(p)) for p in predictions),
+                               default=0) if predictions else 0
+                    if _msh >= 3 and _attempt < 65:
+                        continue
+
+                    selected_numbers = _cand
+                    break
+
+                if selected_numbers is None:
+                    # Hard fallback: unconstrained Gumbel on cross-set-suppressed probs
+                    _fg = -np.log(-np.log(
+                        np.random.uniform(0, 1, max_number) + 1e-10) + 1e-10)
+                    _fsc = np.log(_cs_base + 1e-10) + _fg
+                    selected_numbers = sorted([int(i)+1 for i in np.argsort(_fsc)[-draw_size:]])
+
+                # Attribution: credit all models with above-average probability for each selected number
+                model_attribution = {}
                 for _sn in selected_numbers:
                     _sn_str = str(_sn)
-                    _primary_mk = _gc_attrib.get(_sn_str)
                     model_attribution[_sn_str] = []
-                    if _primary_mk:
-                        _rp = float(model_probabilities[_primary_mk].get(_sn_str, 1.0 / max_number))
-                        model_attribution[_sn_str].append({
-                            'model': _primary_mk,
-                            'probability': _rp,
-                            'confidence': float(_rp * max_number)
-                        })
-                    # Also credit any other model whose probability exceeds threshold
-                    for _omk, _omp in model_probabilities.items():
-                        if _omk == _primary_mk:
-                            continue
-                        _op = float(_omp.get(_sn_str, 0))
-                        if _op > 1.5 / max_number:
+                    for _mk, _mprob in model_probabilities.items():
+                        _p = float(_mprob.get(_sn_str, 1.0 / max_number))
+                        if _p > 1.0 / max_number:
                             model_attribution[_sn_str].append({
-                                'model': _omk,
-                                'probability': _op,
-                                'confidence': float(_op * max_number)
+                                'model': _mk,
+                                'probability': _p,
+                                'confidence': float(_p * max_number),
                             })
 
-                # Anti-pattern check (P1)
-                if adaptive_system:
-                    _anti_penalty = adaptive_system.penalize_anti_patterns(selected_numbers)
-                    if _anti_penalty > 0.7:
-                        strategy_log['anti_pattern_rejections'] = strategy_log.get('anti_pattern_rejections', 0) + 1
-                        # Accept result — anti-pattern rejection noted but not blocking here
-
-            else:
-                # ===== SINGLE-MODEL / NO-MODEL FALLBACK =====
-                # Standard Gumbel-Top-K path when 0–1 models are selected.
-                max_attempts = 50
-                attempt = 0
-                all_models_contributed = False
-
-                while attempt < max_attempts and not all_models_contributed:
-                    attempt += 1
-
-                    try:
-                        gumbel_noise = -np.log(-np.log(np.random.uniform(0, 1, max_number) + 1e-10) + 1e-10)
-                        if attempt > 1:
-                            gumbel_noise += np.random.normal(0, 0.1 * attempt, max_number)
-                        gumbel_scores = np.log(adjusted_probs + 1e-10) + gumbel_noise
-                        top_k_indices = np.argsort(gumbel_scores)[-draw_size:]
-                        selected_numbers = sorted([i + 1 for i in top_k_indices])
-                        strategy_used = "Gumbel-Top-K with Entropy Optimization"
-                        if attempt == 1:
-                            strategy_log["strategy_1_gumbel"] += 1
-
-                    except Exception:
-                        try:
-                            hot_probs = adjusted_probs[hot_numbers - 1]
-                            hot_probs = hot_probs / np.sum(hot_probs)
-                            selected_hot = np.random.choice(
-                                hot_numbers, size=min(hot_count, len(hot_numbers)),
-                                replace=False, p=hot_probs
-                            )
-                            remaining_count = draw_size - len(selected_hot)
-                            available_warm = [n for n in warm_numbers if n not in selected_hot]
-                            if len(available_warm) >= remaining_count:
-                                warm_probs = adjusted_probs[np.array(available_warm) - 1]
-                                warm_probs = warm_probs / np.sum(warm_probs)
-                                selected_warm = np.random.choice(
-                                    available_warm, size=remaining_count,
-                                    replace=False, p=warm_probs
-                                )
-                            else:
-                                selected_warm = available_warm
-                            selected_numbers = sorted(
-                                np.concatenate([selected_hot, selected_warm]).astype(int).tolist()
-                            )
-                            strategy_used = "Hot/Cold Balanced Selection"
-                            strategy_log["strategy_2_hotcold"] += 1
-                        except Exception:
-                            try:
-                                selected_indices = np.random.choice(
-                                    max_number, size=draw_size, replace=False, p=adjusted_probs
-                                )
-                                selected_numbers = sorted([i + 1 for i in selected_indices])
-                                strategy_used = "Confidence-Weighted Random Selection"
-                                strategy_log["strategy_3_confidence_weighted"] += 1
-                            except Exception:
-                                top_k_indices = np.argsort(adjusted_probs)[-draw_size:]
-                                selected_numbers = sorted([i + 1 for i in top_k_indices])
-                                strategy_used = "Deterministic Top-K from Ensemble"
-                                strategy_log["strategy_4_topk"] += 1
-
-                    # Anti-pattern rejection (P1)
-                    if adaptive_system and selected_numbers and attempt < max_attempts - 5:
-                        _anti_penalty = adaptive_system.penalize_anti_patterns(selected_numbers)
-                        if _anti_penalty > 0.7:
-                            strategy_log['anti_pattern_rejections'] = strategy_log.get('anti_pattern_rejections', 0) + 1
-                            continue
-
-                    # Attribution via threshold
-                    model_attribution = {}
-                    for number in selected_numbers:
-                        number_str = str(number)
-                        model_attribution[number_str] = []
-                        for model_key, model_probs in model_probabilities.items():
-                            if isinstance(model_probs, dict):
-                                number_prob = float(model_probs.get(number_str, 0))
-                                if number_prob > 1.5 / max_number:
-                                    model_attribution[number_str].append({
-                                        'model': model_key,
-                                        'probability': float(number_prob),
-                                        'confidence': float(number_prob * max_number)
-                                    })
-
-                    contributing_models = {
-                        voter['model']
-                        for voters in model_attribution.values()
-                        for voter in voters
-                    }
-                    if len(selected_model_names) == 0 or len(contributing_models) >= len(selected_model_names):
-                        all_models_contributed = True
-                    elif attempt >= max_attempts:
-                        all_models_contributed = True
-                        if attempt > 1:
-                            strategy_used += (
-                                f" (Coverage: {len(contributing_models)}/"
-                                f"{len(selected_model_names)} after {attempt} attempts)"
-                            )
+                _lo_cut = 17 if max_number > 49 else 16
+                _mi_cut = 34 if max_number > 49 else 32
+                _used_patt = (
+                    sum(1 for n in selected_numbers if n <= _lo_cut),
+                    sum(1 for n in selected_numbers if _lo_cut < n <= _mi_cut),
+                    sum(1 for n in selected_numbers if n > _mi_cut),
+                ) if selected_numbers else _tc
+                strategy_used = (
+                    f"Structural Portfolio "
+                    f"(Zone {_used_patt[0]}/{_used_patt[1]}/{_used_patt[2]}, "
+                    f"set {set_idx+1}/{num_sets})"
+                )
             
             # ===== UPDATE NUMBER USAGE TRACKING =====
             if no_repeat_numbers:
                 for number in selected_numbers:
                     number_usage_count[number] = number_usage_count.get(number, 0) + 1
-            
+
+            # Always update cross-set frequency tracker (independent of no_repeat flag)
+            for _csnum in selected_numbers:
+                _cross_set_count[_csnum] = _cross_set_count.get(_csnum, 0) + 1
+
             predictions.append(selected_numbers)
             predictions_with_attribution.append({
                 'numbers': selected_numbers,
@@ -3294,6 +4029,43 @@ understanding that lottery outcomes remain random and unpredictable.
         
         # Generate comprehensive strategy report
         strategy_report = self._generate_strategy_report(strategy_log, distribution_method)
+
+        # ===== POST-GENERATION DIVERSITY SWEEP =====
+        # Scan finished predictions for any number that colonised more than 50% of sets.
+        # Regenerate those sets with the offending number(s) heavily suppressed.
+        # Cap at 3 sweep passes to avoid infinite loops.
+        if num_sets >= 4:
+            for _sweep_pass in range(3):
+                _freq: Dict[int, int] = {}
+                for _ps in predictions:
+                    for _pn in _ps:
+                        _freq[_pn] = _freq.get(_pn, 0) + 1
+                _max_allowed_freq = max(3, int(num_sets * 0.30))
+                _dominant = {n for n, c in _freq.items() if c > _max_allowed_freq}
+                if not _dominant:
+                    break
+                strategy_log['diversity_sweep_pass'] = _sweep_pass + 1
+                strategy_log['diversity_sweep_dominant'] = list(_dominant)
+                _replaced = 0
+                for _ri, _rs in enumerate(predictions):
+                    if any(n in _dominant for n in _rs):
+                        # Build suppressed probs for this regeneration
+                        _sw_probs = prob_values.copy()
+                        for _dn in _dominant:
+                            _sw_probs[_dn - 1] *= 0.05   # nearly zero out dominant numbers
+                        _sw_probs = np.clip(_sw_probs, 1e-10, None)
+                        _sw_probs /= _sw_probs.sum()
+                        _sw_g = -np.log(-np.log(np.random.uniform(0, 1, max_number) + 1e-10) + 1e-10)
+                        _sw_sc = np.log(_sw_probs + 1e-10) + _sw_g
+                        _sw_top = sorted([int(i) + 1 for i in np.argsort(_sw_sc)[-draw_size:]])
+                        if len(_sw_top) == draw_size:
+                            predictions[_ri] = _sw_top
+                            predictions_with_attribution[_ri]['numbers'] = _sw_top
+                            predictions_with_attribution[_ri]['strategy'] = (
+                                predictions_with_attribution[_ri].get('strategy', '') + ' [diversity-swept]'
+                            )
+                            _replaced += 1
+                strategy_log[f'diversity_sweep_replaced_pass{_sweep_pass + 1}'] = _replaced
 
         # ===== GENETIC ALGORITHM POST-PROCESSING =====
         # Run GA optimisation on the bottom 30% of sets (by learning score) when
@@ -3520,7 +4292,7 @@ understanding that lottery outcomes remain random and unpredictable.
                     number_frequency[num] = number_frequency.get(num, 0) + 1
             
             unique_numbers = len(all_numbers_used)
-            max_possible_numbers = 50 if "max" in distribution_method.lower() else 49  # Estimate
+            max_possible_numbers = 52 if "max" in distribution_method.lower() else 49  # Estimate
             coverage_pct = (unique_numbers / max_possible_numbers) * 100
             
             # Find numbers used most/least
@@ -3643,6 +4415,13 @@ def render_prediction_ai_page(services_registry=None, ai_engines=None, component
             st.session_state.sia_ml_analysis_result = None
         if 'sia_ml_optimal_sets' not in st.session_state:
             st.session_state.sia_ml_optimal_sets = None
+        # Advanced direct-access model state
+        if 'sia_adv_selected_models' not in st.session_state:
+            st.session_state.sia_adv_selected_models = []
+        if 'sia_adv_analysis_result' not in st.session_state:
+            st.session_state.sia_adv_analysis_result = None
+        if 'sia_adv_optimal_sets' not in st.session_state:
+            st.session_state.sia_adv_optimal_sets = None
         if 'sia_predictions' not in st.session_state:
             st.session_state.sia_predictions = None
         
@@ -3935,389 +4714,247 @@ def _render_model_configuration(analyzer: SuperIntelligentAIAnalyzer) -> None:
     """Configure AI models and analysis parameters."""
     st.subheader("🤖 AI Model Selection & Configuration")
     
-    # ==================== NEW: MACHINE LEARNING MODELS SECTION ====================
+    # ==================== MACHINE LEARNING MODELS SECTION ====================
     st.markdown("### 🧠 Machine Learning Models")
-    st.markdown("Select models from Phase 2D promoted model cards")
-    
-    # Helper function to get available model cards for a game
-    def get_available_model_cards(game: str) -> List[str]:
-        """Get list of available model card files for a game."""
-        import os
-        from pathlib import Path
-        from streamlit_app.core import sanitize_game_name
-        
-        game_lower = sanitize_game_name(game)
-        PROJECT_ROOT = Path(os.path.dirname(os.path.abspath(__file__))).parent.parent
-        model_cards_dir = PROJECT_ROOT / "models" / "advanced" / "model_cards"
-        
-        if not model_cards_dir.exists():
-            return []
-        
-        # Find all model cards files for this game
-        matching_files = list(model_cards_dir.glob(f"model_cards_{game_lower}_*.json"))
-        
-        # Extract just the filenames without path
-        filenames = [f.name for f in matching_files]
-        
-        return sorted(filenames, reverse=True)  # Most recent first
-    
-    # Helper function to get promoted models from model card
-    def get_promoted_models(game_name: str, card_filename: str = None) -> List[Dict[str, Any]]:
-        """Load promoted models from Phase 2D leaderboard JSON file."""
-        import os
-        import json
-        from pathlib import Path
-        from streamlit_app.core import sanitize_game_name
-        
-        game_lower = sanitize_game_name(game_name)
-        PROJECT_ROOT = Path(os.path.dirname(os.path.abspath(__file__))).parent.parent
-        model_cards_dir = PROJECT_ROOT / "models" / "advanced" / "model_cards"
-        
-        if not model_cards_dir.exists():
-            return []
-        
-        # If a specific card filename is provided, use it
-        if card_filename:
-            target_file = model_cards_dir / card_filename
-            if not target_file.exists():
-                return []
-        else:
-            # Find the latest model cards file for this game
-            matching_files = list(model_cards_dir.glob(f"model_cards_{game_lower}_*.json"))
-            
-            if not matching_files:
-                return []
-            
-            # Get the most recent file
-            target_file = max(matching_files, key=lambda p: p.stat().st_mtime)
-        
-        try:
-            with open(target_file, 'r') as f:
-                models_data = json.load(f)
-            return models_data
-        except Exception as e:
-            return []
-    
-    # Get available cards for current game
-    available_cards = get_available_model_cards(analyzer.game)
-    
-    if available_cards:
-        col1, col2 = st.columns([1, 1])
-        
-        with col1:
-            selected_card = st.selectbox(
-                "Select Model Card",
-                available_cards,
-                key="sia_ml_model_card_selector"
-            )
-        
-        with col2:
-            st.info(f"📊 Game: {analyzer.game}")
-        
-        # Load models from selected card
-        promoted_models = get_promoted_models(analyzer.game, selected_card)
-        
-        if promoted_models:
-            model_names = [m.get("model_name", "Unknown") for m in promoted_models]
-            
-            selected_ml_models = st.multiselect(
-                "Select Models from Card",
-                model_names,
-                default=model_names[:min(3, len(model_names))],
-                key="sia_ml_models_selector"
-            )
-            
-            if selected_ml_models:
-                # Get the selected model objects with their metadata
-                selected_model_objs = [m for m in promoted_models if m.get("model_name") in selected_ml_models]
-                
-                # Store in session state
-                if 'sia_ml_selected_models' not in st.session_state:
-                    st.session_state.sia_ml_selected_models = []
-                
-                st.write(f"**Selected {len(selected_ml_models)} ML model(s)**")
-                
-                # Show selected models
-                for idx, model in enumerate(selected_model_objs):
-                    st.write(f"{idx+1}. {model.get('model_name', 'Unknown')} (health: {model.get('health_score', 0.75):.3f})")
-                
-                st.divider()
-                st.markdown("### 📊 ML Model Analysis")
-                
-                # Analyze button
-                if st.button("🔍 Analyze Selected ML Models", use_container_width=True, key="analyze_ml_btn"):
-                    with st.spinner("🤔 Analyzing ML models..."):
-                        # Use specialized ML model analysis method
-                        analysis = analyzer.analyze_ml_models(selected_model_objs)
-                        st.session_state.sia_ml_analysis_result = analysis
-                
-                # Display analysis results
-                if st.session_state.sia_ml_analysis_result:
-                    analysis = st.session_state.sia_ml_analysis_result
-                    
-                    # Metrics
-                    col1, col2, col3, col4 = st.columns(4)
-                    
-                    with col1:
-                        st.metric("Models Selected", analysis["total_selected"])
-                    with col2:
-                        st.metric("Average Accuracy", f"{analysis['average_accuracy']:.1%}")
-                    with col3:
-                        st.metric("Ensemble Confidence", f"{analysis['ensemble_confidence']:.1%}")
-                    with col4:
-                        if analysis["best_model"]:
-                            st.metric("Best Model", f"{analysis['best_model']['accuracy']:.1%}")
-                    
-                    # Model details
-                    st.markdown("#### Model Details")
-                    models_df = pd.DataFrame([
-                        {
-                            "Model": m["name"],
-                            "Type": m["type"],
-                            "Accuracy": f"{m['accuracy']:.1%}",
-                            "Confidence": f"{m['confidence']:.1%}"
-                        }
-                        for m in analysis["models"]
-                    ])
-                    # Add inference_type column to table
-                    models_df_display = pd.DataFrame([
-                        {
-                            "Model": m["name"],
-                            "Type": m["type"],
-                            "Accuracy": f"{m['accuracy']:.1%}",
-                            "Confidence": f"{m['confidence']:.1%}",
-                            "Inference": m.get("inference_type", "unknown"),
-                        }
-                        for m in analysis["models"]
-                    ])
-                    st.dataframe(models_df_display, use_container_width=True, hide_index=True)
+    st.markdown("Select directly from your trained advanced models (Phase 2A / 2B / 2C)")
 
-                    # Warn when any model used synthetic probabilities
-                    _type_summary = analysis.get("inference_type_summary", {})
-                    _synth_n = _type_summary.get('synthetic', 0) + _type_summary.get('synthetic_fallback', 0)
-                    _real_n = _type_summary.get('real', 0)
-                    if _synth_n > 0 and _real_n == 0:
-                        st.error(
-                            f"**All {_synth_n} models used synthetic (health-based) probabilities** — "
-                            "no real model inference was performed. Predictions will reflect uniform distributions, "
-                            "not learned patterns. Ensure model card points to trained `.joblib`/`.keras` files."
-                        )
-                    elif _synth_n > 0:
-                        st.warning(
-                            f"**{_synth_n} of {_synth_n + _real_n} models used synthetic probabilities** "
-                            f"({_real_n} used real inference). Ensemble quality is reduced. "
-                            "Check inference log for details."
-                        )
+    _adv = _discover_advanced_models(analyzer.game)
+    _tree_list = _adv["tree"]
+    _neural_list = _adv["neural"] + _adv["variants"]
 
-                    # Display inference logs in an expander
-                    if analysis.get("inference_logs"):
-                        with st.expander("🔍 Model Loading & Inference Details", expanded=False):
-                            st.markdown("**Real-time inference log showing model loading, feature generation, and probability calculation:**")
-                            for log_entry in analysis["inference_logs"]:
-                                st.text(log_entry)
-
-                    # Optimal Analysis section
-                    st.divider()
-                    st.markdown("### 🎯 Intelligent Set Recommendation - AI/ML Analysis")
-                    
-                    st.markdown("""
-                    **Goal:** Determine the optimal number of prediction sets based on AI/ML model analysis.
-                    
-                    This system analyzes your selected models to recommend a practical number of sets:
-                    - **Ensemble Accuracy Analysis**: Combined predictive power of all selected models
-                    - **Optimal Coverage Calculation**: Balances coverage with practical budget
-                    - **Confidence-Based Weighting**: Adjusts recommendations based on model reliability
-                    - **Cost-Effective Strategy**: Provides actionable recommendations you can actually use
-                    
-                    ⚠️ **Important**: Lottery outcomes are random. These are optimized recommendations, not guaranteed wins.
-                    """)
-                    
-                    # Coverage target + Set Limit Controls
-                    col_cov, col_cap1, col_cap2 = st.columns([2, 1, 2])
-
-                    with col_cov:
-                        sia_ml_target_prob = st.slider(
-                            "Coverage Target",
-                            min_value=50, max_value=95, value=90, step=5,
-                            key="sia_ml_target_prob",
-                            help="How confident do you want to be that at least one set covers the winning pattern? Higher = more sets recommended."
-                        ) / 100.0
-
-                    with col_cap1:
-                        enable_cap = st.checkbox(
-                            "Enable Set Limit",
-                            value=False,
-                            key="sia_ml_enable_cap",
-                            help="Limit the maximum number of recommended sets"
-                        )
-
-                    with col_cap2:
-                        if enable_cap:
-                            max_sets_cap = st.number_input(
-                                "Maximum Sets",
-                                min_value=1,
-                                max_value=1000,
-                                value=100,
-                                step=1,
-                                key="sia_ml_max_cap",
-                                help="Set the maximum number of sets to recommend (1-1000)"
-                            )
-                        else:
-                            max_sets_cap = None
-
-                    if st.button("🧠 Calculate Optimal Sets (SIA)", use_container_width=True, key="sia_calc_ml_btn"):
-                        with st.spinner("🤖 SIA performing deep mathematical analysis..."):
-                            optimal = analyzer.calculate_optimal_sets_advanced(analysis, target_probability=sia_ml_target_prob)
-                            
-                            # Apply cap if enabled
-                            if enable_cap and max_sets_cap is not None:
-                                if optimal["optimal_sets"] > max_sets_cap:
-                                    optimal["optimal_sets"] = max_sets_cap
-                                    optimal["capped"] = True
-                                    optimal["original_recommendation"] = optimal["optimal_sets"]
-                                else:
-                                    optimal["capped"] = False
-                            else:
-                                optimal["capped"] = False
-                            
-                            st.session_state.sia_ml_optimal_sets = optimal
-                    
-                    if st.session_state.sia_ml_optimal_sets:
-                        optimal = st.session_state.sia_ml_optimal_sets
-                        
-                        # Show cap notification if applied
-                        if optimal.get("capped", False):
-                            st.warning(f"⚠️ **Set Limit Applied**: Recommendation capped at {optimal['optimal_sets']} sets (original calculation suggested more)")
-                        
-                        # Main metrics in attractive layout
-                        col1, col2, col3, col4 = st.columns(4)
-                        
-                        with col1:
-                            st.metric(
-                                "🎯 Recommended Sets",
-                                optimal["optimal_sets"],
-                                help="Optimal number of sets for maximum coverage based on AI/ML analysis"
-                            )
-                        with col2:
-                            st.metric(
-                                "📊 Model Confidence",
-                                f"{optimal['ensemble_confidence']:.1%}",
-                                help="Combined confidence score from ensemble models"
-                            )
-                        with col3:
-                            st.metric(
-                                "🔬 Confidence Score",
-                                f"{optimal['ensemble_confidence']:.1%}",
-                                help="Algorithm confidence in this calculation"
-                            )
-                        with col4:
-                            st.metric(
-                                "🎲 Diversity Factor",
-                                f"{optimal['diversity_factor']:.2f}",
-                                help="Number diversity across sets (higher = more varied)"
-                            )
-                        
-                        st.divider()
-                        
-                        # Detailed Analysis Breakdown
-                        st.markdown("### 📈 Deep Analytical Reasoning")
-                        
-                        with st.expander("🔍 Algorithm Methodology", expanded=False):
-                            st.markdown(f"""
-                            **Ensemble Prediction Power:**
-                            - Combined Model Accuracy: {analysis['average_accuracy']:.1%}
-                            - Ensemble Synergy: {optimal['ensemble_synergy']:.1%}
-                            - Weighted Confidence: {optimal['weighted_confidence']:.1%}
-                            
-                            **Probabilistic Set Calculation:**
-                            - Base Probability (1 set): {optimal['base_probability']:.2%}
-                            - Sets for 90% confidence: {optimal['optimal_sets']}
-                            - Cumulative Probability: {optimal['win_probability']:.1%}
-                            
-                            **Risk & Variance Analysis:**
-                            - Model Variance: {optimal['model_variance']:.4f}
-                            - Uncertainty Factor: {optimal['uncertainty_factor']:.2f}
-                            - Uncertainty Extra Sets: {optimal.get('uncertainty_extra_sets', 0)}
-                            
-                            **Set Composition Strategy:**
-                            - Diversity Score: {optimal['diversity_factor']:.2f}
-                            - Number Distribution: {optimal['distribution_method']}
-                            - Hot/Cold Number Balance: {optimal['hot_cold_ratio']:.2f}
-                            """)
-                        
-                        with st.expander("💡 Algorithm Notes & Insights", expanded=True):
-                            st.info(optimal['detailed_algorithm_notes'])
-                        
-                        # Confidence visualization
-                        st.markdown("### 📊 Win Probability Curve")
-                        
-                        # Generate probability curve data
-                        max_sets = min(optimal["optimal_sets"] * 2, 100)
-                        set_counts = list(range(1, max_sets + 1))
-                        base_p = optimal['base_probability']  # Already a decimal, not percentage
-                        probabilities = [1 - (1 - base_p) ** n for n in set_counts]
-                        
-                        # Use module-level import of plotly.graph_objects as go
-                        fig = go.Figure()
-                        fig.add_trace(go.Scatter(
-                            x=set_counts,
-                            y=[p * 100 for p in probabilities],
-                            mode='lines+markers',
-                            name='Win Probability',
-                            line=dict(color='green', width=3),
-                            marker=dict(size=6)
-                        ))
-                        
-                        # Add target line at 90%
-                        fig.add_hline(
-                            y=90,
-                            line_dash="dash",
-                            line_color="red",
-                            annotation_text="90% Target",
-                            annotation_position="right"
-                        )
-                        fig.update_layout(
-                            title="Model Coverage Analysis by Number of Sets",
-                            xaxis_title="Number of Sets Generated",
-                            yaxis_title="Coverage Score (%)",
-                            height=400,
-                            hovermode='x unified'
-                        )
-                        st.plotly_chart(fig, use_container_width=True)
-                        
-                        st.info(f"""
-                        ✅ **Recommendation Ready**
-                        
-                        Based on analysis of {len(analysis['models'])} AI/ML models:
-                        - **Recommended: {optimal['optimal_sets']} prediction sets**
-                        - Each set uses ensemble intelligence from all selected models
-                        - Model confidence: {optimal['ensemble_confidence']:.1%}
-                        - Estimated cost: ${optimal['optimal_sets'] * 3:,} (at $3 per ticket)
-                        
-                        ⚠️ Remember: Lottery odds are 1 in millions regardless of prediction method.
-                        These sets provide optimized number selection based on historical patterns.
-                        
-                        Proceed to the "Generate Predictions" tab to create your sets!
-                        """)
-        else:
-            st.warning(f"⚠️ No models found in selected card: {selected_card}")
+    # ── Tree model selector ──────────────────────────────────────────────────
+    _tree_options: Dict[str, Dict[str, Any]] = {m["label"]: m for m in _tree_list}
+    if _tree_options:
+        _sel_tree_labels = st.multiselect(
+            "Tree Models (XGBoost / LightGBM / CatBoost)",
+            options=list(_tree_options.keys()),
+            default=[],
+            key="sia_adv_tree_selector",
+            help="Each entry represents one architecture with all its per-position model files.",
+        )
     else:
-        st.info(f"📝 No model cards available for {analyzer.game}. Visit Phase 2D Leaderboard to create model cards.")
-    
+        _sel_tree_labels = []
+        st.info(
+            "No tree models found. "
+            "Train them in **Advanced ML Training → Phase 2A**."
+        )
+
+    # ── Neural / Variant selector ────────────────────────────────────────────
+    _neural_options: Dict[str, Dict[str, Any]] = {m["label"]: m for m in _neural_list}
+    if _neural_options:
+        _sel_neural_labels = st.multiselect(
+            "Neural Networks & Variants (LSTM / CNN / Transformer)",
+            options=list(_neural_options.keys()),
+            default=[],
+            key="sia_adv_neural_selector",
+            help="Base models use a sliding window; variants use draw-aligned sequences.",
+        )
+    else:
+        _sel_neural_labels = []
+        st.info(
+            "No neural models found. "
+            "Train them in **Advanced ML Training → Phase 2B / 2C**."
+        )
+
+    # ── Selected model list ──────────────────────────────────────────────────
+    _all_selected_adv: List[Dict[str, Any]] = (
+        [_tree_options[lbl] for lbl in _sel_tree_labels]
+        + [_neural_options[lbl] for lbl in _sel_neural_labels]
+    )
+    st.session_state.sia_adv_selected_models = _all_selected_adv
+
+    if _all_selected_adv:
+        st.markdown(f"#### Selected ML Models ({len(_all_selected_adv)})")
+        _sel_df_rows = []
+        for _sm in _all_selected_adv:
+            _sel_df_rows.append({
+                "Model": _sm["label"],
+                "Type": _sm["type"].upper(),
+                "Source": _sm["source"].replace("advanced_", ""),
+                "Top-5 Acc": f"{_sm['top5_accuracy']:.1%}",
+                "Score": f"{_sm['composite_score']:.3f}",
+            })
+        st.dataframe(pd.DataFrame(_sel_df_rows), use_container_width=True, hide_index=True)
+
+        st.divider()
+        st.markdown("### 📊 ML Model Analysis")
+
+        if st.button("🔍 Analyze Selected ML Models", use_container_width=True, key="analyze_adv_ml_btn"):
+            with st.spinner("Running inference on selected models…"):
+                _adv_analysis = analyzer.analyze_advanced_models(_all_selected_adv)
+                st.session_state.sia_adv_analysis_result = _adv_analysis
+                # Clear previous optimal so user must recalculate
+                st.session_state.sia_adv_optimal_sets = None
+
+        if st.session_state.sia_adv_analysis_result:
+            _adv_res = st.session_state.sia_adv_analysis_result
+
+            # ── Inference quality warning ────────────────────────────────────
+            _its = _adv_res.get("inference_type_summary", {})
+            _real_n = _its.get("real", 0)
+            _fail_n = _its.get("failed", 0)
+            if _fail_n > 0 and _real_n == 0:
+                st.error(
+                    f"All {_fail_n} models failed inference. "
+                    "Check the inference log below for details."
+                )
+            elif _fail_n > 0:
+                st.warning(
+                    f"{_fail_n} of {len(_all_selected_adv)} models failed inference "
+                    f"({_real_n} succeeded). Ensemble uses successful models only."
+                )
+
+            # ── Metrics ──────────────────────────────────────────────────────
+            _c1, _c2, _c3, _c4 = st.columns(4)
+            _c1.metric("Models OK", f"{_real_n}/{len(_all_selected_adv)}")
+            _c2.metric("Avg Top-5 Acc", f"{_adv_res['average_accuracy']:.1%}")
+            _c3.metric("Ensemble Confidence", f"{_adv_res['ensemble_confidence']:.1%}")
+            if _adv_res.get("best_model"):
+                _c4.metric("Best Model Acc", f"{_adv_res['best_model']['accuracy']:.1%}")
+
+            # ── Model detail table ────────────────────────────────────────────
+            if _adv_res["models"]:
+                st.markdown("#### Model Details")
+                _mdf = pd.DataFrame([
+                    {
+                        "Model": m["name"],
+                        "Type": m["type"].upper(),
+                        "Top-5 Acc": f"{m['accuracy']:.1%}",
+                        "Confidence": f"{m['confidence']:.1%}",
+                        "Inference": m.get("inference_type", "?"),
+                    }
+                    for m in _adv_res["models"]
+                ])
+                st.dataframe(_mdf, use_container_width=True, hide_index=True)
+
+            # ── Inference log ─────────────────────────────────────────────────
+            if _adv_res.get("inference_logs"):
+                with st.expander("🔍 Inference Log", expanded=False):
+                    for _lg in _adv_res["inference_logs"]:
+                        st.text(_lg)
+
+            # ── Optimal sets ──────────────────────────────────────────────────
+            st.divider()
+            st.markdown("### 🎯 Intelligent Set Recommendation")
+
+            _col_cov, _col_cap1, _col_cap2 = st.columns([2, 1, 2])
+            with _col_cov:
+                _adv_target = st.slider(
+                    "Coverage Target",
+                    min_value=50, max_value=95, value=90, step=5,
+                    key="sia_adv_target_prob",
+                    help="Desired confidence that at least one set matches the winning pattern.",
+                ) / 100.0
+            with _col_cap1:
+                _adv_enable_cap = st.checkbox(
+                    "Enable Set Limit",
+                    value=False,
+                    key="sia_adv_enable_cap",
+                )
+            with _col_cap2:
+                _adv_max_cap = None
+                if _adv_enable_cap:
+                    _adv_max_cap = st.number_input(
+                        "Maximum Sets",
+                        min_value=1, max_value=1000, value=100, step=1,
+                        key="sia_adv_max_cap",
+                    )
+
+            if st.button(
+                "🧠 Calculate Optimal Sets (SIA)",
+                use_container_width=True,
+                key="sia_adv_calc_btn",
+            ):
+                with st.spinner("SIA performing deep mathematical analysis…"):
+                    _adv_opt = analyzer.calculate_optimal_sets_advanced(
+                        _adv_res, target_probability=_adv_target
+                    )
+                    if _adv_enable_cap and _adv_max_cap and _adv_opt["optimal_sets"] > _adv_max_cap:
+                        _adv_opt["optimal_sets"] = _adv_max_cap
+                        _adv_opt["capped"] = True
+                    else:
+                        _adv_opt["capped"] = False
+                    st.session_state.sia_adv_optimal_sets = _adv_opt
+
+            if st.session_state.sia_adv_optimal_sets:
+                _adv_opt = st.session_state.sia_adv_optimal_sets
+                if _adv_opt.get("capped"):
+                    st.warning(
+                        f"Set limit applied: capped at {_adv_opt['optimal_sets']} sets."
+                    )
+                _oc1, _oc2, _oc3, _oc4 = st.columns(4)
+                _oc1.metric("Recommended Sets", _adv_opt["optimal_sets"])
+                _oc2.metric("Model Confidence", f"{_adv_opt['ensemble_confidence']:.1%}")
+                _oc3.metric("Win Probability", f"{_adv_opt['win_probability']:.1%}")
+                _oc4.metric("Diversity Factor", f"{_adv_opt['diversity_factor']:.2f}")
+
+                with st.expander("🔍 Algorithm Methodology", expanded=False):
+                    st.markdown(f"""
+**Ensemble Prediction Power:**
+- Combined Model Accuracy: {_adv_res['average_accuracy']:.1%}
+- Ensemble Synergy: {_adv_opt['ensemble_synergy']:.1%}
+- Weighted Confidence: {_adv_opt['weighted_confidence']:.1%}
+
+**Probabilistic Set Calculation:**
+- Base Probability (1 set): {_adv_opt['base_probability']:.2%}
+- Sets for {int(_adv_target*100)}% confidence: {_adv_opt['optimal_sets']}
+
+**Risk & Variance Analysis:**
+- Model Variance: {_adv_opt['model_variance']:.4f}
+- Uncertainty Factor: {_adv_opt['uncertainty_factor']:.2f}
+                    """)
+
+                with st.expander("💡 Algorithm Notes", expanded=True):
+                    st.info(_adv_opt["detailed_algorithm_notes"])
+
+                # Probability curve
+                _curve_max = min(_adv_opt["optimal_sets"] * 2, 100)
+                _bp = _adv_opt["base_probability"]
+                _curve_x = list(range(1, _curve_max + 1))
+                _curve_y = [100 * (1 - (1 - _bp) ** n) for n in _curve_x]
+                _fig = go.Figure()
+                _fig.add_trace(go.Scatter(
+                    x=_curve_x, y=_curve_y,
+                    mode='lines+markers',
+                    name='Coverage %',
+                    line=dict(color='#10b981', width=3),
+                ))
+                _fig.add_hline(
+                    y=_adv_target * 100,
+                    line_dash="dash",
+                    line_color="#ef4444",
+                    annotation_text=f"{int(_adv_target*100)}% Target",
+                    annotation_position="right",
+                )
+                _fig.update_layout(
+                    title="Model Coverage by Number of Sets",
+                    xaxis_title="Number of Sets",
+                    yaxis_title="Coverage (%)",
+                    height=380,
+                    hovermode="x unified",
+                )
+                st.plotly_chart(_fig, use_container_width=True)
+
+                st.success(
+                    f"Recommendation ready: **{_adv_opt['optimal_sets']} prediction sets**.  \n"
+                    f"Proceed to the **Generate Predictions** tab."
+                )
+
     st.divider()
-    
+
     # ==================== EXISTING: STANDARD MODELS SECTION ====================
     st.markdown("### 📋 Standard Models (Optional)")
     st.markdown("Add additional models from the standard models directory")
-    
+
     # Get available model types
     model_types = analyzer.get_available_model_types()
-    
+
     if not model_types:
         st.warning("❌ No models found in the models folder for this game.")
         st.info("📝 Please train models first or check the models directory.")
         return
-    
+
+    # ── Standard Models section ───────────────────────────────────────────────
     # Model selection interface
     col1, col2 = st.columns([1.5, 1.5])
     
@@ -4614,29 +5251,35 @@ def _render_prediction_generator(analyzer: SuperIntelligentAIAnalyzer) -> None:
     """Generate AI-optimized predictions for winning lottery with >90% confidence."""
     st.subheader("🎲 AI-Powered Prediction Generation - Super Intelligent Algorithm")
     
-    # Check for either ML Models or Standard Models optimal sets
+    # Resolve which model source has been prepared (priority: adv > ml-card > std)
     optimal = None
     analysis = None
     model_source = None
-    
-    if st.session_state.sia_ml_optimal_sets:
+
+    if st.session_state.get('sia_adv_optimal_sets'):
+        optimal = st.session_state.sia_adv_optimal_sets
+        analysis = st.session_state.sia_adv_analysis_result
+        model_source = "Advanced ML Models"
+    elif st.session_state.get('sia_ml_optimal_sets'):
         optimal = st.session_state.sia_ml_optimal_sets
         analysis = st.session_state.sia_ml_analysis_result
         model_source = "Machine Learning Models"
-    elif st.session_state.sia_optimal_sets:
+    elif st.session_state.get('sia_optimal_sets'):
         optimal = st.session_state.sia_optimal_sets
         analysis = st.session_state.sia_analysis_result
         model_source = "Standard Models"
-    
+
     # --- Prerequisites checklist ---
+    _adv_analysis = st.session_state.get('sia_adv_analysis_result')
     _ml_analysis = st.session_state.get('sia_ml_analysis_result')
     _std_analysis = st.session_state.get('sia_analysis_result')
+    _adv_optimal = st.session_state.get('sia_adv_optimal_sets')
     _ml_optimal = st.session_state.get('sia_ml_optimal_sets')
     _std_optimal = st.session_state.get('sia_optimal_sets')
 
-    _step1_ok = bool(_ml_analysis or _std_analysis)   # models analysed
-    _step2_ok = bool(_ml_optimal or _std_optimal)      # optimal sets calculated
-    _step3_ok = bool(optimal and analysis)             # ready to generate
+    _step1_ok = bool(_adv_analysis or _ml_analysis or _std_analysis)   # models analysed
+    _step2_ok = bool(_adv_optimal or _ml_optimal or _std_optimal)      # optimal sets calculated
+    _step3_ok = bool(optimal and analysis)                             # ready to generate
 
     def _chk(ok: bool) -> str:
         return "✅" if ok else "❌"
@@ -5199,10 +5842,43 @@ def _render_prediction_generator(analyzer: SuperIntelligentAIAnalyzer) -> None:
                 # ===== COMPUTE GENERATION CONFIDENCE SCORES & RANKING =====
                 # Score each set so we can rank them at generation time before any
                 # draw results are known.  Score = weighted blend of:
-                #   45% — avg model confidence (how strongly models preferred these numbers)
-                #   35% — vote density (fraction of numbers that received model votes)
-                #   20% — profile conformance (if a draw profile was used, else neutral 0.5)
+                #   40% — avg model confidence (how strongly models preferred these numbers)
+                #   30% — vote density (fraction of numbers that received model votes)
+                #   15% — profile conformance (if a draw profile was used, else neutral 0.5)
+                #   15% — structural quality (historical sum range, odd/even, ghost-number penalty)
                 _gc_scores: list = []
+
+                # Pre-compute ghost-number set for structural penalty (same threshold logic
+                # as ghost suppression above, but fast inline version using game knowledge)
+                _rk_ghost_nums: set = set()
+                try:
+                    _rk_gn_folder = _sanitize_game_name(self.game)
+                    _rk_gn_dir = Path("data") / _rk_gn_folder
+                    if _rk_gn_dir.exists():
+                        import glob as _rk_glob
+                        _rk_csvs = sorted(_rk_glob.glob(str(_rk_gn_dir / "*.csv")))
+                        if _rk_csvs:
+                            import pandas as _rk_pd
+                            _rk_df = _rk_pd.concat(
+                                [_rk_pd.read_csv(f, usecols=['numbers']) for f in _rk_csvs[-3:]],
+                                ignore_index=True
+                            )
+                            _rk_cnt: dict = {}
+                            for _rk_row in _rk_df['numbers'].dropna():
+                                for _rk_n in str(_rk_row).split(','):
+                                    try:
+                                        _rk_i = int(_rk_n.strip())
+                                        if 1 <= _rk_i <= max_number:
+                                            _rk_cnt[_rk_i] = _rk_cnt.get(_rk_i, 0) + 1
+                                    except ValueError:
+                                        pass
+                            _rk_max = max(_rk_cnt.values()) if _rk_cnt else 1
+                            _rk_thr = max(5, _rk_max * 0.02)
+                            _rk_ghost_nums = {n for n in range(1, max_number + 1)
+                                              if _rk_cnt.get(n, 0) < _rk_thr}
+                except Exception:
+                    pass  # Non-fatal — structural penalty skips ghost check
+
                 for _si, _sp in enumerate(predictions):
                     _attr_data = (
                         predictions_with_attribution[_si]
@@ -5230,8 +5906,30 @@ def _render_prediction_generator(analyzer: SuperIntelligentAIAnalyzer) -> None:
                     _pconf = 0.5  # neutral when no profile used
                     if profile_validation_results and _si < len(profile_validation_results):
                         _pconf = profile_validation_results[_si].get('conformance_score', 0.5)
+                    # Structural quality — penalise sets that violate historical norms
+                    _sq = 1.0
+                    _sp_sum = sum(_sp)
+                    # Sum range: derive from game config (same bounds as generator)
+                    try:
+                        _rk_max_n = analyzer.game_config.max_number
+                    except Exception:
+                        _rk_max_n = 52 if 'max' in analyzer.game.lower() else 49
+                    _rk_s_lo, _rk_s_hi = (117, 233) if _rk_max_n > 49 else (96, 206)
+                    if not (_rk_s_lo <= _sp_sum <= _rk_s_hi):
+                        _sq -= 0.25
+                    # Ghost-number penalty — each ghost number costs 0.20
+                    _ghost_hit = sum(1 for n in _sp if n in _rk_ghost_nums)
+                    _sq -= _ghost_hit * 0.20
+                    # Extreme odd/even penalty (1 or fewer odd, or 1 or fewer even)
+                    _sp_odd = sum(1 for n in _sp if n % 2 == 1)
+                    _rk_draw_size = len(_sp)
+                    if _sp_odd <= 1 or _sp_odd >= _rk_draw_size - 1:
+                        _sq -= 0.15
+                    _sq = max(0.0, min(1.0, _sq))
                     _score = round(
-                        _conf_score * 0.45 + _vote_density * 0.35 + _pconf * 0.20, 4
+                        _conf_score * 0.40 + _vote_density * 0.30
+                        + _pconf * 0.15 + _sq * 0.15,
+                        4
                     )
                     _gc_scores.append(_score)
 
@@ -5852,611 +6550,788 @@ def _render_jackpot_analysis(analyzer: SuperIntelligentAIAnalyzer) -> None:
 
 
 def _search_draws_by_jackpot(game: str, min_jackpot: float, max_jackpot: float) -> List[Dict]:
-    """Search all historical CSVs for draws within jackpot range."""
+    """Search all historical CSVs for draws within jackpot range.
+
+    Uses the n1-n7 columns directly (reliable integers) instead of parsing
+    the comma-separated 'numbers' string column.
+    """
     matching_draws = []
-    
+    is_max = 'max' in game.lower()
+    num_cols = ['n1', 'n2', 'n3', 'n4', 'n5', 'n6', 'n7'] if is_max else ['n1', 'n2', 'n3', 'n4', 'n5', 'n6']
+
     try:
         game_folder = _sanitize_game_name(game)
         data_dir = Path("data") / game_folder
-        
+
         if not data_dir.exists():
             return matching_draws
-        
-        # Get all training data CSV files
+
         csv_files = sorted(data_dir.glob("training_data_*.csv"))
-        
+
         for csv_file in csv_files:
             try:
                 df = pd.read_csv(str(csv_file))
-                
-                # Filter by jackpot range
-                if 'jackpot' in df.columns:
-                    matching_rows = df[
-                        (df['jackpot'] >= min_jackpot) & 
-                        (df['jackpot'] <= max_jackpot)
-                    ]
-                    
-                    for _, row in matching_rows.iterrows():
-                        # Parse numbers
-                        numbers_str = str(row.get('numbers', ''))
-                        if numbers_str and numbers_str != 'nan':
-                            numbers = [int(n.strip()) for n in numbers_str.strip('[]"').replace('"', '').split(',') if n.strip().isdigit()]
-                            
-                            if numbers:
-                                draw_data = {
-                                    'date': str(row.get('draw_date', '')),
-                                    'numbers': numbers,
-                                    'bonus': int(row.get('bonus', 0)) if pd.notna(row.get('bonus')) else 0,
-                                    'jackpot': float(row.get('jackpot', 0))
-                                }
-                                matching_draws.append(draw_data)
-            
+                if 'jackpot' not in df.columns:
+                    continue
+
+                df['jackpot'] = pd.to_numeric(df['jackpot'], errors='coerce')
+                mask = (df['jackpot'] >= min_jackpot) & (df['jackpot'] <= max_jackpot)
+                matching_rows = df[mask]
+
+                for _, row in matching_rows.iterrows():
+                    avail = [c for c in num_cols if c in df.columns]
+                    if not avail:
+                        continue
+                    try:
+                        numbers = [int(row[c]) for c in avail if pd.notna(row[c])]
+                        numbers = sorted([n for n in numbers if 1 <= n <= (52 if is_max else 49)])
+                    except Exception:
+                        continue
+                    if len(numbers) >= (7 if is_max else 6):
+                        matching_draws.append({
+                            'date':    str(row.get('draw_date', '')),
+                            'numbers': numbers[:(7 if is_max else 6)],
+                            'bonus':   int(row['bonus']) if 'bonus' in df.columns and pd.notna(row.get('bonus')) else 0,
+                            'jackpot': float(row['jackpot']),
+                        })
+
             except Exception as e:
                 app_log(f"Error reading {csv_file.name}: {e}", "debug")
                 continue
-        
-        # Sort by date (newest first)
+
         matching_draws.sort(key=lambda x: x['date'], reverse=True)
-        
+
     except Exception as e:
         app_log(f"Error searching draws: {e}", "error")
-    
+
     return matching_draws
 
 
 def _analyze_draw_patterns(draws: List[Dict], game: str) -> Dict:
-    """Analyze patterns across all matching draws.
+    """Analyze patterns across all matching draws with full zone, structural, and scoring analysis.
 
-    Improvements applied:
-    - P1: std added to sum_stats and gap_analysis
-    - P2: position_frequency tracks per-sorted-position number counts
-    - P3: pair_cooccurrence tracks all 2-number combinations per draw (top-30 saved)
-    - P5: temporal decay weights recent draws more heavily (half-life 180 days)
-    - P9: bonus_frequency captured for Lotto Max
+    Zone definitions (must match Structural Portfolio Generator):
+      Lotto Max (52): lo=1-17, mi=18-34, hi=35-52
+      Lotto 6/49 (49): lo=1-16, mi=17-32, hi=33-49
+
+    Returns a rich dict containing:
+      - zone_analysis: zone pattern frequency and cross od/even combos
+      - sum_percentiles: p10/p25/p50/p75/p90 of draw sums
+      - structural_fingerprints: per-draw zone+sum+odd record
+      - dominant_strategy: the single most probable structural profile
+      - number_scores: composite 0-100 score per number for this jackpot bracket
+      - (all existing keys maintained for backward-compat with generation blend)
     """
     from itertools import combinations as _combs
 
-    # Determine number range for the game
-    if "6/49" in game or "6_49" in game:
-        max_num = 49
-        nums_per_draw = 6
-    else:  # Lotto Max
-        max_num = 50
-        nums_per_draw = 7
+    is_max = 'max' in game.lower()
+    max_num = 52 if is_max else 49
+    nums_per_draw = 7 if is_max else 6
 
-    mid_point = (max_num + 1) // 2
+    # Zone boundaries (match Structural Portfolio Generator exactly)
+    if is_max:
+        lo_cap, mi_cap = 17, 34   # lo 1-17 / mi 18-34 / hi 35-52
+    else:
+        lo_cap, mi_cap = 16, 32   # lo 1-16 / mi 17-32 / hi 33-49
 
-    # P5: Sort draws newest → oldest and compute temporal decay weights
-    # half-life = 180 days; weight = exp(-age / 180)
-    _today = datetime.today().date()
-    def _draw_date(d):
-        try:
-            return datetime.strptime(str(d.get('date', '')), '%Y-%m-%d').date()
-        except Exception:
-            return _today
-    sorted_draws = sorted(draws, key=_draw_date, reverse=True)
-    newest_date = _draw_date(sorted_draws[0]) if sorted_draws else _today
-    def _decay_weight(d):
-        age = max(0, (newest_date - _draw_date(d)).days)
-        return float(np.exp(-age / 180.0))
+    mid_point = (max_num + 1) // 2   # kept for legacy high_low_combos key
 
-    # Initialize counters
-    odd_even_combos = {}
-    high_low_combos = {}
-    sum_ranges = []
-    sum_weights = []
-    # P5: weighted frequency (float counts)
-    number_frequency = {i: 0.0 for i in range(1, max_num + 1)}
-    consecutive_counts = {}
-    decade_distribution = {f"{i*10}-{i*10+9}": 0.0 for i in range(max_num // 10 + 1)}
-    gap_analysis = []
-    prime_counts = {}
-    pair_counts = {}
-    repeat_from_previous = []
-    # P2: position frequency {1: {num: float, ...}, ...}
-    position_frequency = {pos: {n: 0.0 for n in range(1, max_num + 1)} for pos in range(1, nums_per_draw + 1)}
-    # P3: co-occurrence pair counts
-    pair_cooccurrence = {}
-    # P9: bonus frequency (Lotto Max only)
-    bonus_frequency = {i: 0 for i in range(1, max_num + 1)} if nums_per_draw == 7 else {}
+    def _zone(nums):
+        return (sum(1 for n in nums if n <= lo_cap),
+                sum(1 for n in nums if lo_cap < n <= mi_cap),
+                sum(1 for n in nums if n > mi_cap))
 
     def is_prime(n):
-        if n < 2:
-            return False
+        if n < 2: return False
         for i in range(2, int(n**0.5) + 1):
-            if n % i == 0:
-                return False
+            if n % i == 0: return False
         return True
 
     primes = set(n for n in range(1, max_num + 1) if is_prime(n))
+
+    # Temporal decay weights (half-life 180 days — recency matters)
+    _today = datetime.today().date()
+    def _draw_date(d):
+        try: return datetime.strptime(str(d.get('date', '')), '%Y-%m-%d').date()
+        except: return _today
+    sorted_draws = sorted(draws, key=_draw_date, reverse=True)
+    newest_date = _draw_date(sorted_draws[0]) if sorted_draws else _today
+    def _decay(d):
+        return float(np.exp(-max(0, (newest_date - _draw_date(d)).days) / 180.0))
+
+    # ---- Accumulators ----
+    odd_even_combos   = {}
+    high_low_combos   = {}
+    zone_combos       = {}        # (lo,mi,hi) -> float weight
+    zone_oe_cross     = {}        # "(lo,mi,hi)|(odd,even)" -> float weight
+    sum_ranges        = []
+    sum_weights       = []
+    number_frequency  = {i: 0.0 for i in range(1, max_num + 1)}
+    number_recency    = {i: 0.0 for i in range(1, max_num + 1)}  # decay-weighted
+    consecutive_counts= {}
+    decade_distribution = {f"{i*10}-{i*10+9}": 0.0 for i in range(max_num // 10 + 1)}
+    all_gap_values    = []
+    max_gap_per_draw  = []
+    prime_counts      = {}
+    pair_counts       = {}
+    repeat_from_previous = []
+    position_frequency = {pos: {n: 0.0 for n in range(1, max_num + 1)} for pos in range(1, nums_per_draw + 1)}
+    pair_cooccurrence = {}
+    bonus_frequency   = {i: 0 for i in range(1, max_num + 1)} if is_max else {}
+    structural_fingerprints = []   # NEW
+    raw_frequency     = {i: 0 for i in range(1, max_num + 1)}
 
     previous_numbers = None
 
     for draw in sorted_draws:
         numbers = sorted(draw['numbers'])
-        w = _decay_weight(draw)  # P5 temporal decay weight
+        w = _decay(draw)
 
-        # Odd/Even analysis
-        odd_count = sum(1 for n in numbers if n % 2 == 1)
+        # --- Zone ---
+        zp = _zone(numbers)
+        zone_combos[zp] = zone_combos.get(zp, 0) + w
+
+        # --- Odd/Even ---
+        odd_count = sum(1 for n in numbers if n % 2 != 0)
         even_count = len(numbers) - odd_count
         oe_combo = f"{odd_count} Odd / {even_count} Even"
         odd_even_combos[oe_combo] = odd_even_combos.get(oe_combo, 0) + w
 
-        # High/Low analysis
+        # --- Zone × Odd/Even cross ---
+        cross_key = f"{zp}|{odd_count}o{even_count}e"
+        zone_oe_cross[cross_key] = zone_oe_cross.get(cross_key, 0) + w
+
+        # --- Legacy high/low ---
         low_count = sum(1 for n in numbers if n <= mid_point)
-        high_count = len(numbers) - low_count
-        hl_combo = f"{low_count} Low / {high_count} High"
+        hl_combo = f"{low_count} Low / {len(numbers)-low_count} High"
         high_low_combos[hl_combo] = high_low_combos.get(hl_combo, 0) + w
 
-        # Sum analysis (keep raw list for std; weight for mean/median)
+        # --- Sum ---
         total_sum = sum(numbers)
         sum_ranges.append(total_sum)
         sum_weights.append(w)
 
-        # P5: weighted number frequency
+        # --- Number frequencies ---
         for num in numbers:
             number_frequency[num] += w
+            number_recency[num]   += w
+            raw_frequency[num]    += 1
 
-        # Consecutive numbers
-        consecutive = sum(1 for i in range(len(numbers) - 1) if numbers[i + 1] == numbers[i] + 1)
-        consecutive_counts[consecutive] = consecutive_counts.get(consecutive, 0) + w
+        # --- Consecutive ---
+        consec = sum(1 for i in range(len(numbers)-1) if numbers[i+1] == numbers[i]+1)
+        consecutive_counts[consec] = consecutive_counts.get(consec, 0) + w
 
-        # Decade distribution (weighted)
+        # --- Decade ---
         for num in numbers:
-            decade = f"{(num-1)//10*10}-{(num-1)//10*10+9}"
-            if decade in decade_distribution:
-                decade_distribution[decade] += w
+            dk = f"{(num-1)//10*10}-{(num-1)//10*10+9}"
+            if dk in decade_distribution:
+                decade_distribution[dk] += w
 
-        # Gap analysis
+        # --- Gaps ---
         if len(numbers) > 1:
-            gaps = [numbers[i + 1] - numbers[i] for i in range(len(numbers) - 1)]
-            gap_analysis.append(max(gaps))
+            gaps = [numbers[i+1] - numbers[i] for i in range(len(numbers)-1)]
+            all_gap_values.extend(gaps)
+            max_gap_per_draw.append(max(gaps))
 
-        # Prime count
-        prime_count = sum(1 for n in numbers if n in primes)
-        prime_counts[prime_count] = prime_counts.get(prime_count, 0) + w
+        # --- Primes ---
+        pc = sum(1 for n in numbers if n in primes)
+        prime_counts[pc] = prime_counts.get(pc, 0) + w
 
-        # Close-pair count (gap ≤ 2)
-        pairs = sum(1 for i in range(len(numbers) - 1) if numbers[i + 1] - numbers[i] <= 2)
-        pair_counts[pairs] = pair_counts.get(pairs, 0) + w
+        # --- Close pairs (gap ≤ 2) ---
+        cp = sum(1 for i in range(len(numbers)-1) if numbers[i+1] - numbers[i] <= 2)
+        pair_counts[cp] = pair_counts.get(cp, 0) + w
 
-        # Repeat from previous draw
+        # --- Repeats from previous ---
         if previous_numbers is not None:
-            repeats = len(set(numbers) & set(previous_numbers))
-            repeat_from_previous.append(repeats)
-
+            repeat_from_previous.append(len(set(numbers) & set(previous_numbers)))
         previous_numbers = numbers
 
-        # P2: position frequency (weighted)
+        # --- Position frequency ---
         for pos, num in enumerate(numbers, 1):
             if pos in position_frequency:
                 position_frequency[pos][num] += w
 
-        # P3: co-occurrence pairs (weighted)
+        # --- Co-occurrence pairs ---
         for n1, n2 in _combs(numbers, 2):
             key = f"{n1},{n2}"
             pair_cooccurrence[key] = pair_cooccurrence.get(key, 0) + w
 
-        # P9: bonus frequency (Lotto Max, unweighted — raw count)
-        if nums_per_draw == 7:
+        # --- Bonus (Lotto Max) ---
+        if is_max:
             bonus = int(draw.get('bonus', 0) or 0)
             if 1 <= bonus <= max_num:
                 bonus_frequency[bonus] = bonus_frequency.get(bonus, 0) + 1
 
-    # ---- Compute statistics ----
-    # P1: weighted mean for sum (raw std from unweighted list for simplicity)
+        # --- Structural fingerprint for this draw ---
+        structural_fingerprints.append({
+            'date':         draw.get('date', ''),
+            'zone_pattern': list(zp),
+            'sum':          total_sum,
+            'odd_count':    odd_count,
+            'even_count':   even_count,
+            'numbers':      numbers,
+        })
+
+    # ---- Aggregate statistics ----
     _sw_total = sum(sum_weights) or 1.0
     _sum_mean = sum(s * w for s, w in zip(sum_ranges, sum_weights)) / _sw_total
-    _sum_std  = (statistics.stdev(sum_ranges) if len(sum_ranges) > 1 else 0.0)
+    _sum_std  = float(np.std(sum_ranges)) if len(sum_ranges) > 1 else 0.0
+    sum_arr   = np.array(sum_ranges)
+    sum_pcts  = {
+        'p10': int(np.percentile(sum_arr, 10)),
+        'p25': int(np.percentile(sum_arr, 25)),
+        'p50': int(np.percentile(sum_arr, 50)),
+        'p75': int(np.percentile(sum_arr, 75)),
+        'p90': int(np.percentile(sum_arr, 90)),
+    } if len(sum_arr) > 0 else {'p10':0,'p25':0,'p50':0,'p75':0,'p90':0}
 
-    # P1: gap std
-    _gap_std = statistics.stdev(gap_analysis) if len(gap_analysis) > 1 else 0.0
+    _gap_std  = float(np.std(all_gap_values)) if all_gap_values else 0.0
+    _gap_max_std = float(np.std(max_gap_per_draw)) if max_gap_per_draw else 0.0
 
-    # P3: top-30 most frequent co-occurrence pairs
     top_pairs = sorted(pair_cooccurrence.items(), key=lambda x: x[1], reverse=True)[:30]
     top_pairs_dict = {k: round(v, 4) for k, v in top_pairs}
 
-    # P2: for each position, build a ranked list of top-10 numbers
     position_top_numbers = {}
     for pos, freq_dict in position_frequency.items():
         ranked = sorted(freq_dict.items(), key=lambda x: x[1], reverse=True)[:10]
         position_top_numbers[str(pos)] = [[n, round(f, 4)] for n, f in ranked]
 
-    # P9: top-10 bonus numbers
     bonus_top = []
     if bonus_frequency:
         bonus_top = sorted(bonus_frequency.items(), key=lambda x: x[1], reverse=True)[:10]
 
-    # Use raw (unweighted) counts for excluded-number detection to avoid under-reporting cold #s
-    raw_frequency = {i: 0 for i in range(1, max_num + 1)}
-    for draw in sorted_draws:
-        for num in sorted(draw['numbers']):
-            raw_frequency[num] += 1
+    # ---- Zone analysis ----
+    total_draws = len(draws)
+    zone_ranked = sorted(zone_combos.items(), key=lambda x: x[1], reverse=True)
+    zone_analysis = {
+        'patterns': {str(zp): round(w, 4) for zp, w in zone_ranked},
+        'top_pattern': zone_ranked[0][0] if zone_ranked else (2, 2, 3),
+        'top_pct': round(zone_ranked[0][1] / _sw_total * 100, 1) if zone_ranked else 0,
+        'lo_cap': lo_cap,
+        'mi_cap': mi_cap,
+        'max_num': max_num,
+    }
+    zone_oe_ranked = sorted(zone_oe_cross.items(), key=lambda x: x[1], reverse=True)
 
-    patterns = {
+    # ---- Dominant strategy (the single most probable structural profile) ----
+    top_zone = zone_ranked[0][0] if zone_ranked else (2, 2, 2)
+    top_oe   = max(odd_even_combos, key=odd_even_combos.get) if odd_even_combos else "3 Odd / 4 Even"
+    dominant_strategy = {
+        'zone_pattern':   list(top_zone),
+        'odd_even':       top_oe,
+        'sum_target':     int(round(_sum_mean)),
+        'sum_p25':        sum_pcts['p25'],
+        'sum_p75':        sum_pcts['p75'],
+        'avg_max_gap':    round(float(np.mean(max_gap_per_draw)), 1) if max_gap_per_draw else 0,
+        'avg_consecutive': round(float(np.mean(list(consecutive_counts.keys()))), 1) if consecutive_counts else 0,
+        'zone_description': f"Lo(1-{lo_cap})={top_zone[0]}, Mid({lo_cap+1}-{mi_cap})={top_zone[1]}, Hi({mi_cap+1}-{max_num})={top_zone[2]}",
+    }
+
+    # ---- Number composite score (0–100) ----
+    # Score = 50% frequency rank + 30% zone-alignment bonus + 20% recency rank
+    freq_vals  = np.array([number_frequency[i] for i in range(1, max_num+1)], dtype=float)
+    recency_vals = np.array([number_recency[i] for i in range(1, max_num+1)], dtype=float)
+    freq_rank  = freq_vals / (freq_vals.max() or 1)
+    recency_rank = recency_vals / (recency_vals.max() or 1)
+
+    # Zone alignment: numbers in the top zone get a 0.3 bonus, others 0
+    zone_align = np.zeros(max_num)
+    lo_cnt, mi_cnt, hi_cnt = top_zone
+    zone_targets = []
+    if lo_cnt > 0: zone_targets += list(range(1, lo_cap+1))
+    if mi_cnt > 0: zone_targets += list(range(lo_cap+1, mi_cap+1))
+    if hi_cnt > 0: zone_targets += list(range(mi_cap+1, max_num+1))
+    for n in zone_targets:
+        if 1 <= n <= max_num:
+            zone_align[n-1] = 1.0
+
+    composite = 0.50 * freq_rank + 0.20 * recency_rank + 0.30 * zone_align
+    composite_norm = (composite / (composite.max() or 1)) * 100
+
+    number_scores = {i: round(float(composite_norm[i-1]), 1) for i in range(1, max_num+1)}
+
+    # Top picks: highest-scoring numbers respecting zone counts
+    top_lo = sorted([n for n in range(1, lo_cap+1)], key=lambda n: number_scores[n], reverse=True)[:lo_cnt+2]
+    top_mi = sorted([n for n in range(lo_cap+1, mi_cap+1)], key=lambda n: number_scores[n], reverse=True)[:mi_cnt+2]
+    top_hi = sorted([n for n in range(mi_cap+1, max_num+1)], key=lambda n: number_scores[n], reverse=True)[:hi_cnt+2]
+    dominant_strategy['recommended_pool'] = {
+        'low_zone':  top_lo,
+        'mid_zone':  top_mi,
+        'high_zone': top_hi,
+    }
+
+    return {
+        # --- Core (backward-compat) ---
         'odd_even_combos'   : odd_even_combos,
         'high_low_combos'   : high_low_combos,
         'sum_stats': {
-            'min'       : min(sum_ranges),
-            'max'       : max(sum_ranges),
-            'mean'      : round(_sum_mean, 4),
-            'std'       : round(_sum_std, 4),       # P1
-            'median'    : statistics.median(sum_ranges),
-            'mode_range': _get_mode_range(sum_ranges, nums_per_draw),
+            'min'       : int(min(sum_ranges)) if sum_ranges else 0,
+            'max'       : int(max(sum_ranges)) if sum_ranges else 0,
+            'mean'      : round(_sum_mean, 1),
+            'std'       : round(_sum_std, 1),
+            'median'    : int(np.median(sum_arr)) if len(sum_arr) else 0,
+            'mode_range': _get_mode_range(list(sum_arr.astype(int)), nums_per_draw),
         },
         'number_frequency'  : {k: round(v, 4) for k, v in number_frequency.items()},
         'excluded_numbers'  : _get_excluded_numbers(raw_frequency, max_num),
         'consecutive_counts': consecutive_counts,
         'decade_distribution': decade_distribution,
         'gap_analysis': {
-            'min' : min(gap_analysis) if gap_analysis else 0,
-            'max' : max(gap_analysis) if gap_analysis else 0,
-            'mean': round(statistics.mean(gap_analysis), 4) if gap_analysis else 0,
-            'std' : round(_gap_std, 4),              # P1
+            'min' : int(min(max_gap_per_draw)) if max_gap_per_draw else 0,
+            'max' : int(max(max_gap_per_draw)) if max_gap_per_draw else 0,
+            'mean': round(float(np.mean(max_gap_per_draw)), 1) if max_gap_per_draw else 0,
+            'std' : round(_gap_max_std, 1),
+            'avg_inter_gap': round(float(np.mean(all_gap_values)), 2) if all_gap_values else 0,
         },
         'prime_counts'      : prime_counts,
         'pair_counts'       : pair_counts,
         'repeat_stats': {
             'min' : min(repeat_from_previous) if repeat_from_previous else 0,
             'max' : max(repeat_from_previous) if repeat_from_previous else 0,
-            'mean': statistics.mean(repeat_from_previous) if repeat_from_previous else 0,
+            'mean': round(float(np.mean(repeat_from_previous)), 2) if repeat_from_previous else 0,
         },
-        'position_frequency': position_top_numbers,     # P2
-        'pair_cooccurrence' : top_pairs_dict,           # P3
-        'bonus_frequency'   : dict(bonus_top),          # P9
-        'total_draws'       : len(draws),
+        'position_frequency': position_top_numbers,
+        'pair_cooccurrence' : top_pairs_dict,
+        'bonus_frequency'   : dict(bonus_top),
+        'total_draws'       : total_draws,
         'mid_point'         : mid_point,
+        # --- NEW ---
+        'zone_analysis'             : zone_analysis,
+        'zone_oe_cross'             : {k: round(v, 4) for k, v in zone_oe_ranked[:20]},
+        'sum_percentiles'           : sum_pcts,
+        'structural_fingerprints'   : structural_fingerprints[:100],
+        'dominant_strategy'         : dominant_strategy,
+        'number_scores'             : number_scores,
     }
-
-    return patterns
 
 
 def _get_mode_range(sum_list: List[int], nums_per_draw: int) -> str:
     """Determine the most common sum range."""
     if not sum_list:
         return "N/A"
-    
-    # Create bins based on number of numbers per draw
     bin_size = 10 if nums_per_draw == 6 else 15
-    min_val = min(sum_list)
-    max_val = max(sum_list)
-    
     bins = {}
     for val in sum_list:
         bin_key = (val // bin_size) * bin_size
         bins[bin_key] = bins.get(bin_key, 0) + 1
-    
-    # Find most common bin
     mode_bin = max(bins, key=bins.get)
     return f"{mode_bin}-{mode_bin + bin_size - 1}"
 
 
 def _get_excluded_numbers(frequency: Dict[int, int], max_num: int) -> List[int]:
-    """Find numbers that rarely or never appear."""
-    avg_frequency = sum(frequency.values()) / len(frequency)
-    threshold = avg_frequency * 0.3  # Numbers appearing less than 30% of average
-    
-    excluded = [num for num in range(1, max_num + 1) if frequency[num] < threshold]
-    return sorted(excluded)
+    """Find numbers that rarely or never appear (below 30% of average frequency)."""
+    avg_frequency = sum(frequency.values()) / max(1, len(frequency))
+    threshold = avg_frequency * 0.30
+    return sorted(num for num in range(1, max_num + 1) if frequency[num] < threshold)
 
 
 def _display_pattern_analysis(patterns: Dict, game: str) -> None:
-    """Display comprehensive pattern analysis with visualizations."""
-    
-    st.markdown("## 📊 Pattern Analysis Dashboard")
-    
-    # Create tabs for different analysis categories
+    """Display comprehensive jackpot pattern analysis with a Strategy-first layout."""
+    import plotly.graph_objects as go
+
+    is_max = 'max' in game.lower()
+    max_num = 52 if is_max else 49
+    draw_size = 7 if is_max else 6
+    ds = patterns.get('dominant_strategy', {})
+    za = patterns.get('zone_analysis', {})
+    sp = patterns.get('sum_percentiles', {})
+    ns = patterns.get('number_scores', {})
+    total_draws = patterns.get('total_draws', 1)
+    lo_cap = za.get('lo_cap', 17 if is_max else 16)
+    mi_cap = za.get('mi_cap', 34 if is_max else 32)
+
     tab1, tab2, tab3, tab4, tab5 = st.tabs([
-        "🎯 Core Patterns",
-        "📈 Number Distribution",
-        "🔢 Advanced Insights",
-        "📉 Trends & Gaps",
-        "📋 Summary Table"
+        "🎯 Winning Strategy",
+        "🗺 Zone Intelligence",
+        "🔢 Number Scoring",
+        "📐 Structural Patterns",
+        "📋 Full Summary",
     ])
-    
+
+    # =========================================================================
+    # TAB 1 — WINNING STRATEGY
+    # =========================================================================
     with tab1:
-        st.markdown("### Core Pattern Analysis")
-        
-        col1, col2 = st.columns(2)
-        
-        with col1:
-            # Odd/Even Pie Chart
-            st.markdown("#### Odd/Even Combinations")
-            oe_labels = list(patterns['odd_even_combos'].keys())
-            oe_values = list(patterns['odd_even_combos'].values())
-            
-            fig_oe = go.Figure(data=[go.Pie(
-                labels=oe_labels,
-                values=oe_values,
-                hole=0.3,
-                marker_colors=px.colors.qualitative.Set3
-            )])
-            fig_oe.update_layout(height=350)
-            st.plotly_chart(fig_oe, use_container_width=True)
-            
-            # Most common
-            most_common_oe = max(patterns['odd_even_combos'], key=patterns['odd_even_combos'].get)
-            st.info(f"**Most Common:** {most_common_oe} ({patterns['odd_even_combos'][most_common_oe]} draws)")
-        
-        with col2:
-            # High/Low Pie Chart
-            st.markdown("#### High/Low Combinations")
-            mid = patterns['mid_point']
-            st.caption(f"Low: 1-{mid}, High: {mid+1}-{50 if 'Max' in game else 49}")
-            
-            hl_labels = list(patterns['high_low_combos'].keys())
-            hl_values = list(patterns['high_low_combos'].values())
-            
-            fig_hl = go.Figure(data=[go.Pie(
-                labels=hl_labels,
-                values=hl_values,
-                hole=0.3,
-                marker_colors=px.colors.qualitative.Pastel
-            )])
-            fig_hl.update_layout(height=350)
-            st.plotly_chart(fig_hl, use_container_width=True)
-            
-            # Most common
-            most_common_hl = max(patterns['high_low_combos'], key=patterns['high_low_combos'].get)
-            st.info(f"**Most Common:** {most_common_hl} ({patterns['high_low_combos'][most_common_hl]} draws)")
-        
+        st.markdown("### Jackpot-Calibrated Winning Strategy")
+        st.caption(f"Derived from {total_draws} historical draws at this jackpot level.")
+
+        # --- Primary structural prescription ---
+        col_a, col_b, col_c = st.columns(3)
+        top_zone = ds.get('zone_pattern', [2, 2, 3])
+        with col_a:
+            st.metric("Optimal Zone Pattern (Lo/Mid/Hi)",
+                      f"{top_zone[0]} / {top_zone[1]} / {top_zone[2]}",
+                      help=f"Lo=1-{lo_cap}, Mid={lo_cap+1}-{mi_cap}, Hi={mi_cap+1}-{max_num}")
+            st.caption(ds.get('zone_description', ''))
+        with col_b:
+            st.metric("Target Odd/Even Split", ds.get('odd_even', 'N/A'))
+        with col_c:
+            st.metric("Target Sum Range",
+                      f"{sp.get('p25', 0)} – {sp.get('p75', 0)}",
+                      help=f"Median={sp.get('p50',0)}, aim between p25 and p75")
+
         st.divider()
-        
-        # Sum Analysis Bar Chart
-        st.markdown("#### Sum Range Distribution")
-        sum_stats = patterns['sum_stats']
-        
-        col1, col2, col3, col4 = st.columns(4)
-        with col1:
-            st.metric("Min Sum", f"{sum_stats['min']}")
-        with col2:
-            st.metric("Max Sum", f"{sum_stats['max']}")
-        with col3:
-            st.metric("Average Sum", f"{sum_stats['mean']:.1f}")
-        with col4:
-            st.metric("Most Common Range", sum_stats['mode_range'])
-    
+
+        # --- Recommended number pool ---
+        pool = ds.get('recommended_pool', {})
+        st.markdown("#### Recommended Number Pool")
+        st.caption("Select your final numbers from within these zone pools. "
+                   "Numbers are ranked by composite score (frequency + recency + zone-alignment).")
+
+        pc1, pc2, pc3 = st.columns(3)
+        with pc1:
+            lo_pool = pool.get('low_zone', [])
+            st.markdown(f"**Low Zone (1-{lo_cap}) — pick {top_zone[0]}**")
+            for n in lo_pool:
+                score = ns.get(n, 0)
+                bar = "█" * int(score / 10)
+                st.write(f"**{n:2d}** {bar} {score:.0f}")
+        with pc2:
+            mi_pool = pool.get('mid_zone', [])
+            st.markdown(f"**Mid Zone ({lo_cap+1}-{mi_cap}) — pick {top_zone[1]}**")
+            for n in mi_pool:
+                score = ns.get(n, 0)
+                bar = "█" * int(score / 10)
+                st.write(f"**{n:2d}** {bar} {score:.0f}")
+        with pc3:
+            hi_pool = pool.get('high_zone', [])
+            st.markdown(f"**High Zone ({mi_cap+1}-{max_num}) — pick {top_zone[2]}**")
+            for n in hi_pool:
+                score = ns.get(n, 0)
+                bar = "█" * int(score / 10)
+                st.write(f"**{n:2d}** {bar} {score:.0f}")
+
+        st.divider()
+
+        # --- Top co-occurring pairs ---
+        st.markdown("#### Top Power Pairs (most co-occurring at this jackpot level)")
+        pair_coc = patterns.get('pair_cooccurrence', {})
+        if pair_coc:
+            top_pairs_display = sorted(pair_coc.items(), key=lambda x: x[1], reverse=True)[:12]
+            cols = st.columns(4)
+            for i, (pair_key, weight) in enumerate(top_pairs_display):
+                pct = round(weight / total_draws * 100, 1)
+                cols[i % 4].metric(f"Pair {pair_key}", f"{pct}% of draws")
+
+        st.divider()
+
+        # --- Structural constraints summary ---
+        st.markdown("#### Structural Constraints")
+        gap_stats = patterns.get('gap_analysis', {})
+        cons = patterns.get('consecutive_counts', {})
+        top_cons = max(cons, key=cons.get) if cons else 1
+        cc1, cc2, cc3, cc4 = st.columns(4)
+        cc1.metric("Avg Max Gap", f"{gap_stats.get('mean', 0):.1f}",
+                   help="Avg largest gap between consecutive drawn numbers")
+        cc2.metric("Avg Inter-Gap", f"{gap_stats.get('avg_inter_gap', 0):.2f}")
+        cc3.metric("Most Likely Consecutive Pairs", str(top_cons))
+        cc4.metric("Typical Repeat from Prior Draw",
+                   f"{patterns.get('repeat_stats',{}).get('mean', 0):.1f}")
+
+    # =========================================================================
+    # TAB 2 — ZONE INTELLIGENCE
+    # =========================================================================
     with tab2:
-        st.markdown("### Number Frequency Distribution")
-        
-        # Heatmap of number frequency
-        freq = patterns['number_frequency']
-        max_num = max(freq.keys())
-        
-        # Create heatmap data (5 rows of 10 numbers each for 50, adjust for 49)
-        rows = 5
-        cols = 10
-        heatmap_data = []
-        heatmap_text = []
-        
-        for row in range(rows):
-            row_data = []
-            row_text = []
-            for col in range(cols):
-                num = row * cols + col + 1
-                if num <= max_num:
-                    row_data.append(freq.get(num, 0))
-                    row_text.append(f"#{num}<br>{freq.get(num, 0)} times")
-                else:
-                    row_data.append(0)
-                    row_text.append("")
-            heatmap_data.append(row_data)
-            heatmap_text.append(row_text)
-        
-        fig_heatmap = go.Figure(data=go.Heatmap(
-            z=heatmap_data,
-            text=heatmap_text,
-            texttemplate='%{text}',
-            textfont={"size": 10},
-            colorscale='Viridis',
-            showscale=True
-        ))
-        fig_heatmap.update_layout(
-            title="Number Frequency Heatmap",
-            height=400,
-            xaxis=dict(showticklabels=False),
-            yaxis=dict(showticklabels=False)
-        )
-        st.plotly_chart(fig_heatmap, use_container_width=True)
-        
+        st.markdown("### Three-Zone Pattern Analysis")
+        st.caption(f"Zones: Lo=1-{lo_cap} | Mid={lo_cap+1}-{mi_cap} | Hi={mi_cap+1}-{max_num}")
+
+        # Zone pattern frequency bar chart
+        zone_patterns_raw = za.get('patterns', {})
+        if zone_patterns_raw:
+            zp_sorted = sorted(zone_patterns_raw.items(), key=lambda x: x[1], reverse=True)[:15]
+            zp_labels = [str(k) for k, _ in zp_sorted]
+            zp_vals   = [round(v / (_sw := sum(zone_patterns_raw.values()) or 1) * 100, 1)
+                         for _, v in zp_sorted]
+            colors = ['gold' if i == 0 else 'steelblue' for i in range(len(zp_labels))]
+            fig_zp = go.Figure(go.Bar(
+                x=zp_labels, y=zp_vals,
+                marker_color=colors,
+                text=[f"{v:.1f}%" for v in zp_vals],
+                textposition='outside',
+            ))
+            fig_zp.update_layout(
+                title="Zone Pattern Frequency (Lo/Mid/Hi count)",
+                xaxis_title="Zone Pattern", yaxis_title="% of Draws",
+                height=380,
+            )
+            st.plotly_chart(fig_zp, use_container_width=True)
+
         st.divider()
-        
-        # Top and Bottom Numbers
         col1, col2 = st.columns(2)
-        
-        sorted_freq = sorted(freq.items(), key=lambda x: x[1], reverse=True)
-        
+
         with col1:
-            st.markdown("#### 🔥 Most Frequent Numbers")
-            top_10 = sorted_freq[:10]
-            for num, count in top_10:
-                percentage = (count / patterns['total_draws']) * 100
-                st.write(f"**{num}**: {count} times ({percentage:.1f}%)")
-        
+            # Odd/Even donut
+            st.markdown("#### Odd/Even Distribution")
+            oe_labels = list(patterns['odd_even_combos'].keys())
+            oe_vals   = list(patterns['odd_even_combos'].values())
+            fig_oe = go.Figure(go.Pie(
+                labels=oe_labels, values=oe_vals, hole=0.4,
+                marker_colors=px.colors.qualitative.Set2,
+            ))
+            fig_oe.update_layout(height=320)
+            st.plotly_chart(fig_oe, use_container_width=True)
+            top_oe = max(patterns['odd_even_combos'], key=patterns['odd_even_combos'].get)
+            pct_oe = patterns['odd_even_combos'][top_oe] / (sum(patterns['odd_even_combos'].values()) or 1) * 100
+            st.info(f"**Dominant:** {top_oe} — appears in {pct_oe:.1f}% of draws")
+
         with col2:
-            st.markdown("#### ❄️ Least Frequent Numbers")
-            bottom_10 = sorted_freq[-10:]
-            for num, count in bottom_10:
-                percentage = (count / patterns['total_draws']) * 100
-                st.write(f"**{num}**: {count} times ({percentage:.1f}%)")
-        
-        # Excluded numbers
-        if patterns['excluded_numbers']:
-            st.warning(f"**Typically Excluded Numbers:** {', '.join(map(str, patterns['excluded_numbers']))}")
-            st.caption("These numbers appear significantly less frequently than average")
-    
+            # Zone × Odd/Even cross table
+            st.markdown("#### Zone × Odd/Even Cross Analysis")
+            cross_raw = patterns.get('zone_oe_cross', {})
+            if cross_raw:
+                sw_tot = sum(cross_raw.values()) or 1
+                cross_display = sorted(cross_raw.items(), key=lambda x: x[1], reverse=True)[:10]
+                for k, v in cross_display:
+                    pct = v / sw_tot * 100
+                    bar = "■" * max(1, int(pct / 2))
+                    st.write(f"`{k}` — {pct:.1f}% {bar}")
+
+        st.divider()
+
+        # Sum distribution with p25-p75 band
+        st.markdown("#### Sum Distribution (target the green band)")
+        sfs = patterns.get('structural_fingerprints', [])
+        if sfs:
+            sums_all = [sf['sum'] for sf in sfs]
+            fig_sum = go.Figure()
+            fig_sum.add_trace(go.Histogram(
+                x=sums_all, nbinsx=30,
+                marker_color='steelblue', opacity=0.7, name='All Draws',
+            ))
+            p25, p75 = sp.get('p25', 0), sp.get('p75', 0)
+            if p25 and p75:
+                fig_sum.add_vrect(x0=p25, x1=p75, fillcolor='lime',
+                                  opacity=0.15, line_width=0, annotation_text="p25-p75")
+            fig_sum.add_vline(x=sp.get('p50', 0), line_dash='dash',
+                              line_color='orange', annotation_text=f"Median {sp.get('p50',0)}")
+            fig_sum.update_layout(
+                title="Draw Sum Distribution", xaxis_title="Sum", yaxis_title="Count",
+                height=340,
+            )
+            st.plotly_chart(fig_sum, use_container_width=True)
+        s5c = st.columns(5)
+        for label, key in [("P10", 'p10'), ("P25", 'p25'), ("Median", 'p50'), ("P75", 'p75'), ("P90", 'p90')]:
+            s5c.pop(0).metric(label, sp.get(key, '?'))
+
+    # =========================================================================
+    # TAB 3 — NUMBER SCORING
+    # =========================================================================
     with tab3:
-        st.markdown("### Advanced Pattern Insights")
-        
+        st.markdown("### Number Intelligence — Composite Score Heatmap")
+        st.caption("Score = 50% historical frequency + 20% recency + 30% zone alignment. "
+                   "Brighter = higher score = stronger candidate for your picks.")
+
+        # Build heatmap
+        rows_h = (max_num // 10) + (1 if max_num % 10 else 0)
+        hmap_z, hmap_t = [], []
+        for row in range(rows_h):
+            rz, rt = [], []
+            for col in range(10):
+                num = row * 10 + col + 1
+                if num <= max_num:
+                    sc = ns.get(num, 0)
+                    rz.append(sc)
+                    rt.append(f"#{num}<br>Score:{sc:.0f}")
+                else:
+                    rz.append(None); rt.append("")
+            hmap_z.append(rz); hmap_t.append(rt)
+
+        fig_hm = go.Figure(go.Heatmap(
+            z=hmap_z, text=hmap_t, texttemplate='%{text}',
+            textfont={"size": 9},
+            colorscale='RdYlGn', showscale=True,
+            zmin=0, zmax=100,
+        ))
+        fig_hm.update_layout(
+            title="Number Composite Score Heatmap (0-100)",
+            height=420,
+            xaxis=dict(showticklabels=False),
+            yaxis=dict(showticklabels=False),
+        )
+        st.plotly_chart(fig_hm, use_container_width=True)
+
+        st.divider()
         col1, col2 = st.columns(2)
-        
+
+        # Frequency bar chart
+        freq = patterns['number_frequency']
+        freq_sorted = sorted(freq.items(), key=lambda x: x[1], reverse=True)
         with col1:
-            # Consecutive Numbers Bar Chart
-            st.markdown("#### Consecutive Numbers")
-            cons_labels = [str(k) for k in sorted(patterns['consecutive_counts'].keys())]
-            cons_values = [patterns['consecutive_counts'][int(k)] for k in cons_labels]
-            
-            fig_cons = go.Figure(data=[go.Bar(
-                x=cons_labels,
-                y=cons_values,
-                marker_color='lightblue',
-                text=cons_values,
-                textposition='auto'
-            )])
-            fig_cons.update_layout(
-                xaxis_title="Number of Consecutive Pairs",
-                yaxis_title="Frequency",
-                height=300
-            )
-            st.plotly_chart(fig_cons, use_container_width=True)
-            
-            # Prime Numbers
-            st.markdown("#### Prime Number Count")
-            prime_labels = [str(k) for k in sorted(patterns['prime_counts'].keys())]
-            prime_values = [patterns['prime_counts'][int(k)] for k in prime_labels]
-            
-            fig_prime = go.Figure(data=[go.Bar(
-                x=prime_labels,
-                y=prime_values,
-                marker_color='lightcoral',
-                text=prime_values,
-                textposition='auto'
-            )])
-            fig_prime.update_layout(
-                xaxis_title="Number of Primes in Draw",
-                yaxis_title="Frequency",
-                height=300
-            )
-            st.plotly_chart(fig_prime, use_container_width=True)
-        
+            st.markdown("#### Top 15 Most Frequent Numbers")
+            top15 = freq_sorted[:15]
+            fig_top = go.Figure(go.Bar(
+                x=[str(n) for n, _ in top15],
+                y=[v for _, v in top15],
+                marker_color='mediumseagreen',
+                text=[f"{v:.1f}" for _, v in top15],
+                textposition='outside',
+            ))
+            fig_top.update_layout(height=300, xaxis_title="Number", yaxis_title="Weighted Frequency")
+            st.plotly_chart(fig_top, use_container_width=True)
+
         with col2:
-            # Decade Distribution
-            st.markdown("#### Decade Distribution")
-            decade_labels = list(patterns['decade_distribution'].keys())
-            decade_values = list(patterns['decade_distribution'].values())
-            
-            fig_decade = go.Figure(data=[go.Bar(
-                x=decade_labels,
-                y=decade_values,
-                marker_color='lightgreen',
-                text=decade_values,
-                textposition='auto'
-            )])
-            fig_decade.update_layout(
-                xaxis_title="Number Range (Decade)",
-                yaxis_title="Total Appearances",
-                height=300
-            )
-            st.plotly_chart(fig_decade, use_container_width=True)
-            
-            # Pairs/Close Numbers
-            st.markdown("#### Close Number Pairs (within 2)")
-            pair_labels = [str(k) for k in sorted(patterns['pair_counts'].keys())]
-            pair_values = [patterns['pair_counts'][int(k)] for k in pair_labels]
-            
-            fig_pairs = go.Figure(data=[go.Bar(
-                x=pair_labels,
-                y=pair_values,
-                marker_color='plum',
-                text=pair_values,
-                textposition='auto'
-            )])
-            fig_pairs.update_layout(
-                xaxis_title="Number of Close Pairs",
-                yaxis_title="Frequency",
-                height=300
-            )
-            st.plotly_chart(fig_pairs, use_container_width=True)
-    
+            st.markdown("#### Bottom 15 (Avoid / Cold Numbers)")
+            bot15 = freq_sorted[-15:]
+            fig_bot = go.Figure(go.Bar(
+                x=[str(n) for n, _ in bot15],
+                y=[v for _, v in bot15],
+                marker_color='tomato',
+                text=[f"{v:.1f}" for _, v in bot15],
+                textposition='outside',
+            ))
+            fig_bot.update_layout(height=300, xaxis_title="Number", yaxis_title="Weighted Frequency")
+            st.plotly_chart(fig_bot, use_container_width=True)
+
+        if patterns.get('excluded_numbers'):
+            st.warning(f"**Rarely/Never Drawn at this Jackpot Level:** "
+                       f"{', '.join(map(str, patterns['excluded_numbers']))} — consider excluding these.")
+
+        if patterns.get('bonus_frequency') and is_max:
+            st.markdown("#### Top Bonus Numbers (Lotto Max)")
+            bf = patterns['bonus_frequency']
+            bf_sorted = sorted(bf.items(), key=lambda x: x[1], reverse=True)[:10]
+            bcols = st.columns(5)
+            for i, (bn, bc) in enumerate(bf_sorted):
+                bcols[i % 5].metric(f"Bonus #{bn}", f"{bc} times")
+
+    # =========================================================================
+    # TAB 4 — STRUCTURAL PATTERNS
+    # =========================================================================
     with tab4:
-        st.markdown("### Trends & Gap Analysis")
-        
+        st.markdown("### Structural Pattern Breakdown")
         col1, col2 = st.columns(2)
-        
+
         with col1:
-            st.markdown("#### Maximum Gap Statistics")
-            gap_stats = patterns['gap_analysis']
-            st.metric("Minimum Gap", f"{gap_stats['min']}")
-            st.metric("Maximum Gap", f"{gap_stats['max']}")
-            st.metric("Average Gap", f"{gap_stats['mean']:.1f}")
-            st.caption("Gap = largest distance between consecutive drawn numbers")
-        
+            # Consecutive pairs
+            st.markdown("#### Consecutive Pairs per Draw")
+            cons_d = patterns['consecutive_counts']
+            fig_c = go.Figure(go.Bar(
+                x=[str(k) for k in sorted(cons_d)],
+                y=[cons_d[k] for k in sorted(cons_d)],
+                marker_color='skyblue',
+                text=[f"{cons_d[k]:.0f}" for k in sorted(cons_d)],
+                textposition='outside',
+            ))
+            fig_c.update_layout(height=280, xaxis_title="# Consecutive Pairs", yaxis_title="Weighted Count")
+            st.plotly_chart(fig_c, use_container_width=True)
+
+            # Max gap histogram
+            st.markdown("#### Max Gap Distribution")
+            sfs2 = patterns.get('structural_fingerprints', [])
+            if sfs2:
+                mg_vals = [sf.get('sum', 0) for sf in sfs2]  # placeholder; we'll use raw gaps below
+            gap_stats2 = patterns.get('gap_analysis', {})
+            sc1, sc2, sc3 = st.columns(3)
+            sc1.metric("Min Max-Gap", gap_stats2.get('min', 0))
+            sc2.metric("Avg Max-Gap", f"{gap_stats2.get('mean', 0):.1f}")
+            sc3.metric("Max Max-Gap", gap_stats2.get('max', 0))
+            st.caption("Max Gap = largest spacing between two consecutive drawn numbers in a set. "
+                       f"Aim for avg ~{gap_stats2.get('mean', 14):.0f}.")
+
         with col2:
-            st.markdown("#### Repeat from Previous Draw")
-            repeat_stats = patterns['repeat_stats']
-            st.metric("Minimum Repeats", f"{repeat_stats['min']}")
-            st.metric("Maximum Repeats", f"{repeat_stats['max']}")
-            st.metric("Average Repeats", f"{repeat_stats['mean']:.2f}")
-            st.caption("How many numbers typically repeat from the previous draw")
-    
+            # Prime count distribution
+            st.markdown("#### Prime Numbers per Draw")
+            prime_d = patterns['prime_counts']
+            fig_p = go.Figure(go.Bar(
+                x=[str(k) for k in sorted(prime_d)],
+                y=[prime_d[k] for k in sorted(prime_d)],
+                marker_color='orchid',
+                text=[f"{prime_d[k]:.0f}" for k in sorted(prime_d)],
+                textposition='outside',
+            ))
+            fig_p.update_layout(height=280, xaxis_title="# Prime Numbers", yaxis_title="Weighted Count")
+            st.plotly_chart(fig_p, use_container_width=True)
+
+            # Close-pair (gap ≤ 2) distribution
+            st.markdown("#### Close Pairs (gap ≤ 2) per Draw")
+            cp_d = patterns['pair_counts']
+            fig_cp = go.Figure(go.Bar(
+                x=[str(k) for k in sorted(cp_d)],
+                y=[cp_d[k] for k in sorted(cp_d)],
+                marker_color='goldenrod',
+                text=[f"{cp_d[k]:.0f}" for k in sorted(cp_d)],
+                textposition='outside',
+            ))
+            fig_cp.update_layout(height=280, xaxis_title="# Close Pairs", yaxis_title="Weighted Count")
+            st.plotly_chart(fig_cp, use_container_width=True)
+
+        st.divider()
+
+        # Position frequency table
+        st.markdown("#### Position-by-Position Hot Numbers")
+        pos_freq = patterns.get('position_frequency', {})
+        if pos_freq:
+            pos_cols = st.columns(draw_size)
+            for pos_str, top_nums in sorted(pos_freq.items(), key=lambda x: int(x[0])):
+                idx = int(pos_str) - 1
+                if idx < len(pos_cols):
+                    with pos_cols[idx]:
+                        st.markdown(f"**Pos {pos_str}**")
+                        for n, w in top_nums[:5]:
+                            st.caption(f"{n} ({w:.1f})")
+
+    # =========================================================================
+    # TAB 5 — FULL SUMMARY
+    # =========================================================================
     with tab5:
-        st.markdown("### Complete Pattern Summary")
-        
-        # Create comprehensive summary table
-        summary_data = {
-            "Pattern Category": [],
-            "Key Insight": [],
-            "Statistical Value": []
-        }
-        
-        # Add all patterns
-        most_common_oe = max(patterns['odd_even_combos'], key=patterns['odd_even_combos'].get)
-        summary_data["Pattern Category"].append("Odd/Even Balance")
-        summary_data["Key Insight"].append(f"Most Common: {most_common_oe}")
-        summary_data["Statistical Value"].append(f"{patterns['odd_even_combos'][most_common_oe]}/{patterns['total_draws']} draws")
-        
-        most_common_hl = max(patterns['high_low_combos'], key=patterns['high_low_combos'].get)
-        summary_data["Pattern Category"].append("High/Low Balance")
-        summary_data["Key Insight"].append(f"Most Common: {most_common_hl}")
-        summary_data["Statistical Value"].append(f"{patterns['high_low_combos'][most_common_hl]}/{patterns['total_draws']} draws")
-        
-        summary_data["Pattern Category"].append("Sum Range")
-        summary_data["Key Insight"].append(f"Most Common: {patterns['sum_stats']['mode_range']}")
-        summary_data["Statistical Value"].append(f"Avg: {patterns['sum_stats']['mean']:.1f}")
-        
-        summary_data["Pattern Category"].append("Consecutive Pairs")
-        most_common_cons = max(patterns['consecutive_counts'], key=patterns['consecutive_counts'].get)
-        summary_data["Key Insight"].append(f"Most Common: {most_common_cons} pairs")
-        summary_data["Statistical Value"].append(f"{patterns['consecutive_counts'][most_common_cons]}/{patterns['total_draws']} draws")
-        
-        summary_data["Pattern Category"].append("Prime Numbers")
-        most_common_prime = max(patterns['prime_counts'], key=patterns['prime_counts'].get)
-        summary_data["Key Insight"].append(f"Most Common: {most_common_prime} primes")
-        summary_data["Statistical Value"].append(f"{patterns['prime_counts'][most_common_prime]}/{patterns['total_draws']} draws")
-        
-        summary_data["Pattern Category"].append("Maximum Gap")
-        summary_data["Key Insight"].append(f"Average: {patterns['gap_analysis']['mean']:.1f}")
-        summary_data["Statistical Value"].append(f"Range: {patterns['gap_analysis']['min']}-{patterns['gap_analysis']['max']}")
-        
-        summary_data["Pattern Category"].append("Repeat Numbers")
-        summary_data["Key Insight"].append(f"Average: {patterns['repeat_stats']['mean']:.2f} numbers")
-        summary_data["Statistical Value"].append(f"Range: {patterns['repeat_stats']['min']}-{patterns['repeat_stats']['max']}")
-        
-        df_summary = pd.DataFrame(summary_data)
-        st.dataframe(df_summary, use_container_width=True, hide_index=True)
+        st.markdown("### Complete Pattern Summary Table")
+
+        rows = []
+        # Zone
+        top_zp = za.get('top_pattern', (2,2,3))
+        rows.append({"Category": "Zone Pattern (Lo/Mid/Hi)", "Finding": str(top_zp),
+                     "Pct of Draws": f"{za.get('top_pct', 0):.1f}%",
+                     "Action": f"Aim for {top_zp[0]} Lo + {top_zp[1]} Mid + {top_zp[2]} Hi"})
+        # Odd/Even
+        top_oe2 = max(patterns['odd_even_combos'], key=patterns['odd_even_combos'].get) if patterns['odd_even_combos'] else ''
+        oe_pct2 = patterns['odd_even_combos'].get(top_oe2, 0) / (sum(patterns['odd_even_combos'].values()) or 1) * 100
+        rows.append({"Category": "Odd/Even Balance", "Finding": top_oe2,
+                     "Pct of Draws": f"{oe_pct2:.1f}%", "Action": f"Use {top_oe2}"})
+        # Sum
+        rows.append({"Category": "Sum Target", "Finding": f"Median {sp.get('p50',0)}",
+                     "Pct of Draws": "50th pct",
+                     "Action": f"Keep sum between {sp.get('p25',0)} and {sp.get('p75',0)}"})
+        # Gap
+        rows.append({"Category": "Max Gap", "Finding": f"Avg {patterns['gap_analysis'].get('mean',0):.1f}",
+                     "Pct of Draws": "—",
+                     "Action": f"Largest spread ~{patterns['gap_analysis'].get('mean',0):.0f}"})
+        # Consecutive
+        top_cons2 = max(patterns['consecutive_counts'], key=patterns['consecutive_counts'].get) if patterns['consecutive_counts'] else 0
+        rows.append({"Category": "Consecutive Pairs", "Finding": f"Most common: {top_cons2}",
+                     "Pct of Draws": "—", "Action": f"Include ~{top_cons2} consecutive pair(s)"})
+        # Hot numbers
+        freq_top5 = sorted(patterns['number_frequency'].items(), key=lambda x: x[1], reverse=True)[:5]
+        rows.append({"Category": "Hottest Numbers", "Finding": str([n for n, _ in freq_top5]),
+                     "Pct of Draws": "Top 5 by freq", "Action": "Include 2-3 of these"})
+        # Cold numbers
+        cold_5 = sorted(patterns['number_frequency'].items(), key=lambda x: x[1])[:5]
+        rows.append({"Category": "Coldest Numbers", "Finding": str([n for n, _ in cold_5]),
+                     "Pct of Draws": "Bottom 5 by freq", "Action": "Avoid or limit to 1"})
+        # Repeats
+        rows.append({"Category": "Repeat from Prior Draw",
+                     "Finding": f"Avg {patterns['repeat_stats'].get('mean', 0):.1f}",
+                     "Pct of Draws": "—",
+                     "Action": f"~{patterns['repeat_stats'].get('mean', 0):.0f} numbers may match prior winners"})
+
+        st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
 
 
 def _save_draw_profile(profile_name: str, jackpot_amount: float, range_tolerance: int,
                         draws: List[Dict], patterns: Dict, game: str) -> Optional[Path]:
-    """Save draw profile to JSON file in learning folder."""
-    
+    """Save draw profile to JSON with full zone and strategy data for generation blend."""
     try:
-        # Create directory structure
         game_folder = _sanitize_game_name(game)
         profile_dir = Path("data") / "learning" / game_folder / "jackpot_profiles"
         profile_dir.mkdir(parents=True, exist_ok=True)
-        
-        # P6: Normalize frequency_map to probabilities before saving so two profiles
-        # built from different draw counts are comparable at blend time.
+
+        # Normalize frequency map to probabilities (sum ≈ 1.0)
         raw_freq = patterns['number_frequency']
         _freq_total = sum(raw_freq.values()) or 1.0
         freq_map_normalized = {str(k): round(v / _freq_total, 6) for k, v in raw_freq.items()}
 
-        # Build hot/cold lists from the normalized map
         hot_numbers  = sorted(freq_map_normalized.items(), key=lambda x: x[1], reverse=True)[:10]
         cold_numbers = sorted(freq_map_normalized.items(), key=lambda x: x[1])[:10]
 
-        # P9: bonus data (Lotto Max only)
         bonus_data = {}
         if patterns.get('bonus_frequency'):
             _bf = patterns['bonus_frequency']
@@ -6466,15 +7341,19 @@ def _save_draw_profile(profile_name: str, jackpot_amount: float, range_tolerance
                 "hot_bonus_numbers": sorted(_bf.items(), key=lambda x: x[1], reverse=True)[:5],
             }
 
-        # Create profile data
+        # Normalize number_scores to 0-1 for generation blend
+        ns = patterns.get('number_scores', {})
+        ns_max = max(ns.values()) if ns else 1.0
+        number_scores_normalized = {str(k): round(v / (ns_max or 1), 6) for k, v in ns.items()}
+
         profile_data = {
             "metadata": {
-                "profile_name": profile_name,
-                "game": game,
-                "created_date": datetime.now().isoformat(),
-                "jackpot_amount": jackpot_amount,
+                "profile_name":           profile_name,
+                "game":                   game,
+                "created_date":           datetime.now().isoformat(),
+                "jackpot_amount":         jackpot_amount,
                 "range_tolerance_percent": range_tolerance,
-                "total_draws_analyzed": len(draws),
+                "total_draws_analyzed":   len(draws),
                 "date_range": {
                     "oldest": min(d['date'] for d in draws),
                     "newest": max(d['date'] for d in draws),
@@ -6483,51 +7362,45 @@ def _save_draw_profile(profile_name: str, jackpot_amount: float, range_tolerance
             "core_patterns": {
                 "odd_even_distribution": patterns['odd_even_combos'],
                 "high_low_distribution": patterns['high_low_combos'],
-                "high_low_split_point" : patterns['mid_point'],
+                "high_low_split_point":  patterns['mid_point'],
             },
-            "sum_analysis": patterns['sum_stats'],  # now includes 'std' (P1)
+            "sum_analysis": patterns['sum_stats'],
+            "sum_percentiles": patterns.get('sum_percentiles', {}),
             "number_patterns": {
-                # P6: pre-normalized probabilities (sum ≈ 1.0)
-                "frequency_map"    : freq_map_normalized,
-                "excluded_numbers" : patterns['excluded_numbers'],
-                "hot_numbers"      : hot_numbers,
-                "cold_numbers"     : cold_numbers,
-                # P2: top numbers per sorted position
+                "frequency_map":    freq_map_normalized,
+                "excluded_numbers": patterns['excluded_numbers'],
+                "hot_numbers":      hot_numbers,
+                "cold_numbers":     cold_numbers,
                 "position_frequency": patterns.get('position_frequency', {}),
-                # P3: top-30 co-occurring pairs
-                "pair_cooccurrence" : patterns.get('pair_cooccurrence', {}),
+                "pair_cooccurrence":  patterns.get('pair_cooccurrence', {}),
+                "number_scores":      number_scores_normalized,
             },
+            "zone_analysis": patterns.get('zone_analysis', {}),
+            "dominant_strategy": patterns.get('dominant_strategy', {}),
+            "zone_oe_cross": patterns.get('zone_oe_cross', {}),
+            "structural_fingerprints": patterns.get('structural_fingerprints', [])[:50],
             "advanced_insights": {
                 "consecutive_distribution": patterns['consecutive_counts'],
-                "decade_distribution"     : patterns['decade_distribution'],
-                "gap_statistics"          : patterns['gap_analysis'],  # now includes 'std' (P1)
-                "prime_distribution"      : patterns['prime_counts'],
-                "pair_distribution"       : patterns['pair_counts'],
-                "repeat_statistics"       : patterns['repeat_stats'],
+                "decade_distribution":      patterns['decade_distribution'],
+                "gap_statistics":           patterns['gap_analysis'],
+                "prime_distribution":       patterns['prime_counts'],
+                "pair_distribution":        patterns['pair_counts'],
+                "repeat_statistics":        patterns['repeat_stats'],
             },
-            # P9: bonus patterns (populated for Lotto Max; empty dict for 6/49)
             "bonus_patterns": bonus_data,
             "historical_draws": [
-                {
-                    "date"   : d['date'],
-                    "numbers": d['numbers'],
-                    "jackpot": d.get('jackpot', 0),
-                    "bonus"  : d.get('bonus', 0),
-                }
-                # Store 50 most recent draws (sorted newest-first)
+                {"date": d['date'], "numbers": d['numbers'],
+                 "jackpot": d.get('jackpot', 0), "bonus": d.get('bonus', 0)}
                 for d in sorted(draws, key=lambda x: x.get('date', ''), reverse=True)[:50]
             ],
         }
-        
-        # Save to file
+
         filename = f"{profile_name}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
         filepath = profile_dir / filename
-        
         with open(filepath, 'w') as f:
             json.dump(profile_data, f, indent=2)
-        
         return filepath
-    
+
     except Exception as e:
         app_log(f"Error saving draw profile: {e}", "error")
         return None
@@ -8087,12 +8960,15 @@ def _render_previous_draw_mode(analyzer: SuperIntelligentAIAnalyzer, game: str) 
                     
                     for pred_set in top_predictions:
                         # Calculate how strong each factor is in this successful prediction
-                        # Hot numbers factor
+                        # Hot numbers factor — hot_numbers now contains ACTUAL winning draw
+                        # numbers (fixed: was prediction-frequency which created a bias loop).
+                        # Score = fraction of actual winners this prediction set contained.
                         number_freq = analysis.get('number_frequency', {})
                         hot_numbers_data = number_freq.get('hot_numbers', [])
-                        hot_numbers = [item['number'] if isinstance(item, dict) else item for item in hot_numbers_data[:10]]
-                        hot_matches = sum(1 for n in pred_set if n in hot_numbers)
-                        factor_scores['hot_numbers'].append(hot_matches / 10.0)
+                        _actual_winners = [item['number'] if isinstance(item, dict) else item for item in hot_numbers_data]
+                        _draw_size = max(1, len(_actual_winners))
+                        hot_matches = sum(1 for n in pred_set if n in _actual_winners)
+                        factor_scores['hot_numbers'].append(hot_matches / _draw_size)
                         
                         # Sum alignment factor
                         sum_analysis = analysis.get('sum_analysis', {})
@@ -8103,7 +8979,7 @@ def _render_previous_draw_mode(analyzer: SuperIntelligentAIAnalyzer, game: str) 
                             factor_scores['sum_alignment'].append(sum_score)
                         
                         # Diversity factor
-                        max_number = 50 if 'max' in game.lower() else 49
+                        max_number = 52 if 'max' in game.lower() else 49
                         num_range = max(pred_set) - min(pred_set)
                         diversity_score = num_range / (max_number - 1)
                         factor_scores['diversity'].append(diversity_score)
@@ -8398,10 +9274,30 @@ def _render_previous_draw_mode(analyzer: SuperIntelligentAIAnalyzer, game: str) 
                         if use_raw_csv and 'raw_csv_patterns' in analysis:
                             st.markdown("**Raw CSV Pattern Analysis:**")
                             csv_patterns = analysis['raw_csv_patterns']
-                            st.write(f"• Matching Jackpot Draws: {csv_patterns.get('matching_jackpot_draws', 0)}")
-                            st.write(f"• Sum Range: {csv_patterns['sum_distribution']['min']}-{csv_patterns['sum_distribution']['max']}")
-                            st.write(f"• Avg Odd/Even: {csv_patterns['odd_even_ratio']['odd']:.1f} / {csv_patterns['odd_even_ratio']['even']:.1f}")
-                            st.write(f"• Repetition Rate: {csv_patterns.get('repetition_rate', 0):.1%}")
+                            _csv_total = csv_patterns.get('total_draws_analyzed', 0)
+                            st.write(f"• Draws analyzed: {_csv_total:,}")
+                            st.write(f"• Matching jackpot draws (within 10%): {csv_patterns.get('matching_jackpot_draws', 0)}")
+                            _sd = csv_patterns.get('sum_distribution', {})
+                            st.write(f"• Historical sum range: {_sd.get('min','?')}–{_sd.get('max','?')}  "
+                                     f"(mean {_sd.get('mean', 0):.0f} +/- {_sd.get('std', 0):.0f})")
+                            _oe = csv_patterns.get('odd_even_ratio', {})
+                            st.write(f"• Avg odd/even per draw: {_oe.get('odd', 0):.1f} / {_oe.get('even', 0):.1f}")
+                            st.write(f"• Draw-to-draw repetition rate (2+ shared): {csv_patterns.get('repetition_rate', 0):.1%}")
+                            _sim_count = csv_patterns.get('similar_draws_count', 0)
+                            _w_zone    = csv_patterns.get('winning_zone_pattern', [])
+                            _w_sum     = csv_patterns.get('winning_sum', 0)
+                            st.write(f"• Structurally similar historical draws "
+                                     f"(zone {_w_zone}, sum within 20 of {_w_sum}): **{_sim_count}**")
+                            if _sim_count > 0:
+                                st.write(f"  — Avg odd count in similar draws: {csv_patterns.get('similar_draws_odd_avg', 0):.1f}")
+                                st.caption("Similar-draw zone patterns have been applied to boost matching "
+                                           "zone weights in the next generation run.")
+                            _top_zp = csv_patterns.get('top_historical_zone_patterns', [])
+                            if _top_zp:
+                                st.markdown("**Top Historical Zone Patterns (lo / mid / hi):**")
+                                for _zp_item in _top_zp:
+                                    st.write(f"  • {_zp_item['pattern']}  — "
+                                             f"{_zp_item['count']} draws ({_zp_item['pct']}%)")
                         
                         # HIGH VALUE ANALYSIS DISPLAYS
                         st.divider()
@@ -9251,8 +10147,8 @@ def _compile_comprehensive_learning_data(
     probability_calibration = _analyze_probability_calibration(pred_data, sorted_predictions, actual_results['numbers'])
     
     # Determine max_number for game
-    max_number = 50 if 'max' in game.lower() else 49
-    
+    max_number = 52 if 'max' in game.lower() else 49
+
     # ENHANCED ANALYSIS 7: Gap Patterns
     gap_patterns = _analyze_gap_patterns(sorted_predictions, actual_results['numbers'])
     
@@ -9270,7 +10166,33 @@ def _compile_comprehensive_learning_data(
     
     # ENHANCED ANALYSIS 12: Winning Pattern Fingerprint
     winning_pattern = _create_pattern_fingerprint(actual_results['numbers'])
-    
+
+    # ENHANCED ANALYSIS 13: Structural Fingerprint of the actual winning draw
+    # This records the zone composition, sum, odd/even split, and average gap of
+    # the real winning numbers so that future generation passes can bias the
+    # Structural Portfolio Generator's zone-pattern weights toward patterns that
+    # have recently produced real winners — rather than boosting specific numbers.
+    _sf_nums = sorted(actual_results['numbers'])
+    _sf_max  = 52 if 'max' in game.lower() else 49
+    if _sf_max == 52:
+        _sf_lo_cap, _sf_mi_cap = 17, 34   # 1-17 / 18-34 / 35-52
+    else:
+        _sf_lo_cap, _sf_mi_cap = 16, 32   # 1-16 / 17-32 / 33-49
+    _sf_lo  = sum(1 for n in _sf_nums if n <= _sf_lo_cap)
+    _sf_mi  = sum(1 for n in _sf_nums if _sf_lo_cap < n <= _sf_mi_cap)
+    _sf_hi  = sum(1 for n in _sf_nums if n > _sf_mi_cap)
+    _sf_gaps = [_sf_nums[i+1] - _sf_nums[i] for i in range(len(_sf_nums) - 1)]
+    structural_fingerprint = {
+        'zone_pattern': [_sf_lo, _sf_mi, _sf_hi],
+        'winning_sum': sum(_sf_nums),
+        'odd_count': sum(1 for n in _sf_nums if n % 2 != 0),
+        'even_count': sum(1 for n in _sf_nums if n % 2 == 0),
+        'avg_gap': float(np.mean(_sf_gaps)) if _sf_gaps else 0.0,
+        'max_gap': int(max(_sf_gaps)) if _sf_gaps else 0,
+        'min_gap': int(min(_sf_gaps)) if _sf_gaps else 0,
+        'number_range': int(_sf_nums[-1] - _sf_nums[0]) if _sf_nums else 0,
+    }
+
     # Compile learning data with ENHANCED metrics
     learning_data = {
         'game': game,
@@ -9296,7 +10218,8 @@ def _compile_comprehensive_learning_data(
             'even_odd_ratio': even_odd_ratio,
             'decade_coverage': decade_coverage,
             'cold_numbers': cold_numbers,
-            'winning_pattern_fingerprint': winning_pattern
+            'winning_pattern_fingerprint': winning_pattern,
+            'structural_fingerprint': structural_fingerprint,
         },
         'learning_insights': [],
         'timestamp': datetime.now().isoformat()
@@ -9338,7 +10261,7 @@ def _compile_comprehensive_learning_data(
     
     # Diversity insights
     coverage = diversity_metrics['number_space_coverage']
-    insights.append(f"Prediction sets covered {coverage:.1%} of possible numbers (1-50)")
+    insights.append(f"Prediction sets covered {coverage:.1%} of possible numbers (1-52)")
     
     learning_data['learning_insights'] = insights
     
@@ -9373,7 +10296,7 @@ def _analyze_position_frequency(game: str, max_draws: int = 300) -> Dict:
         return {}
 
     draw_size  = 7 if 'max' in game.lower() else 6
-    max_number = 50 if 'max' in game.lower() else 49
+    max_number = 52 if 'max' in game.lower() else 49
 
     # position_counts[pos_idx][number] = count
     position_counts: List[Dict[int, int]] = [{} for _ in range(draw_size)]
@@ -9448,78 +10371,161 @@ def _analyze_position_frequency(game: str, max_draws: int = 300) -> Dict:
 
 
 def _analyze_raw_csv_patterns(game: str, jackpot: Optional[float], winning_numbers: List[int]) -> Dict:
-    """Analyze patterns from raw CSV files."""
+    """Analyze historical raw CSV draws and find structural similarity to the actual winning draw.
+
+    Key improvements over the old version:
+    - Uses ``winning_numbers`` to find historically similar draws (same zone pattern,
+      within-20-of-sum) — these are the truly useful signals.
+    - ``similar_zone_patterns`` is written to the learning file and picked up by the
+      generation loop to nudge structural portfolio zone-pattern weights.
+    - Fixes: Lotto Max max cap (52), column detection (n1-n7 only), real repetition_rate.
+    """
     game_folder = _sanitize_game_name(game)
     data_dir = Path("data") / game_folder
-    
+
     if not data_dir.exists():
         return {}
-    
+
+    is_max  = 'max' in game.lower()
+    max_num = 52 if is_max else 49
+    draw_sz = 7 if is_max else 6
+    # Zone boundaries matching the Structural Portfolio Generator
+    lo_cap  = 17 if is_max else 16
+    mi_cap  = 34 if is_max else 32
+
+    # ---- structural fingerprint of the actual winning draw ----
+    w_sorted = sorted(int(n) for n in winning_numbers)
+    w_lo = sum(1 for n in w_sorted if n <= lo_cap)
+    w_mi = sum(1 for n in w_sorted if lo_cap < n <= mi_cap)
+    w_hi = sum(1 for n in w_sorted if n > mi_cap)
+    w_zone = (w_lo, w_mi, w_hi)
+    w_sum  = sum(w_sorted)
+    w_odd  = sum(1 for n in w_sorted if n % 2 != 0)
+
     patterns = {
         'matching_jackpot_draws': 0,
-        'sum_distribution': {'min': 999, 'max': 0, 'mean': 0, 'std': 0},
-        'odd_even_ratio': {'odd': 0, 'even': 0},
-        'repetition_rate': 0
+        'sum_distribution': {'min': 999, 'max': 0, 'mean': 0.0, 'std': 0.0},
+        'odd_even_ratio': {'odd': 0.0, 'even': 0.0},
+        'repetition_rate': 0.0,
+        # NEW: zone patterns of structurally-similar historical draws
+        'similar_draws_count': 0,
+        'similar_zone_patterns': [],   # list of [lo,mi,hi] for draws with matching zone + near-sum
+        'similar_draws_odd_avg': 0.0,
+        'winning_zone_pattern': list(w_zone),
+        'winning_sum': w_sum,
     }
-    
-    all_sums = []
-    odd_counts = []
-    even_counts = []
-    
+
+    all_sums: list = []
+    odd_counts: list = []
+    even_counts: list = []
+    zone_pattern_freq: dict = {}   # tuple → count across ALL history
+    similar_zone_patterns: list = []
+    prev_draw_sets: list = []
+    repeat_hits = 0
+    total_draws = 0
+    similar_odd_totals: list = []
+
     try:
-        for csv_file in data_dir.glob("*.csv"):
-            df = pd.read_csv(csv_file)
-            
+        # Number columns: n1..n7 only (exact prefix match avoids the 'numbers' string col)
+        _num_cols = [f'n{i}' for i in range(1, draw_sz + 1)]
+
+        for csv_file in sorted(data_dir.glob("*.csv")):
+            try:
+                df = pd.read_csv(csv_file)
+            except Exception:
+                continue
+
+            # Keep only columns that actually exist in this file
+            avail_cols = [c for c in _num_cols if c in df.columns]
+            if not avail_cols:
+                continue
+
             for _, row in df.iterrows():
-                # Extract numbers from row
-                numbers = []
-                for col in df.columns:
-                    if col.startswith('number_') or col.startswith('n'):
-                        try:
-                            num = int(row[col])
-                            if 1 <= num <= 50:
-                                numbers.append(num)
-                        except:
-                            continue
-                
-                if len(numbers) > 0:
-                    # Sum analysis
-                    row_sum = sum(numbers)
-                    all_sums.append(row_sum)
-                    
-                    # Odd/even analysis
-                    odd = sum(1 for n in numbers if n % 2 == 1)
-                    even = len(numbers) - odd
-                    odd_counts.append(odd)
-                    even_counts.append(even)
-                    
-                    # Jackpot matching (if provided)
-                    if jackpot:
-                        row_jackpot = row.get('jackpot', 0)
-                        if abs(row_jackpot - jackpot) < jackpot * 0.1:  # Within 10%
+                nums = []
+                for col in avail_cols:
+                    try:
+                        val = int(row[col])
+                        if 1 <= val <= max_num:
+                            nums.append(val)
+                    except Exception:
+                        continue
+
+                if len(nums) < draw_sz - 1:   # tolerate at most 1 missing (NaN bonus cols)
+                    continue
+
+                nums = nums[:draw_sz]
+                total_draws += 1
+                row_sum = sum(nums)
+                all_sums.append(row_sum)
+
+                odd  = sum(1 for n in nums if n % 2 != 0)
+                even = len(nums) - odd
+                odd_counts.append(odd)
+                even_counts.append(even)
+
+                # Zone pattern for this historical draw
+                h_lo = sum(1 for n in nums if n <= lo_cap)
+                h_mi = sum(1 for n in nums if lo_cap < n <= mi_cap)
+                h_hi = sum(1 for n in nums if n > mi_cap)
+                h_zone = (h_lo, h_mi, h_hi)
+                zone_pattern_freq[h_zone] = zone_pattern_freq.get(h_zone, 0) + 1
+
+                # Jackpot proximity
+                if jackpot:
+                    try:
+                        row_jackpot = float(row.get('jackpot', 0) or 0)
+                        if row_jackpot > 0 and abs(row_jackpot - jackpot) < jackpot * 0.10:
                             patterns['matching_jackpot_draws'] += 1
-        
-        # Calculate statistics
+                    except Exception:
+                        pass
+
+                # Structural similarity: same zone pattern AND sum within ±20
+                if h_zone == w_zone and abs(row_sum - w_sum) <= 20:
+                    patterns['similar_draws_count'] += 1
+                    similar_zone_patterns.append([h_lo, h_mi, h_hi])
+                    similar_odd_totals.append(odd)
+
+                # Repetition rate: how often at least 2 numbers repeat from the previous draw
+                if prev_draw_sets:
+                    overlap = len(set(nums) & set(prev_draw_sets[-1]))
+                    if overlap >= 2:
+                        repeat_hits += 1
+                prev_draw_sets = [nums]  # keep only last
+
+        # ---- aggregate statistics ----
         if all_sums:
             patterns['sum_distribution'] = {
                 'min': int(np.min(all_sums)),
                 'max': int(np.max(all_sums)),
-                'mean': float(np.mean(all_sums)),
-                'std': float(np.std(all_sums))
+                'mean': round(float(np.mean(all_sums)), 1),
+                'std': round(float(np.std(all_sums)), 1),
             }
-        
+
         if odd_counts:
             patterns['odd_even_ratio'] = {
-                'odd': float(np.mean(odd_counts)),
-                'even': float(np.mean(even_counts))
+                'odd': round(float(np.mean(odd_counts)), 2),
+                'even': round(float(np.mean(even_counts)), 2),
             }
-        
-        # Repetition rate (placeholder)
-        patterns['repetition_rate'] = 0.15
-    
-    except Exception as e:
-        print(f"Error analyzing CSV patterns: {e}")
-    
+
+        if total_draws > 1:
+            patterns['repetition_rate'] = round(repeat_hits / (total_draws - 1), 4)
+
+        # Store the most representative similar zone patterns (up to 20 unique)
+        if similar_zone_patterns:
+            patterns['similar_zone_patterns'] = similar_zone_patterns[:20]
+            patterns['similar_draws_odd_avg'] = round(float(np.mean(similar_odd_totals)), 2)
+
+        # Top-5 historically most-frequent zone patterns (for reference)
+        top_zone_patterns = sorted(zone_pattern_freq.items(), key=lambda x: x[1], reverse=True)[:5]
+        patterns['top_historical_zone_patterns'] = [
+            {'pattern': list(zp), 'count': cnt, 'pct': round(cnt / max(1, total_draws) * 100, 1)}
+            for zp, cnt in top_zone_patterns
+        ]
+        patterns['total_draws_analyzed'] = total_draws
+
+    except Exception as exc:
+        patterns['error'] = str(exc)[:200]
+
     return patterns
 
 
@@ -9564,7 +10570,7 @@ def _analyze_gap_patterns(sorted_predictions: List[Dict], winning_numbers: List[
     }
 
 
-def _analyze_zone_distribution(sorted_predictions: List[Dict], winning_numbers: List[int], max_number: int = 50) -> Dict:
+def _analyze_zone_distribution(sorted_predictions: List[Dict], winning_numbers: List[int], max_number: int = 52) -> Dict:
     """Analyze distribution across low/mid/high zones."""
     # Calculate zone boundaries dynamically based on max_number
     # Low: 1 to 1/3, Mid: 1/3+1 to 2/3, High: 2/3+1 to max
@@ -9625,7 +10631,7 @@ def _analyze_even_odd_ratio(sorted_predictions: List[Dict], winning_numbers: Lis
     }
 
 
-def _analyze_decade_coverage(sorted_predictions: List[Dict], winning_numbers: List[int], max_number: int = 50) -> Dict:
+def _analyze_decade_coverage(sorted_predictions: List[Dict], winning_numbers: List[int], max_number: int = 52) -> Dict:
     """Analyze how numbers spread across decades (1-10, 11-20, etc.)."""
     winning_decades = {}
     for num in winning_numbers:
@@ -9676,7 +10682,7 @@ def _identify_cold_numbers(game: str, lookback_draws: int = 50) -> List[int]:
                 number_counts[num] = number_counts.get(num, 0) + 1
         
         # Identify cold numbers (bottom 20%)
-        max_number = 50 if 'max' in game.lower() else 49
+        max_number = 52 if 'max' in game.lower() else 49
         all_numbers = list(range(1, max_number + 1))
         sorted_by_freq = sorted(all_numbers, key=lambda x: number_counts.get(x, 0))
         
@@ -9709,19 +10715,29 @@ def _create_pattern_fingerprint(numbers: List[int]) -> str:
 # ============================================================================
 
 def _analyze_number_frequency(sorted_predictions: List[Dict], winning_numbers: List[int]) -> Dict:
-    """Analyze which numbers were predicted and how often they appeared correctly."""
+    """Analyze which numbers were predicted and how often they appeared correctly.
+
+    Key design principle: ``hot_numbers`` in the return dict contains the
+    **actual winning draw numbers** (not the most-predicted numbers).  This
+    prevents the self-reinforcing bias loop where numbers predicted often were
+    labelled "hot" and then boosted further in the next generation pass.
+
+    The generation blend code reads ``hot_numbers`` to apply a mild recency
+    boost (≤10%) toward numbers that genuinely won recently — which is the
+    correct signal.
+    """
     predicted_numbers = {}  # {number: count}
     correct_predictions = {}  # {number: count when correct}
-    
+
     # Count all predicted numbers
     for pred in sorted_predictions:
         for num_data in pred['numbers']:
             num = num_data['number']
             predicted_numbers[num] = predicted_numbers.get(num, 0) + 1
-            
+
             if num_data['is_correct']:
                 correct_predictions[num] = correct_predictions.get(num, 0) + 1
-    
+
     # Identify correctly predicted numbers
     correctly_predicted = [
         {'number': num, 'count': correct_predictions.get(num, 0), 'predicted_count': predicted_numbers[num]}
@@ -9729,32 +10745,45 @@ def _analyze_number_frequency(sorted_predictions: List[Dict], winning_numbers: L
         if num in predicted_numbers
     ]
     correctly_predicted.sort(key=lambda x: x['count'], reverse=True)
-    
+
     # Identify missed winning numbers
     missed_winning = [
         {'number': num}
         for num in winning_numbers
         if num not in predicted_numbers
     ]
-    
-    # Identify frequently predicted but incorrect numbers
-    missed_numbers = [
+
+    # Identify frequently predicted but incorrect numbers (penalized — overpredicted)
+    penalized_numbers = [
         {'number': num, 'count': count}
         for num, count in predicted_numbers.items()
         if num not in winning_numbers
     ]
-    missed_numbers.sort(key=lambda x: x['count'], reverse=True)
-    
-    # Calculate hot/cold accuracy
-    hot_numbers = sorted(predicted_numbers.items(), key=lambda x: x[1], reverse=True)[:10]
-    hot_correct = sum(1 for num, _ in hot_numbers if num in winning_numbers)
-    
+    penalized_numbers.sort(key=lambda x: x['count'], reverse=True)
+
+    # ---- hot_numbers = ACTUAL winning draw numbers (not prediction frequency) ----
+    # Format: list of {'number': n, 'frequency': 1.0} — uniform weight so the
+    # generation blend applies equal recency signal to all winners.
+    hot_numbers_actual = [
+        {'number': num, 'frequency': 1.0}
+        for num in sorted(winning_numbers)
+    ]
+
+    # Legacy prediction-frequency hot stat kept for display only
+    _pred_hot = sorted(predicted_numbers.items(), key=lambda x: x[1], reverse=True)[:10]
+    hot_correct = sum(1 for num, _ in _pred_hot if num in winning_numbers)
+
     return {
         'correctly_predicted': correctly_predicted,
         'missed_winning_numbers': missed_winning,
-        'missed_numbers': missed_numbers[:10],  # Top 10 most predicted but wrong
+        # Top 10 most predicted but WRONG — exposed as penalized_numbers for
+        # use in future suppression (generation code may read this to discount them)
+        'missed_numbers': penalized_numbers[:10],
+        'penalized_numbers': penalized_numbers[:10],
+        # hot_numbers = actual winners (drives generation learning blend)
+        'hot_numbers': hot_numbers_actual,
         'total_unique_predicted': len(predicted_numbers),
-        'hot_number_accuracy': hot_correct / len(hot_numbers) if hot_numbers else 0,
+        'hot_number_accuracy': hot_correct / len(_pred_hot) if _pred_hot else 0,
         'number_distribution': {
             'low_range': sum(1 for n in predicted_numbers.keys() if 1 <= n <= 16),
             'mid_range': sum(1 for n in predicted_numbers.keys() if 17 <= n <= 33),
@@ -9991,7 +11020,7 @@ def _analyze_set_diversity(sorted_predictions: List[Dict]) -> Dict:
             overlaps.append(overlap)
     
     # Calculate diversity score (0-1, higher = more diverse)
-    coverage = len(all_numbers) / 50  # 50 is max numbers in Lotto Max
+    coverage = len(all_numbers) / 52  # 52 is max numbers in Lotto Max
     avg_overlap = np.mean(overlaps) if overlaps else 0
     max_possible_overlap = 7  # All numbers same
     overlap_diversity = 1 - (avg_overlap / max_possible_overlap)
@@ -10090,87 +11119,97 @@ def _load_and_combine_learning_files(learning_files: List[Path]) -> Dict:
     }
     
     all_sums = []
+    all_sum_weights = []
     position_stats = {}
-    number_counts = {}
+    number_counts: Dict[Any, float] = {}   # number → recency-weighted count
     all_gap_patterns = []
     all_zone_distributions = []
     all_even_odd_ratios = []
     all_decade_coverages = []
     all_cold_numbers = []
     all_pattern_fingerprints = []
-    
-    for lf in learning_files:
+
+    # Recency decay: files are sorted most-recent-first by _find_all_learning_files.
+    # Apply exponential decay so older files have progressively less influence.
+    # file[0] weight=1.0, file[1]=0.75, file[2]=0.56, file[3]=0.42, ...
+    _RECENCY_DECAY = 0.75
+
+    for _lf_idx, lf in enumerate(learning_files):
+        _file_weight = _RECENCY_DECAY ** _lf_idx   # 1.0, 0.75, 0.56, 0.42, …
         try:
             with open(lf, 'r') as f:
                 data = json.load(f)
-            
+
             combined_data['source_files'].append(str(lf.name))
-            
+
             # Set game from first file
             if not combined_data['game']:
                 combined_data['game'] = data.get('game', 'Lotto Max')
-            
-            # Combine insights
-            insights = data.get('learning_insights', [])
-            combined_data['combined_insights'].extend(insights)
-            
-            # Aggregate position accuracy
+
+            # Combine insights (most-recent only to keep context focused)
+            if _lf_idx == 0:
+                insights = data.get('learning_insights', [])
+                combined_data['combined_insights'].extend(insights)
+
+            # Aggregate position accuracy — weight correct/total by recency
             pos_acc = data.get('analysis', {}).get('position_accuracy', {})
             for pos, stats in pos_acc.items():
                 if pos not in position_stats:
-                    position_stats[pos] = {'correct': 0, 'total': 0}
-                position_stats[pos]['correct'] += stats.get('correct', 0)
-                position_stats[pos]['total'] += stats.get('total', 0)
-            
-            # Aggregate number frequency
+                    position_stats[pos] = {'correct': 0.0, 'total': 0.0}
+                position_stats[pos]['correct'] += stats.get('correct', 0) * _file_weight
+                position_stats[pos]['total'] += stats.get('total', 0) * _file_weight
+
+            # Aggregate number frequency — scale count by recency weight
             num_freq = data.get('analysis', {}).get('number_frequency', {})
             correctly_predicted = num_freq.get('correctly_predicted', [])
             for item in correctly_predicted:
                 num = item['number']
                 if num not in number_counts:
-                    number_counts[num] = 0
-                number_counts[num] += item.get('count', 1)
-            
-            # Aggregate sum data
+                    number_counts[num] = 0.0
+                number_counts[num] += item.get('count', 1) * _file_weight
+
+            # Aggregate sum data — weight by recency
             sum_analysis = data.get('analysis', {}).get('sum_analysis', {})
             winning_sum = sum_analysis.get('winning_sum', 0)
             if winning_sum:
                 all_sums.append(winning_sum)
-            
-            # Aggregate ENHANCED metrics
+                all_sum_weights.append(_file_weight)
+
+            # Aggregate ENHANCED metrics (carry recency weight for later averaging)
             analysis = data.get('analysis', {})
-            
+
             # Gap patterns
             gap_pat = analysis.get('gap_patterns', {})
             if gap_pat:
-                all_gap_patterns.append(gap_pat)
-            
+                all_gap_patterns.append((gap_pat, _file_weight))
+
             # Zone distribution
             zone_dist = analysis.get('zone_distribution', {})
             if zone_dist:
-                all_zone_distributions.append(zone_dist)
-            
+                all_zone_distributions.append((zone_dist, _file_weight))
+
             # Even/odd ratio
             even_odd = analysis.get('even_odd_ratio', {})
             if even_odd:
-                all_even_odd_ratios.append(even_odd)
-            
+                all_even_odd_ratios.append((even_odd, _file_weight))
+
             # Decade coverage
             decade_cov = analysis.get('decade_coverage', {})
             if decade_cov:
-                all_decade_coverages.append(decade_cov)
-            
-            # Cold numbers
-            cold_nums = analysis.get('cold_numbers', [])
-            if cold_nums:
-                all_cold_numbers.extend(cold_nums)
-            
+                all_decade_coverages.append((decade_cov, _file_weight))
+
+            # Cold numbers — only carry from recent files (weight >= 0.5)
+            if _file_weight >= 0.5:
+                cold_nums = analysis.get('cold_numbers', [])
+                if cold_nums:
+                    all_cold_numbers.extend(cold_nums)
+
             # Pattern fingerprints
             pattern = analysis.get('winning_pattern_fingerprint', '')
             if pattern:
                 all_pattern_fingerprints.append(pattern)
-            
-        except Exception as e:
+
+        except Exception:
             continue
     
     # Calculate combined statistics
@@ -10191,49 +11230,56 @@ def _load_and_combine_learning_files(learning_files: List[Path]) -> Dict:
         combined_data['analysis']['number_frequency'] = combined_data['number_frequency']
     
     if all_sums:
-        combined_data['avg_sum'] = int(np.mean(all_sums))
+        # Recency-weighted average sum
+        _sw_total = sum(all_sum_weights) if all_sum_weights else len(all_sums)
+        combined_data['avg_sum'] = int(
+            sum(s * w for s, w in zip(all_sums, all_sum_weights)) / max(_sw_total, 1e-9)
+        )
         combined_data['sum_range'] = {'min': int(np.min(all_sums)), 'max': int(np.max(all_sums))}
         combined_data['analysis']['sum_analysis'] = {
             'winning_sum': combined_data['avg_sum'],
             'sum_range': combined_data['sum_range']
         }
-    
-    # Aggregate ENHANCED metrics
+
+    # Aggregate ENHANCED metrics — all lists now hold (data, weight) tuples
     if all_gap_patterns:
-        avg_winning_gaps = [gp.get('avg_winning_gap', 0) for gp in all_gap_patterns if gp.get('avg_winning_gap')]
-        avg_pred_gaps = [gp.get('avg_prediction_gap', 0) for gp in all_gap_patterns if gp.get('avg_prediction_gap')]
+        _gp_wt = [(gp.get('avg_winning_gap', 0), w) for gp, w in all_gap_patterns if gp.get('avg_winning_gap')]
+        _gp_pd = [(gp.get('avg_prediction_gap', 0), w) for gp, w in all_gap_patterns if gp.get('avg_prediction_gap')]
+        _gp_gs = [(gp.get('gap_similarity', 0), w) for gp, w in all_gap_patterns]
+        def _wavg(pairs): wt = sum(w for _, w in pairs); return sum(v * w for v, w in pairs) / max(wt, 1e-9)
         combined_data['analysis']['gap_patterns'] = {
-            'avg_winning_gap': float(np.mean(avg_winning_gaps)) if avg_winning_gaps else 7,
-            'avg_prediction_gap': float(np.mean(avg_pred_gaps)) if avg_pred_gaps else 7,
-            'gap_similarity': float(np.mean([gp.get('gap_similarity', 0) for gp in all_gap_patterns])) if all_gap_patterns else 0
+            'avg_winning_gap': float(_wavg(_gp_wt)) if _gp_wt else 7,
+            'avg_prediction_gap': float(_wavg(_gp_pd)) if _gp_pd else 7,
+            'gap_similarity': float(_wavg(_gp_gs)) if _gp_gs else 0,
         }
-    
+
     if all_zone_distributions:
-        # Average zone distributions
-        low_zones = [zd.get('winning_distribution', {}).get('low', 0) for zd in all_zone_distributions]
-        mid_zones = [zd.get('winning_distribution', {}).get('mid', 0) for zd in all_zone_distributions]
-        high_zones = [zd.get('winning_distribution', {}).get('high', 0) for zd in all_zone_distributions]
+        def _wzone(key, sub): pairs = [(zd.get('winning_distribution', {}).get(key, 0), w) for zd, w in all_zone_distributions]; wt = sum(w for _, w in pairs); return sum(v * w for v, w in pairs) / max(wt, 1e-9)
         combined_data['analysis']['zone_distribution'] = {
             'winning_distribution': {
-                'low': int(np.mean(low_zones)) if low_zones else 2,
-                'mid': int(np.mean(mid_zones)) if mid_zones else 3,
-                'high': int(np.mean(high_zones)) if high_zones else 2
+                'low': int(round(_wzone('low', all_zone_distributions))),
+                'mid': int(round(_wzone('mid', all_zone_distributions))),
+                'high': int(round(_wzone('high', all_zone_distributions))),
             }
         }
-    
+
     if all_even_odd_ratios:
-        avg_ratio = np.mean([eo.get('winning_ratio', 0.5) for eo in all_even_odd_ratios])
+        _eo_pairs = [(eo.get('winning_ratio', 0.5), w) for eo, w in all_even_odd_ratios]
+        _eo_wt = sum(w for _, w in _eo_pairs)
+        avg_ratio = sum(v * w for v, w in _eo_pairs) / max(_eo_wt, 1e-9)
         combined_data['analysis']['even_odd_ratio'] = {
             'winning_ratio': float(avg_ratio),
-            'winning_even_count': int(avg_ratio * 7),  # Approximate for Lotto Max
+            'winning_even_count': int(avg_ratio * 7),
             'winning_odd_count': int((1 - avg_ratio) * 7)
         }
-    
+
     if all_decade_coverages:
-        avg_decade_count = np.mean([dc.get('winning_decade_count', 4) for dc in all_decade_coverages])
+        _dc_cnt = [(dc.get('winning_decade_count', 4), w) for dc, w in all_decade_coverages]
+        _dc_div = [(dc.get('decade_diversity_score', 0.8), w) for dc, w in all_decade_coverages]
+        _dc_wt = sum(w for _, w in _dc_cnt)
         combined_data['analysis']['decade_coverage'] = {
-            'winning_decade_count': int(avg_decade_count),
-            'decade_diversity_score': float(np.mean([dc.get('decade_diversity_score', 0.8) for dc in all_decade_coverages]))
+            'winning_decade_count': int(round(sum(v * w for v, w in _dc_cnt) / max(_dc_wt, 1e-9))),
+            'decade_diversity_score': float(sum(v * w for v, w in _dc_div) / max(_dc_wt, 1e-9))
         }
     
     # Cold numbers - combine and get most frequently cold
@@ -10299,7 +11345,7 @@ def _validate_set_against_profile(prediction_set: List[int], profile_data: Dict,
     if "6/49" in game or "6_49" in game:
         max_num = 49
     else:  # Lotto Max
-        max_num = 50
+        max_num = 52
 
     mid_point  = profile_data.get('core_patterns', {}).get('high_low_split_point', (max_num + 1) // 2)
     sorted_nums = sorted(prediction_set)
@@ -10536,7 +11582,7 @@ def _regenerate_predictions_with_learning(
     cold_numbers = analysis.get('cold_numbers', [])
     
     # Determine max_number
-    max_number = 50 if 'max' in game.lower() else 49
+    max_number = 52 if 'max' in game.lower() else 49
     draw_size = 7 if 'max' in game.lower() else 6
     
     if use_advanced_learning:
@@ -10827,8 +11873,8 @@ def _calculate_learning_score(numbers: List[int], learning_data: Dict) -> float:
     
     # Determine max_number from game context
     game = learning_data.get('game', 'Lotto Max')
-    max_number = 50 if 'max' in game.lower() else 49
-    
+    max_number = 52 if 'max' in game.lower() else 49
+
     # FACTOR 1: Hot number alignment (12%)
     number_freq = analysis.get('number_frequency', {})
     hot_numbers_data = number_freq.get('hot_numbers', [])
@@ -10951,170 +11997,191 @@ def _calculate_learning_score_advanced(
     4. Anti-pattern penalties
     """
     score = 0.0
+    active_weight_sum = 0.0   # track sum of weights for factors that have data
     analysis = learning_data.get('analysis', {})
-    
+
     # Determine max_number from game context
     game = learning_data.get('game', 'Lotto Max')
-    max_number = 50 if 'max' in game.lower() else 49
-    
+    max_number = 52 if 'max' in game.lower() else 49
+
     # Get adaptive weights with temporal decay
     weights = adaptive_system.get_adaptive_weights(draw_age)
-    
+
     # Factor scores dictionary for interaction analysis
     factor_scores = {}
-    
+
+    numbers_list = numbers.tolist() if hasattr(numbers, 'tolist') else list(numbers)
+
     # FACTOR 1: Hot number alignment
     number_freq = analysis.get('number_frequency', {})
     hot_numbers_data = number_freq.get('hot_numbers', [])
     hot_numbers = [item['number'] if isinstance(item, dict) else item for item in hot_numbers_data[:10]]
-    # Ensure hot_numbers is a list/set, not numpy array (avoid ambiguous truth value error)
     if hasattr(hot_numbers, 'tolist'):
         hot_numbers = hot_numbers.tolist()
-    # Convert to set for efficient membership testing and ensure numbers is also iterable
     hot_numbers_set = set(hot_numbers)
-    numbers_list = numbers.tolist() if hasattr(numbers, 'tolist') else list(numbers)
+    _n_hot = max(1, len(hot_numbers_set))   # don't divide by zero; use actual count
     hot_matches = sum(1 for n in numbers_list if n in hot_numbers_set)
-    factor_scores['hot_numbers'] = (hot_matches / 10.0)
-    score += factor_scores['hot_numbers'] * weights.get('hot_numbers', 0.12)
+    factor_scores['hot_numbers'] = hot_matches / _n_hot
+    _w1 = weights.get('hot_numbers', 0.12)
+    score += factor_scores['hot_numbers'] * _w1
+    active_weight_sum += _w1
     
     # FACTOR 2: Sum alignment
     sum_analysis = analysis.get('sum_analysis', {})
     target_sum = sum_analysis.get('winning_sum', 0)
+    _w2 = weights.get('sum_alignment', 0.15)
     if target_sum:
-        sum_diff = abs(sum(numbers) - target_sum)
-        sum_score = max(0, 1.0 - (sum_diff / 100.0))
+        sum_diff = abs(sum(numbers_list) - target_sum)
+        sum_score = max(0.0, 1.0 - (sum_diff / 100.0))
         factor_scores['sum_alignment'] = sum_score
-        score += sum_score * weights.get('sum_alignment', 0.15)
+        score += sum_score * _w2
+        active_weight_sum += _w2
     else:
-        factor_scores['sum_alignment'] = 0
-    
-    # FACTOR 3: Diversity/spread
-    num_range = max(numbers) - min(numbers)
-    max_possible_range = max_number - 1
+        factor_scores['sum_alignment'] = 0.0
+
+    # FACTOR 3: Diversity/spread (always active — no external data needed)
+    num_range = max(numbers_list) - min(numbers_list)
+    max_possible_range = max(1, max_number - 1)
     diversity_score = num_range / max_possible_range
     factor_scores['diversity'] = diversity_score
-    score += diversity_score * weights.get('diversity', 0.10)
-    
+    _w3 = weights.get('diversity', 0.10)
+    score += diversity_score * _w3
+    active_weight_sum += _w3
+
     # FACTOR 4: Gap pattern match
     gap_patterns = analysis.get('gap_patterns', {})
     avg_winning_gap = gap_patterns.get('avg_winning_gap', 0)
+    _w4 = weights.get('gap_patterns', 0.12)
     if avg_winning_gap:
-        sorted_nums = sorted(numbers)
-        gaps = [sorted_nums[i+1] - sorted_nums[i] for i in range(len(sorted_nums)-1)]
-        avg_gap = np.mean(gaps) if gaps else 0
+        sorted_nums = sorted(numbers_list)
+        gaps = [sorted_nums[i + 1] - sorted_nums[i] for i in range(len(sorted_nums) - 1)]
+        avg_gap = float(np.mean(gaps)) if gaps else 0.0
         gap_diff = abs(avg_winning_gap - avg_gap)
-        gap_score = max(0, 1.0 - (gap_diff / 10.0))
+        gap_score = max(0.0, 1.0 - (gap_diff / 10.0))
         factor_scores['gap_patterns'] = gap_score
-        score += gap_score * weights.get('gap_patterns', 0.12)
+        score += gap_score * _w4
+        active_weight_sum += _w4
     else:
-        factor_scores['gap_patterns'] = 0
-    
+        factor_scores['gap_patterns'] = 0.0
+
     # FACTOR 5: Zone distribution
     zone_dist = analysis.get('zone_distribution', {})
     winning_zones = zone_dist.get('winning_distribution', {})
+    _w5 = weights.get('zone_distribution', 0.10)
     if winning_zones:
         low_boundary = max_number // 3
         mid_boundary = (max_number * 2) // 3
-        
         predicted_zones = {'low': 0, 'mid': 0, 'high': 0}
-        for num in numbers:
+        for num in numbers_list:
             if num <= low_boundary:
                 predicted_zones['low'] += 1
             elif num <= mid_boundary:
                 predicted_zones['mid'] += 1
             else:
                 predicted_zones['high'] += 1
-        
         zone_diff = sum(abs(winning_zones.get(z, 0) - predicted_zones[z]) for z in ['low', 'mid', 'high'])
-        zone_score = max(0, 1.0 - (zone_diff / len(numbers)))
+        zone_score = max(0.0, 1.0 - (zone_diff / max(1, len(numbers_list))))
         factor_scores['zone_distribution'] = zone_score
-        score += zone_score * weights.get('zone_distribution', 0.10)
+        score += zone_score * _w5
+        active_weight_sum += _w5
     else:
-        factor_scores['zone_distribution'] = 0
-    
+        factor_scores['zone_distribution'] = 0.0
+
     # FACTOR 6: Even/odd ratio
     even_odd = analysis.get('even_odd_ratio', {})
-    winning_ratio = even_odd.get('winning_ratio', 0.5)
+    winning_ratio = even_odd.get('winning_ratio', 0.0)
+    _w6 = weights.get('even_odd_ratio', 0.08)
     if winning_ratio:
-        even_count = sum(1 for n in numbers if n % 2 == 0)
-        predicted_ratio = even_count / len(numbers)
+        even_count = sum(1 for n in numbers_list if n % 2 == 0)
+        predicted_ratio = even_count / max(1, len(numbers_list))
         ratio_diff = abs(winning_ratio - predicted_ratio)
-        ratio_score = max(0, 1.0 - ratio_diff)
+        ratio_score = max(0.0, 1.0 - ratio_diff)
         factor_scores['even_odd_ratio'] = ratio_score
-        score += ratio_score * weights.get('even_odd_ratio', 0.08)
+        score += ratio_score * _w6
+        active_weight_sum += _w6
     else:
-        factor_scores['even_odd_ratio'] = 0
-    
+        factor_scores['even_odd_ratio'] = 0.0
+
     # FACTOR 7: Cold number penalty
     cold_numbers = analysis.get('cold_numbers', [])
+    _w7 = weights.get('cold_penalty', 0.10)
     if cold_numbers:
-        cold_matches = sum(1 for n in numbers if n in cold_numbers)
-        cold_penalty = (cold_matches / len(numbers))
-        factor_scores['cold_penalty'] = cold_penalty
-        score -= cold_penalty * weights.get('cold_penalty', 0.10)
+        cold_matches = sum(1 for n in numbers_list if n in cold_numbers)
+        cold_penalty_val = cold_matches / max(1, len(numbers_list))
+        factor_scores['cold_penalty'] = cold_penalty_val
+        score -= cold_penalty_val * _w7
+        active_weight_sum += _w7   # counts even though it subtracts
     else:
-        factor_scores['cold_penalty'] = 0
-    
+        factor_scores['cold_penalty'] = 0.0
+
     # FACTOR 8: Decade coverage
     decade_coverage = analysis.get('decade_coverage', {})
     winning_decade_count = decade_coverage.get('winning_decade_count', 0)
+    _w8 = weights.get('decade_coverage', 0.10)
     if winning_decade_count:
-        predicted_decades = set((n - 1) // 10 for n in numbers)
+        predicted_decades = set((n - 1) // 10 for n in numbers_list)
         decade_diff = abs(winning_decade_count - len(predicted_decades))
-        decade_score = max(0, 1.0 - (decade_diff / 5.0))
+        decade_score = max(0.0, 1.0 - (decade_diff / 5.0))
         factor_scores['decade_coverage'] = decade_score
-        score += decade_score * weights.get('decade_coverage', 0.10)
+        score += decade_score * _w8
+        active_weight_sum += _w8
     else:
-        factor_scores['decade_coverage'] = 0
-    
+        factor_scores['decade_coverage'] = 0.0
+
     # FACTOR 9: Pattern fingerprint similarity
     winning_pattern = analysis.get('winning_pattern_fingerprint', '')
+    _w9 = weights.get('pattern_fingerprint', 0.08)
     if winning_pattern:
-        predicted_pattern = _create_pattern_fingerprint(numbers)
+        predicted_pattern = _create_pattern_fingerprint(numbers_list)
         min_len = min(len(winning_pattern), len(predicted_pattern))
         if min_len > 0:
             matches = sum(1 for i in range(min_len) if winning_pattern[i] == predicted_pattern[i])
             pattern_score = matches / min_len
             factor_scores['pattern_fingerprint'] = pattern_score
-            score += pattern_score * weights.get('pattern_fingerprint', 0.08)
+            score += pattern_score * _w9
+            active_weight_sum += _w9
         else:
-            factor_scores['pattern_fingerprint'] = 0
+            factor_scores['pattern_fingerprint'] = 0.0
     else:
-        factor_scores['pattern_fingerprint'] = 0
-    
+        factor_scores['pattern_fingerprint'] = 0.0
+
     # FACTOR 10: Position-based weighting
     position_accuracy = analysis.get('position_accuracy', {})
+    _w10 = weights.get('position_weighting', 0.15)
     if position_accuracy:
-        sorted_nums = sorted(numbers)
+        sorted_nums = sorted(numbers_list)
         position_score = 0.0
         for i, num in enumerate(sorted_nums, 1):
             pos_key = f'position_{i}'
             if pos_key in position_accuracy:
-                accuracy = position_accuracy[pos_key].get('accuracy', 0)
-                position_score += accuracy
-        if len(sorted_nums) > 0:
-            position_score /= len(sorted_nums)
-            factor_scores['position_weighting'] = position_score
-            score += position_score * weights.get('position_weighting', 0.15)
+                position_score += position_accuracy[pos_key].get('accuracy', 0.0)
+        position_score /= max(1, len(sorted_nums))
+        factor_scores['position_weighting'] = position_score
+        score += position_score * _w10
+        active_weight_sum += _w10
     else:
-        factor_scores['position_weighting'] = 0
-    
-    # ADVANCED: Cross-factor interaction bonuses
+        factor_scores['position_weighting'] = 0.0
+
+    # ADVANCED: Cross-factor interaction bonuses (capped to prevent score inflation)
     interactions = adaptive_system.meta_learning_data.get('cross_factor_interactions', {})
+    _interaction_total = 0.0
     for pair_key, interaction_strength in interactions.items():
         factors = pair_key.split('+')
         if len(factors) == 2:
             f1, f2 = factors
             if f1 in factor_scores and f2 in factor_scores:
-                # Bonus when both factors are strong
-                interaction_bonus = factor_scores[f1] * factor_scores[f2] * interaction_strength * 0.05
-                score += interaction_bonus
-    
-    # ADVANCED: Anti-pattern penalty
-    anti_penalty = adaptive_system.penalize_anti_patterns(numbers)
-    score -= anti_penalty * 0.15  # 15% penalty for matching anti-patterns
-    
-    # Normalize to 0-1 range
+                _interaction_total += factor_scores[f1] * factor_scores[f2] * interaction_strength * 0.05
+    # Cap total interaction bonus at 10% of active weight sum to prevent inflation
+    score += min(_interaction_total, 0.10 * max(active_weight_sum, 1.0))
+
+    # ADVANCED: Anti-pattern penalty — apply BEFORE normalization so it has real bite
+    anti_penalty = adaptive_system.penalize_anti_patterns(numbers_list)
+    score -= anti_penalty * 0.20   # 20% of raw score (was 15% after clamp — ineffective)
+
+    # Normalize by active weight sum so sets scored on fewer factors stay comparable
+    if active_weight_sum > 0:
+        score = score / active_weight_sum
+
     return max(0.0, min(1.0, score))
 
 

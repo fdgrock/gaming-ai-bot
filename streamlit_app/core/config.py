@@ -254,7 +254,7 @@ class ConfigManager:
                 "lotto_max": {
                     "name": "lotto_max",
                     "display_name": "Lotto Max",
-                    "number_range": [1, 50],
+                    "number_range": [1, 52],
                     "number_count": 7,
                     "has_bonus": False,
                     "data_source": "csv",
@@ -263,7 +263,7 @@ class ConfigManager:
                         "unique_numbers": True,
                         "sorted_output": True,
                         "min_number": 1,
-                        "max_number": 50
+                        "max_number": 52
                     }
                 },
                 "lotto_649": {

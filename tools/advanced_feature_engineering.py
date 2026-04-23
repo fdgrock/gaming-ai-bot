@@ -72,9 +72,10 @@ class AdvancedFeatureEngineering:
             history_numbers = [set(history_draws.iloc[i]['numbers']) for i in range(len(history_draws))]
             
             # For each number, calculate temporal features
+            draw_rows = []
             for num in range(1, n_numbers + 1):
                 num_in_current = 1 if num in current_numbers else 0
-                
+
                 # 1. Time since last seen (draws ago)
                 time_since_last_seen = None
                 for i in range(len(history_numbers) - 1, -1, -1):
@@ -82,28 +83,38 @@ class AdvancedFeatureEngineering:
                         time_since_last_seen = len(history_numbers) - 1 - i
                         break
                 time_since_last_seen = time_since_last_seen if time_since_last_seen is not None else len(history_numbers) + 1
-                
+
                 # 2. Rolling frequencies
                 freq_50 = sum(1 for nums in history_numbers[-50:] if num in nums)
                 freq_100 = sum(1 for nums in history_numbers[-100:] if num in nums)
-                
+
                 # 3. Rolling mean interval (average gaps between appearances)
                 appearances = [i for i, nums in enumerate(history_numbers) if num in nums]
                 if len(appearances) > 1:
-                    intervals = [appearances[i+1] - appearances[i] for i in range(len(appearances)-1)]
-                    rolling_mean_interval = np.mean(intervals)
+                    intervals = [appearances[j + 1] - appearances[j] for j in range(len(appearances) - 1)]
+                    rolling_mean_interval = float(np.mean(intervals))
                 else:
-                    rolling_mean_interval = len(history_numbers) if appearances else 0
-                
-                features_data.append({
+                    rolling_mean_interval = float(len(history_numbers)) if appearances else 0.0
+
+                draw_rows.append({
                     'draw_idx': draw_idx,
                     'number': num,
                     'time_since_last_seen': time_since_last_seen,
                     'rolling_freq_50': freq_50,
                     'rolling_freq_100': freq_100,
                     'rolling_mean_interval': rolling_mean_interval,
-                    'target': num_in_current
+                    'target': num_in_current,
                 })
+
+            # Draw-level context: z-score normalize key features relative to this draw
+            tsl_vals = np.array([r['time_since_last_seen'] for r in draw_rows], dtype=float)
+            f50_vals = np.array([r['rolling_freq_50'] for r in draw_rows], dtype=float)
+            tsl_mean, tsl_std = tsl_vals.mean(), max(tsl_vals.std(), 1e-8)
+            f50_mean, f50_std = f50_vals.mean(), max(f50_vals.std(), 1e-8)
+            for row in draw_rows:
+                row['rel_time_since_last_seen'] = (row['time_since_last_seen'] - tsl_mean) / tsl_std
+                row['rel_rolling_freq_50'] = (row['rolling_freq_50'] - f50_mean) / f50_std
+            features_data.extend(draw_rows)
         
         return pd.DataFrame(features_data)
     
@@ -124,24 +135,42 @@ class AdvancedFeatureEngineering:
             current_numbers = np.array(draws.iloc[draw_idx]['numbers'])
             
             # Current draw statistics
-            even_count = np.sum(current_numbers % 2 == 0)
-            sum_numbers = np.sum(current_numbers)
-            std_numbers = np.std(current_numbers)
-            
+            even_count = int(np.sum(current_numbers % 2 == 0))
+            sum_numbers = int(np.sum(current_numbers))
+            std_numbers = float(np.std(current_numbers))
+            sorted_nums = sorted(current_numbers.tolist())
+            n_balls = len(sorted_nums)
+            n_numbers = self.config.num_numbers
+
+            # Combination features
+            min_sum = sum(range(1, n_balls + 1))
+            max_sum = sum(range(n_numbers - n_balls + 1, n_numbers + 1))
+            sum_range = max(max_sum - min_sum, 1)
+            sum_decile = int(np.clip(int((sum_numbers - min_sum) / sum_range * 10) + 1, 1, 10))
+
+            decade_size = 10
+            decade_coverage = len({(n - 1) // decade_size for n in sorted_nums})
+
+            consecutive_count = sum(
+                1 for i in range(len(sorted_nums) - 1) if sorted_nums[i + 1] == sorted_nums[i] + 1
+            )
+            min_max_range = sorted_nums[-1] - sorted_nums[0] if n_balls > 1 else 0
+
             # Rolling statistics (previous 20 draws)
             window_size = 20
             start_idx = max(0, draw_idx - window_size)
-            
+
             rolling_sums = []
             rolling_even_counts = []
             for i in range(start_idx, draw_idx):
                 prev_numbers = np.array(draws.iloc[i]['numbers'])
                 rolling_sums.append(np.sum(prev_numbers))
                 rolling_even_counts.append(np.sum(prev_numbers % 2 == 0))
-            
-            rolling_mean_sum = np.mean(rolling_sums) if rolling_sums else 0
-            rolling_mean_even = np.mean(rolling_even_counts) if rolling_even_counts else 0
-            
+
+            rolling_mean_sum = float(np.mean(rolling_sums)) if rolling_sums else 0.0
+            rolling_mean_even = float(np.mean(rolling_even_counts)) if rolling_even_counts else 0.0
+            rolling_std_sum = float(np.std(rolling_sums)) if len(rolling_sums) > 1 else 0.0
+
             global_features.append({
                 'draw_idx': draw_idx,
                 'even_count': even_count,
@@ -149,7 +178,11 @@ class AdvancedFeatureEngineering:
                 'std_numbers': std_numbers,
                 'rolling_mean_sum': rolling_mean_sum,
                 'rolling_mean_even': rolling_mean_even,
-                'rolling_mean_sum_ma20': rolling_mean_sum
+                'rolling_std_sum': rolling_std_sum,
+                'sum_decile': sum_decile,
+                'decade_coverage': decade_coverage,
+                'consecutive_count': consecutive_count,
+                'min_max_range': min_max_range,
             })
         
         return pd.DataFrame(global_features)
@@ -348,44 +381,124 @@ class AdvancedFeatureEngineering:
         global_features: pd.DataFrame,
         skipgram_targets: pd.DataFrame,
         distribution_targets: pd.DataFrame,
-        output_dir: Path
+        output_dir: Path,
+        draws_df: pd.DataFrame = None,
     ) -> None:
         """
-        Save all engineered features to disk
-        
-        Args:
-            temporal_features: Temporal features DataFrame
-            global_features: Global draw features DataFrame
-            skipgram_targets: Skip-Gram targets DataFrame
-            distribution_targets: Distribution targets DataFrame
-            output_dir: Output directory path
+        Save all engineered features to disk, including a full feature_schema.json
+        that records every column, phase version, and trainer-specific parameters
+        needed for inference-time validation.
         """
+        import sys as _sys
+        import platform as _platform
+
+        try:
+            from model_card_utils import (
+                derive_feature_cols, build_feature_schema,
+                save_feature_schema, SCHEMA_VERSION, collect_package_versions,
+            )
+            _mcu_available = True
+        except ImportError:
+            _mcu_available = False
+
         output_dir = Path(output_dir)
         output_dir.mkdir(parents=True, exist_ok=True)
-        
+
         # Save features
         temporal_features.to_parquet(output_dir / 'temporal_features.parquet', index=False)
         global_features.to_parquet(output_dir / 'global_features.parquet', index=False)
         skipgram_targets.to_parquet(output_dir / 'skipgram_targets.parquet', index=False)
         distribution_targets.to_parquet(output_dir / 'distribution_targets.parquet', index=False)
-        
-        # Save metadata
+
+        # Derive the actual feature columns each trainer will use
+        _non_feat = {"draw_index", "draw_idx", "number", "target"}
+        _temp_feat_cols = [c for c in temporal_features.columns if c not in _non_feat]
+        _glob_feat_cols = [c for c in global_features.columns
+                           if c not in _non_feat and c not in {'draw_idx', 'draw_index'}]
+
+        # Draw index range for traceability
+        _draw_col = 'draw_idx' if 'draw_idx' in temporal_features.columns else \
+                    'draw_index' if 'draw_index' in temporal_features.columns else None
+        _draw_range: dict = {}
+        if _draw_col:
+            _draw_range = {
+                "min": int(temporal_features[_draw_col].min()),
+                "max": int(temporal_features[_draw_col].max()),
+                "unique_draws": int(temporal_features[_draw_col].nunique()),
+            }
+
+        # Build enriched metadata.json
         metadata = {
+            'schema_version': SCHEMA_VERSION if _mcu_available else '2.0',
+            'phase': 'Phase_A_E_2026',
             'game': self.config.game_name,
             'num_balls': self.config.num_balls,
             'num_numbers': self.config.num_numbers,
-            'num_temporal_features': len(temporal_features),
-            'num_global_features': len(global_features),
+            'num_temporal_rows': len(temporal_features),
+            'num_global_rows': len(global_features),
             'created_at': datetime.now().isoformat(),
+            'python_version': _sys.version,
+            'platform': _platform.platform(),
+            'draw_index_range': _draw_range,
             'feature_columns': {
                 'temporal': temporal_features.columns.tolist(),
-                'global': global_features.columns.tolist()
-            }
+                'temporal_feature_cols': _temp_feat_cols,
+                'temporal_feature_count': len(_temp_feat_cols),
+                'global': global_features.columns.tolist(),
+                'global_feature_cols': _glob_feat_cols,
+                'global_feature_count': len(_glob_feat_cols),
+            },
+            'new_features_phase_c': [
+                'sum_decile', 'decade_coverage', 'consecutive_count',
+                'min_max_range', 'rolling_std_sum',
+                'rel_time_since_last_seen', 'rel_rolling_freq_50',
+            ],
+            'excluded_from_X': sorted(_non_feat),
         }
-        
         with open(output_dir / 'metadata.json', 'w') as f:
             json.dump(metadata, f, indent=2)
-        
+
+        # Write per-trainer feature_schema.json files that each trainer will
+        # copy into its model directory at training time.
+        _n = len(temporal_features)
+        _n_train = int(0.70 * _n)
+        _n_val = int(0.15 * _n)
+        _n_test = _n - _n_train - _n_val
+
+        _trainer_configs = [
+            # (model_type, window_size, lookback, stride)
+            ("tree",        None, None,  None),
+            ("lstm",        None, 100,   10),
+            ("cnn",         50,   None,  5),
+            ("transformer", 20,   None,  5),
+            ("lstm_ensemble",      None, 100, 10),
+            ("transformer_ensemble", None, None, None),
+        ]
+
+        if _mcu_available:
+            for _mt, _ws, _lb, _st in _trainer_configs:
+                _schema = build_feature_schema(
+                    model_type=_mt,
+                    game=self.config.game_name,
+                    feature_cols=_temp_feat_cols,
+                    n_samples=_n,
+                    n_train=_n_train,
+                    n_val=_n_val,
+                    n_test=_n_test,
+                    window_size=_ws,
+                    lookback=_lb,
+                    stride=_st,
+                    draw_index_range=_draw_range,
+                    extra={
+                        'phase': 'Phase_A_E_2026',
+                        'global_feature_cols': _glob_feat_cols,
+                    },
+                )
+                save_feature_schema(
+                    _schema, output_dir / f'feature_schema_{_mt}.json'
+                )
+            logger.info(f"Saved feature_schema_*.json for {len(_trainer_configs)} trainer types")
+
         logger.info(f"Saved engineered dataset to {output_dir}")
     
     @staticmethod

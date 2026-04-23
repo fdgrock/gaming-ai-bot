@@ -19,6 +19,7 @@ import os
 import pickle
 import warnings
 import argparse
+from datetime import datetime
 from pathlib import Path
 from typing import Tuple, Dict, List, Any, Optional
 from dataclasses import dataclass, asdict
@@ -181,18 +182,30 @@ class AdvancedTreeModelTrainer:
         temporal_df = pd.read_parquet(self.data_dir / "temporal_features.parquet")
         global_df = pd.read_parquet(self.data_dir / "global_features.parquet")
         
-        # Combine features (temporal already has global features merged)
-        X = temporal_df.drop(columns=['draw_index', 'number'], errors='ignore').values
-        
-        # Load targets (use draw_index to get unique draws and their numbers)
+        # Merge global draw features into temporal by draw index
+        _tdraw_col = 'draw_idx' if 'draw_idx' in temporal_df.columns else 'draw_index' if 'draw_index' in temporal_df.columns else None
+        _gdraw_col = 'draw_idx' if 'draw_idx' in global_df.columns else 'draw_index' if 'draw_index' in global_df.columns else None
+        if _tdraw_col and _gdraw_col:
+            _global_feat = global_df.drop(columns=[_gdraw_col], errors='ignore')
+            temporal_df = temporal_df.merge(
+                global_df[[_gdraw_col] + _global_feat.columns.tolist()],
+                left_on=_tdraw_col, right_on=_gdraw_col, how='left'
+            ).drop(columns=[_gdraw_col] if _gdraw_col != _tdraw_col else [], errors='ignore')
+
+        # Drop label and index columns to prevent data leakage
+        X = temporal_df.drop(columns=['draw_index', 'draw_idx', 'number', 'target'], errors='ignore').values
+
+        # Load targets (number identity 1-49/50 per row)
         y_numbers = temporal_df['number'].values if 'number' in temporal_df.columns else None
-        
-        logger.info(f"Feature shape: {X.shape}")
-        logger.info(f"Number unique draws: {len(np.unique(temporal_df.get('draw_index', np.arange(len(X)))))}") if 'draw_index' in temporal_df.columns else None
-        
+
+        logger.info(f"Feature shape (temporal + global merged): {X.shape}")
+        _draw_col = 'draw_idx' if 'draw_idx' in temporal_df.columns else 'draw_index' if 'draw_index' in temporal_df.columns else None
+        if _draw_col:
+            logger.info(f"Number unique draws: {temporal_df[_draw_col].nunique()}")
+
         # Create train/val/test split based on draw indices
-        if 'draw_index' in temporal_df.columns:
-            draw_indices = temporal_df['draw_index'].values
+        if _draw_col:
+            draw_indices = temporal_df[_draw_col].values
             unique_draws = np.unique(draw_indices)
             n_draws = len(unique_draws)
             
@@ -267,9 +280,18 @@ class AdvancedTreeModelTrainer:
         y_pred_clipped = np.clip(y_pred_probs, 1e-10, 1 - 1e-10)
         ll = log_loss(y_true_onehot, y_pred_clipped)
         
-        # Composite score: 0.6 * Top5_acc + 0.4 * (1 - KL)
-        composite = 0.6 * top_5_acc + 0.4 * (1 - np.tanh(kl_div))  # tanh normalizes KL to [0,1]
-        
+        # Composite score: exp(-kl) keeps calibration signal even when KL >> 1
+        composite = 0.6 * top_5_acc + 0.4 * float(np.exp(-max(0.0, kl_div)))
+
+        # Sanity checks - warn if metrics look impossibly good
+        import math as _math
+        if top_5_acc > 0.95:
+            logger.warning(f"[SANITY] Suspiciously high Top-5 accuracy: {top_5_acc:.4f} - verify target alignment")
+        if ll <= 0.0:
+            logger.warning(f"[SANITY] Non-positive log-loss: {ll:.6f} - likely a metric calculation error")
+        if kl_div > _math.log(y_pred_probs.shape[1]) + 1.0:
+            logger.warning(f"[SANITY] KL divergence {kl_div:.4f} exceeds theoretical max - check predictions")
+
         return ModelMetrics(
             top_5_accuracy=float(top_5_acc),
             top_10_accuracy=float(top_10_acc),
@@ -280,27 +302,29 @@ class AdvancedTreeModelTrainer:
     
     def train_xgboost_model(self, X_train: np.ndarray, X_val: np.ndarray, X_test: np.ndarray,
                            y_train: np.ndarray, y_val: np.ndarray, y_test: np.ndarray,
-                           position: int, n_trials: int = 20) -> Dict[str, Any]:
+                           position: int, n_trials: int = 20,
+                           sample_weight: np.ndarray = None) -> Dict[str, Any]:
         """
         Train XGBoost model with Optuna hyperparameter tuning.
-        
+
         Args:
             X_train, X_val, X_test: Feature matrices
             y_train, y_val, y_test: Labels
             position: Ball position (1-6 or 1-7)
             n_trials: Number of Optuna trials
-        
+            sample_weight: Per-sample weights (synthetic padding rows should be near 0)
+
         Returns:
             Dictionary with model, metrics, and best params
         """
         logger.info(f"\n=== XGBoost Position {position} ===")
-        
+
         # Create study
         study = optuna.create_study(
             direction="maximize",
             sampler=optuna.samplers.TPESampler(seed=42 + position)
         )
-        
+
         def objective(trial):
             params = {
                 "max_depth": trial.suggest_int("max_depth", 3, 10),
@@ -316,15 +340,15 @@ class AdvancedTreeModelTrainer:
                 "random_state": 42,
                 "verbosity": 0,
             }
-            
-            # Train model
+
+            # Train model — pass sample_weight so synthetic padding rows are ignored
             model = xgb.XGBClassifier(**params)
-            model.fit(X_train, y_train)
-            
+            model.fit(X_train, y_train, sample_weight=sample_weight)
+
             # Evaluate
             y_pred_probs = model.predict_proba(X_val)
             metrics = self.calculate_metrics(y_val, y_pred_probs)
-            
+
             return metrics.composite_score
         
         # Callback to log trial progress
@@ -350,35 +374,49 @@ class AdvancedTreeModelTrainer:
         })
         
         final_model = xgb.XGBClassifier(**best_params)
-        final_model.fit(X_train, y_train, eval_set=[(X_val, y_val)], verbose=False)
+        final_model.fit(X_train, y_train, sample_weight=sample_weight,
+                        eval_set=[(X_val, y_val)], verbose=False)
         
         # Evaluate on test
         y_pred_probs = final_model.predict_proba(X_test)
         test_metrics = self.calculate_metrics(y_test, y_pred_probs)
-        
+
         logger.info(f"Test Top-5 Accuracy: {test_metrics.top_5_accuracy:.4f}")
         logger.info(f"Test KL-Divergence: {test_metrics.kl_divergence:.4f}")
         logger.info(f"Test Composite Score: {test_metrics.composite_score:.4f}")
-        
+
+        # Permutation baseline: establish chance-level score to verify model is learning
+        _rng = np.random.default_rng(seed=42)
+        _perm_scores = [
+            self.calculate_metrics(_rng.permutation(y_test), y_pred_probs).composite_score
+            for _ in range(10)
+        ]
+        _baseline = float(np.mean(_perm_scores))
+        logger.info(f"Permutation baseline composite score: {_baseline:.4f} (model beats by {test_metrics.composite_score - _baseline:+.4f})")
+        if test_metrics.composite_score <= _baseline + 0.005:
+            logger.warning("[BASELINE] Model does NOT significantly beat random permutation - check training data quality")
+
         return {
             "model": final_model,
             "position": position,
             "metrics": test_metrics,
+            "permutation_baseline": _baseline,
             "best_params": study.best_params,
             "architecture": "xgboost"
         }
     
     def train_lightgbm_model(self, X_train: np.ndarray, X_val: np.ndarray, X_test: np.ndarray,
                             y_train: np.ndarray, y_val: np.ndarray, y_test: np.ndarray,
-                            position: int, n_trials: int = 20) -> Dict[str, Any]:
+                            position: int, n_trials: int = 20,
+                            sample_weight: np.ndarray = None) -> Dict[str, Any]:
         """Train LightGBM model with Optuna hyperparameter tuning."""
         logger.info(f"\n=== LightGBM Position {position} ===")
-        
+
         study = optuna.create_study(
             direction="maximize",
             sampler=optuna.samplers.TPESampler(seed=100 + position)
         )
-        
+
         def objective(trial):
             params = {
                 "num_leaves": trial.suggest_int("num_leaves", 20, 150),
@@ -394,13 +432,13 @@ class AdvancedTreeModelTrainer:
                 "random_state": 42,
                 "verbose": -1,
             }
-            
+
             model = lgb.LGBMClassifier(**params)
-            model.fit(X_train, y_train)
-            
+            model.fit(X_train, y_train, sample_weight=sample_weight)
+
             y_pred_probs = model.predict_proba(X_val)
             metrics = self.calculate_metrics(y_val, y_pred_probs)
-            
+
             return metrics.composite_score
         
         # Callback to log trial progress
@@ -425,26 +463,37 @@ class AdvancedTreeModelTrainer:
         })
         
         final_model = lgb.LGBMClassifier(**best_params)
-        final_model.fit(X_train, y_train)
-        
+        final_model.fit(X_train, y_train, sample_weight=sample_weight)
+
         y_pred_probs = final_model.predict_proba(X_test)
         test_metrics = self.calculate_metrics(y_test, y_pred_probs)
-        
+
         logger.info(f"Test Top-5 Accuracy: {test_metrics.top_5_accuracy:.4f}")
         logger.info(f"Test KL-Divergence: {test_metrics.kl_divergence:.4f}")
         logger.info(f"Test Composite Score: {test_metrics.composite_score:.4f}")
-        
+
+        _rng = np.random.default_rng(seed=42)
+        _baseline = float(np.mean([
+            self.calculate_metrics(_rng.permutation(y_test), y_pred_probs).composite_score
+            for _ in range(10)
+        ]))
+        logger.info(f"Permutation baseline composite score: {_baseline:.4f} (model beats by {test_metrics.composite_score - _baseline:+.4f})")
+        if test_metrics.composite_score <= _baseline + 0.005:
+            logger.warning("[BASELINE] Model does NOT significantly beat random permutation - check training data quality")
+
         return {
             "model": final_model,
             "position": position,
             "metrics": test_metrics,
+            "permutation_baseline": _baseline,
             "best_params": study.best_params,
             "architecture": "lightgbm"
         }
     
     def train_catboost_model(self, X_train: np.ndarray, X_val: np.ndarray, X_test: np.ndarray,
                             y_train: np.ndarray, y_val: np.ndarray, y_test: np.ndarray,
-                            position: int, n_trials: int = 20) -> Dict[str, Any]:
+                            position: int, n_trials: int = 20,
+                            sample_weight: np.ndarray = None) -> Dict[str, Any]:
         """Train CatBoost model with Optuna hyperparameter tuning."""
         logger.info(f"\n=== CatBoost Position {position} ===")
         
@@ -457,6 +506,9 @@ class AdvancedTreeModelTrainer:
             params = {
                 "depth": trial.suggest_int("depth", 4, 10),
                 "learning_rate": trial.suggest_float("learning_rate", 0.01, 0.5, log=True),
+                # subsample requires bootstrap_type='Bernoulli' (default is 'Bayesian'
+                # which does not support subsample)
+                "bootstrap_type": "Bernoulli",
                 "subsample": trial.suggest_float("subsample", 0.6, 1.0),
                 "l2_leaf_reg": trial.suggest_float("l2_leaf_reg", 0.1, 10.0, log=True),
                 "iterations": trial.suggest_int("iterations", 100, 500),
@@ -464,59 +516,169 @@ class AdvancedTreeModelTrainer:
                 "verbose": False,
                 "allow_writing_files": False,
             }
-            
+
             model = cb.CatBoostClassifier(**params)
-            model.fit(X_train, y_train, verbose=False)
-            
+            model.fit(X_train, y_train, sample_weight=sample_weight, verbose=False)
+
             y_pred_probs = model.predict_proba(X_val)
             metrics = self.calculate_metrics(y_val, y_pred_probs)
-            
+
             return metrics.composite_score
-        
+
         # Callback to log trial progress
         def trial_callback(study, trial):
             if trial.state == optuna.trial.TrialState.COMPLETE:
                 logger.info(f"  Trial {trial.number + 1}/{n_trials}: Score={trial.value:.4f}")
                 if trial.value == study.best_value:
                     logger.info(f"    [BEST] NEW BEST! Score: {trial.value:.4f}")
-        
+
         study.optimize(objective, n_trials=n_trials, callbacks=[trial_callback], show_progress_bar=False)
-        
+
         logger.info(f"Best composite score: {study.best_value:.4f}")
         logger.info(f"Best params: {study.best_params}")
-        
+
         best_params = study.best_params.copy()
         best_params.update({
+            # Carry forward bootstrap_type so best_params is also valid
+            "bootstrap_type": "Bernoulli",
             "random_state": 42,
             "verbose": False,
             "allow_writing_files": False,
         })
         
         final_model = cb.CatBoostClassifier(**best_params)
-        final_model.fit(X_train, y_train, verbose=False)
+        final_model.fit(X_train, y_train, sample_weight=sample_weight, verbose=False)
         
         y_pred_probs = final_model.predict_proba(X_test)
         test_metrics = self.calculate_metrics(y_test, y_pred_probs)
-        
+
         logger.info(f"Test Top-5 Accuracy: {test_metrics.top_5_accuracy:.4f}")
         logger.info(f"Test KL-Divergence: {test_metrics.kl_divergence:.4f}")
         logger.info(f"Test Composite Score: {test_metrics.composite_score:.4f}")
-        
+
+        _rng = np.random.default_rng(seed=42)
+        _baseline = float(np.mean([
+            self.calculate_metrics(_rng.permutation(y_test), y_pred_probs).composite_score
+            for _ in range(10)
+        ]))
+        logger.info(f"Permutation baseline composite score: {_baseline:.4f} (model beats by {test_metrics.composite_score - _baseline:+.4f})")
+        if test_metrics.composite_score <= _baseline + 0.005:
+            logger.warning("[BASELINE] Model does NOT significantly beat random permutation - check training data quality")
+
         return {
             "model": final_model,
             "position": position,
             "metrics": test_metrics,
+            "permutation_baseline": _baseline,
             "best_params": study.best_params,
             "architecture": "catboost"
         }
     
+    def load_position_features(self, position: int):
+        """
+        Load features filtered to rows where the number was drawn at the given sort position.
+
+        For position P: only trains on (features, number) pairs where `number` was the
+        Pth smallest drawn number in each historical draw. This makes each position model
+        learn the distribution of numbers that typically appear at that rank.
+        """
+        temporal_df = pd.read_parquet(self.data_dir / "temporal_features.parquet")
+        global_df_path = self.data_dir / "global_features.parquet"
+
+        _draw_col = 'draw_idx' if 'draw_idx' in temporal_df.columns else 'draw_index' if 'draw_index' in temporal_df.columns else None
+
+        # Filter to position-specific rows (only drawn numbers at position P)
+        if 'target' in temporal_df.columns and _draw_col:
+            drawn = temporal_df[temporal_df['target'] == 1].copy()
+            drawn = drawn.sort_values([_draw_col, 'number'])
+            drawn['_pos'] = drawn.groupby(_draw_col).cumcount() + 1
+            position_df = drawn[drawn['_pos'] == position].drop(columns=['_pos'])
+            if len(position_df) < 20:
+                logger.warning(f"Only {len(position_df)} samples for position {position}, using all rows as fallback")
+                position_df = temporal_df
+        else:
+            position_df = temporal_df
+
+        logger.info(f"Position {position}: {len(position_df)} training samples")
+
+        # Merge global features
+        if global_df_path.exists():
+            global_df = pd.read_parquet(global_df_path)
+            _gdraw_col = 'draw_idx' if 'draw_idx' in global_df.columns else 'draw_index' if 'draw_index' in global_df.columns else None
+            if _draw_col and _gdraw_col:
+                _gcols = [c for c in global_df.columns if c != _gdraw_col]
+                position_df = position_df.merge(
+                    global_df[[_gdraw_col] + _gcols], left_on=_draw_col, right_on=_gdraw_col, how='left'
+                ).drop(columns=[_gdraw_col] if _gdraw_col != _draw_col else [], errors='ignore')
+
+        # Extract X and y
+        X = position_df.drop(columns=['draw_index', 'draw_idx', 'number', 'target'], errors='ignore').values
+        y = position_df['number'].values.astype(int) - 1  # 0-based
+
+        # Draw-boundary split
+        if _draw_col and _draw_col in position_df.columns:
+            draw_indices = position_df[_draw_col].values
+            unique_draws = np.unique(draw_indices)
+            n_draws = len(unique_draws)
+            n_td = int(0.70 * n_draws)
+            n_vd = int(0.15 * n_draws)
+            train_draws = set(unique_draws[:n_td])
+            val_draws = set(unique_draws[n_td:n_td + n_vd])
+            train_mask = np.array([d in train_draws for d in draw_indices])
+            val_mask = np.array([d in val_draws for d in draw_indices])
+            test_mask = ~(train_mask | val_mask)
+        else:
+            n = len(X)
+            train_mask = np.arange(n) < int(0.70 * n)
+            val_mask = (np.arange(n) >= int(0.70 * n)) & (np.arange(n) < int(0.85 * n))
+            test_mask = np.arange(n) >= int(0.85 * n)
+
+        X_tr, y_tr = X[train_mask], y[train_mask]
+        X_va, y_va = X[val_mask], y[val_mask]
+        X_te, y_te = X[test_mask], y[test_mask]
+
+        # Normalize (fit on real training data only)
+        scaler = StandardScaler()
+        X_tr = scaler.fit_transform(X_tr)
+        X_va = scaler.transform(X_va)
+        X_te = scaler.transform(X_te)
+
+        # XGBoost 3.x / LightGBM require labels to be contiguous [0..num_class-1].
+        # Position-specific filtering can leave gaps (e.g. number 31 never drawn at
+        # position 1 in the training window).  Pad with one row per missing class so all
+        # frameworks see a complete label set, but assign those synthetic rows a
+        # near-zero sample_weight (1e-6) so they have negligible influence on the learned
+        # decision boundaries.  This avoids the bias that zero-weight-1 synthetic rows
+        # would introduce (models learning "mean features → low class index").
+        _all_expected = np.arange(self.game_config.num_numbers, dtype=int)
+        _missing = np.setdiff1d(_all_expected, np.unique(y_tr))
+        # Build real-sample weights (all 1.0) before padding
+        w_tr = np.ones(len(X_tr), dtype=np.float32)
+        if len(_missing) > 0:
+            # Use random real rows as feature templates (not all-zeros) to avoid
+            # creating a spurious "zero features = missing class" pattern
+            _rng_pad = np.random.default_rng(seed=99)
+            _pad_idx = _rng_pad.integers(0, len(X_tr), size=len(_missing))
+            _x_pad = X_tr[_pad_idx].copy()
+            X_tr = np.vstack([X_tr, _x_pad])
+            y_tr = np.concatenate([y_tr, _missing])
+            # Synthetic rows get 1e-6 weight → effectively ignored by all three frameworks
+            w_tr = np.concatenate([w_tr, np.full(len(_missing), 1e-6, dtype=np.float32)])
+            logger.info(f"  Padded {len(_missing)} missing classes (near-zero weight) -> train has all {self.game_config.num_numbers} classes")
+
+        logger.info(f"  Train={len(X_tr)}, Val={len(X_va)}, Test={len(X_te)}, Features={X.shape[1]}")
+        return X_tr, X_va, X_te, y_tr, y_va, y_te, w_tr
+
     def train_all_models(self, n_trials: int = 15) -> Dict[str, List[Dict[str, Any]]]:
         """
         Train all position-specific models for all architectures.
-        
+
+        Each position uses features filtered to rows where the number was drawn
+        at that sort position, making models genuinely position-aware.
+
         Args:
             n_trials: Number of Optuna trials per model
-        
+
         Returns:
             Dictionary with results for each architecture
         """
@@ -526,107 +688,160 @@ class AdvancedTreeModelTrainer:
         logger.info(f"Positions: {self.game_config.num_positions}")
         logger.info(f"Numbers: {self.game_config.num_numbers}")
         logger.info(f"{'='*60}\n")
-        
-        # Load data
-        X_train, X_val, X_test, y_train, y_val, y_test = self.load_engineered_features()
-        
-        # Normalize features
-        scaler = StandardScaler()
-        X_train = scaler.fit_transform(X_train)
-        X_val = scaler.transform(X_val)
-        X_test = scaler.transform(X_test)
-        
+
         results = {
             "xgboost": [],
             "lightgbm": [],
             "catboost": []
         }
-        
-        # Train models for each position
+
+        # Train models for each position using position-specific data
         for position in range(1, self.game_config.num_positions + 1):
             logger.info(f"\n{'*'*60}")
             logger.info(f"Position {position}/{self.game_config.num_positions}")
             logger.info(f"{'*'*60}")
-            
+
+            # Load features specific to this ball position (returns 7-tuple including sample weights)
+            X_train, X_val, X_test, y_train, y_val, y_test, w_train = self.load_position_features(position)
+
             # XGBoost
             logger.info(f"Training XGBoost model (hyperparameter tuning with {n_trials} trials)...")
-            xgb_result = self.train_xgboost_model(X_train, X_val, X_test, y_train, y_val, y_test, 
-                                                   position, n_trials)
+            xgb_result = self.train_xgboost_model(X_train, X_val, X_test, y_train, y_val, y_test,
+                                                   position, n_trials, w_train)
             results["xgboost"].append(xgb_result)
             self._save_model(xgb_result, f"position_{position:02d}")
             logger.info(f"✓ XGBoost complete. Test Score: {xgb_result['metrics'].composite_score:.4f}")
-            
+
             # LightGBM
             logger.info(f"Training LightGBM model (hyperparameter tuning with {n_trials} trials)...")
             lgb_result = self.train_lightgbm_model(X_train, X_val, X_test, y_train, y_val, y_test,
-                                                    position, n_trials)
+                                                    position, n_trials, w_train)
             results["lightgbm"].append(lgb_result)
             self._save_model(lgb_result, f"position_{position:02d}")
             logger.info(f"✓ LightGBM complete. Test Score: {lgb_result['metrics'].composite_score:.4f}")
-            
+
             # CatBoost
             logger.info(f"Training CatBoost model (hyperparameter tuning with {n_trials} trials)...")
             cb_result = self.train_catboost_model(X_train, X_val, X_test, y_train, y_val, y_test,
-                                                   position, n_trials)
+                                                   position, n_trials, w_train)
             results["catboost"].append(cb_result)
             self._save_model(cb_result, f"position_{position:02d}")
             logger.info(f"✓ CatBoost complete. Test Score: {cb_result['metrics'].composite_score:.4f}")
-        
+
         self._save_training_summary(results)
         return results
     
     def _save_model(self, result: Dict[str, Any], position_name: str):
-        """Save trained model to disk."""
+        """Save trained model and model card to disk."""
         arch = result["architecture"]
         model_path = self.models_dir / arch / f"{position_name}.pkl"
-        
+        model_path.parent.mkdir(parents=True, exist_ok=True)
+
         with open(model_path, "wb") as f:
             pickle.dump(result["model"], f)
-        
+
         logger.info(f"Saved {arch} model: {model_path}")
+
+        # Save model card alongside the .pkl
+        try:
+            import sys as _sys; _sys.path.insert(0, str(Path(__file__).parent))
+            from model_card_utils import (
+                build_feature_schema, save_feature_schema,
+                build_model_card, save_model_card, derive_feature_cols,
+            )
+            _feat_schema_path = self.data_dir / "feature_schema_tree.json"
+            if _feat_schema_path.exists():
+                import json as _json
+                with open(_feat_schema_path) as _f:
+                    _feat_schema = _json.load(_f)
+            else:
+                _td = pd.read_parquet(self.data_dir / "temporal_features.parquet")
+                _feat_schema = build_feature_schema(
+                    model_type="tree", game=self.game_config.name,
+                    feature_cols=derive_feature_cols(_td),
+                    n_samples=0, n_train=0, n_val=0, n_test=0,
+                )
+            _metrics = result["metrics"].to_dict() if hasattr(result["metrics"], "to_dict") else {}
+            _card = build_model_card(
+                architecture=arch,
+                game=self.game_config.name,
+                position=result.get("position"),
+                feature_schema=_feat_schema,
+                metrics=_metrics,
+                permutation_baseline=result.get("permutation_baseline"),
+                hyperparams=result.get("best_params", {}),
+                training_config={"position_specific_data": True},
+            )
+            save_model_card(_card, model_path)
+        except Exception as _e:
+            logger.warning(f"Could not save model card for {position_name}: {_e}")
     
     def _save_training_summary(self, results: Dict[str, List[Dict[str, Any]]]):
-        """Save training summary to JSON."""
+        """Save training summary to JSON with full metadata."""
+        try:
+            from model_card_utils import SCHEMA_VERSION as _sv
+        except ImportError:
+            _sv = "2.0"
+
         summary = {
+            "schema_version": _sv,
+            "phase": "Phase_A_E_2026",
+            "trained_at": datetime.now().isoformat(),
             "game": self.game_config.name,
             "num_positions": self.game_config.num_positions,
             "num_numbers": self.game_config.num_numbers,
+            "training_approach": "position_specific_data",
+            "target_alignment": "actual_lottery_numbers_0based",
             "architectures": {}
         }
-        
+
         for arch, models in results.items():
             arch_summary = {
                 "num_models": len(models),
                 "models": []
             }
-            
+
             all_metrics = []
+            all_baselines = []
             for model_result in models:
                 metrics = model_result["metrics"]
+                baseline = model_result.get("permutation_baseline")
                 all_metrics.append(metrics)
+                if baseline is not None:
+                    all_baselines.append(baseline)
                 arch_summary["models"].append({
                     "position": model_result["position"],
                     "metrics": metrics.to_dict(),
+                    "permutation_baseline": baseline,
+                    "beats_baseline": (
+                        metrics.composite_score > (baseline or 0) + 0.005
+                        if baseline is not None else None
+                    ),
                     "best_params": model_result["best_params"]
                 })
-            
-            # Calculate aggregate metrics
+
             mean_top5 = np.mean([m.top_5_accuracy for m in all_metrics])
             mean_kl = np.mean([m.kl_divergence for m in all_metrics])
             mean_composite = np.mean([m.composite_score for m in all_metrics])
-            
+            mean_baseline = float(np.mean(all_baselines)) if all_baselines else None
+
             arch_summary["aggregate_metrics"] = {
                 "mean_top_5_accuracy": float(mean_top5),
                 "mean_kl_divergence": float(mean_kl),
-                "mean_composite_score": float(mean_composite)
+                "mean_composite_score": float(mean_composite),
+                "mean_permutation_baseline": mean_baseline,
+                "mean_lift_over_baseline": (
+                    float(mean_composite - mean_baseline)
+                    if mean_baseline is not None else None
+                ),
             }
-            
+
             summary["architectures"][arch] = arch_summary
-        
+
         summary_path = self.models_dir / "training_summary.json"
         with open(summary_path, "w") as f:
             json.dump(summary, f, indent=2)
-        
+
         logger.info(f"\nSaved training summary: {summary_path}")
         logger.info(json.dumps(summary, indent=2))
 
@@ -649,7 +864,7 @@ def run_tree_model_training_pipeline():
     config_max = GameConfig(
         name="lotto_max",
         num_balls=7,
-        num_numbers=50,
+        num_numbers=52,
         num_positions=7
     )
     
@@ -678,7 +893,7 @@ if __name__ == "__main__":
                 trainer.train_all_models(n_trials=15)
             elif "max" in args.game.lower() or args.game.lower() == "lotto max":
                 print(f"[DEBUG] Training lotto_max", flush=True)
-                config = GameConfig(name="lotto_max", num_balls=7, num_numbers=50, num_positions=7)
+                config = GameConfig(name="lotto_max", num_balls=7, num_numbers=52, num_positions=7)
                 trainer = AdvancedTreeModelTrainer(config)
                 trainer.train_all_models(n_trials=15)
         else:

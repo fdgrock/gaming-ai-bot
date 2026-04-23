@@ -3450,15 +3450,16 @@ def _apply_historical_frequency_bias_correction(numbers: List[int], frequencies:
     return sorted(numbers)
 
 
-def _apply_diversity_penalty(numbers: List[int], all_previous_sets: List[List[int]], 
-                             penalty_weight: float = 0.25) -> List[int]:
+def _apply_diversity_penalty(numbers: List[int], all_previous_sets: List[List[int]],
+                             penalty_weight: float = 0.25, max_number: int = 49) -> List[int]:
     """
     Apply diversity penalty to encourage different predictions across multiple sets.
-    
+
     Args:
         numbers: Candidate lottery numbers
         all_previous_sets: All predictions generated so far
         penalty_weight: Strength of diversity enforcement (0.0-1.0)
+        max_number: Maximum lottery number for this game (e.g. 49 for 6/49, 52 for Lotto Max)
     
     Returns:
         List[int]: Numbers adjusted to maximize set diversity
@@ -3483,8 +3484,8 @@ def _apply_diversity_penalty(numbers: List[int], all_previous_sets: List[List[in
         for prev_set in all_previous_sets[-3:]:  # Check last 3 sets
             all_numbers_used.update(prev_set)
         
-        # Find unused numbers from FULL lottery range (1-49)
-        unused_available = [n for n in range(1, 50) if n not in all_numbers_used]
+        # Find unused numbers from FULL lottery range
+        unused_available = [n for n in range(1, max_number + 1) if n not in all_numbers_used]
         
         if unused_available:
             # Identify overlapping numbers to replace
@@ -4531,7 +4532,7 @@ def _generate_single_model_predictions(game: str, count: int, mode: str, model_t
                     
                     if is_multi_output:
                         # Multi-output model: returns (n_samples, 7) predictions
-                        # Each position predicts one lottery number (1-50 for Lotto Max)
+                        # Each position predicts one lottery number (1-52 for Lotto Max)
                         pred_indices = model.predict(random_input_scaled)[0]  # Shape: (7,)
                         numbers = sorted([int(idx) + 1 for idx in pred_indices])  # Convert 0-based to 1-based
                         
@@ -4688,7 +4689,7 @@ def _generate_single_model_predictions(game: str, count: int, mode: str, model_t
             
             # Step 2: Apply diversity penalty to avoid repetitive predictions
             if len(sets) >= 2:
-                numbers = _apply_diversity_penalty(numbers, sets, penalty_weight=0.25)
+                numbers = _apply_diversity_penalty(numbers, sets, penalty_weight=0.25, max_number=max_number)
             
             # Step 3: Apply historical frequency bias correction if available
             try:
@@ -5680,7 +5681,7 @@ def _generate_ensemble_predictions(game: str, count: int, models_dict: Dict[str,
                 
                 # Step 1: Apply diversity penalty for ensemble mode (avoid same predictions across sets)
                 if len(sets) >= 2:
-                    numbers = _apply_diversity_penalty(numbers, sets, penalty_weight=0.25)
+                    numbers = _apply_diversity_penalty(numbers, sets, penalty_weight=0.25, max_number=max_number)
                 
                 # Step 2: Apply historical frequency bias correction
                 try:

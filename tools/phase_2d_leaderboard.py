@@ -58,9 +58,49 @@ class Phase2DLeaderboard:
         self.advanced_models_dir = MODELS_DIR / "advanced"
         
     def _calculate_composite_score(self, top_5_acc: float, kl_div: float) -> float:
-        """Calculate composite score: (0.6 * Top-5 Acc) + (0.4 * (1 - KL-Div))."""
-        kl_component = max(0, 1 - kl_div)  # Ensure non-negative
+        """Calculate composite score: (0.6 * Top-5 Acc) + (0.4 * exp(-KL-Div)).
+
+        Using exp(-kl_div) instead of max(0, 1-kl_div) so that KL > 1 still contributes
+        a meaningful (decaying) signal rather than being floored to 0.
+        """
+        import math
+        kl_component = math.exp(-max(0.0, kl_div))  # Always in (0, 1]
         return (0.6 * top_5_acc) + (0.4 * kl_component)
+
+    def _metrics_are_unreliable(self, top_5_acc: float, kl_div: float, num_classes: int) -> bool:
+        """Detect degenerate metrics caused by the all-numbers-per-draw training bug.
+
+        When all candidate numbers per draw are in the feature matrix, the training
+        target defaults to number 1 (class 0) every time, producing:
+          - top_5_accuracy == 1.0
+          - KL divergence >> log(num_classes)  (near-degenerate distribution)
+        """
+        import math
+        return top_5_acc > 0.95 and kl_div > math.log(max(num_classes, 2))
+
+    def _score_from_val_loss(self, val_losses: list, num_classes: int) -> float:
+        """Compute a [0, 1] score from validation loss relative to the random baseline.
+
+        score = max(0, 1 - best_val_loss / log(num_classes))
+
+        A random model gives val_loss ≈ log(num_classes) → score ≈ 0.
+        A perfect model gives val_loss → 0 → score → 1.
+        """
+        import math
+        if not val_losses:
+            return 0.0
+        best_val_loss = min(val_losses)
+        random_baseline = math.log(max(num_classes, 2))
+        return max(0.0, 1.0 - best_val_loss / random_baseline)
+
+    def _get_num_classes_for_game(self, game_name: str) -> int:
+        """Return the number of lottery ball classes for a game."""
+        name = game_name.lower()
+        if 'max' in name:
+            return 52
+        if '649' in name or '6_49' in name:
+            return 49
+        return 49  # safe default
     
     def _get_model_strengths_and_biases(self, model_type: str, game: str, 
                                         metrics: Dict, top_5_acc: float) -> Tuple[str, str]:
@@ -342,18 +382,26 @@ class Phase2DLeaderboard:
                 architecture = variant_dir.name.replace("_variants", "").upper()
                 architecture_lower = architecture.lower()
                 
-                # Check for LSTM variants (lstm_ensemble_summary.json)
+                # Check for LSTM variants.
+                # Trainer saves metadata.json; older runs may have saved lstm_ensemble_summary.json.
+                # Check both so that old and newly trained models are found.
                 if architecture_lower == "lstm":
                     lstm_summary_file = variant_dir / "lstm_ensemble_summary.json"
-                    
-                    if lstm_summary_file.exists():
+                    lstm_metadata_file = variant_dir / "metadata.json"
+
+                    # Prefer lstm_ensemble_summary.json if it exists, otherwise fall back to metadata.json
+                    _lstm_file = lstm_summary_file if lstm_summary_file.exists() else (
+                        lstm_metadata_file if lstm_metadata_file.exists() else None
+                    )
+
+                    if _lstm_file is not None:
                         try:
-                            with open(lstm_summary_file, 'r') as f:
+                            with open(_lstm_file, 'r') as f:
                                 summary_data = json.load(f)
-                            
+
                             # Handle both flat structure (variants directly) and nested structure (games -> variants)
                             variants_list = []
-                            
+
                             if 'games' in summary_data:
                                 # Nested structure: games -> {game_name} -> variants
                                 game_name = game_folder.name
@@ -366,25 +414,44 @@ class Phase2DLeaderboard:
                             
                             num_variants = summary_data.get('num_variants', len(variants_list))
                             
+                            num_classes = self._get_num_classes_for_game(game_folder.name)
+
                             for var_idx, variant_data in enumerate(variants_list):
                                 # Use variant-specific metrics if available
                                 var_metrics = variant_data.get('metrics', {})
                                 top_5_acc = float(var_metrics.get('top_5_accuracy', 0.0))
                                 top_10_acc = float(var_metrics.get('top_10_accuracy', 0.0))
                                 kl_div = float(var_metrics.get('kl_divergence', 0.0))
-                                
-                                composite = self._calculate_composite_score(top_5_acc, kl_div)
-                                
+
+                                # Detect degenerate metrics (bug: all-numbers-per-draw target == class 0)
+                                # and fall back to val_loss-based scoring when present
+                                val_losses = variant_data.get('history', {}).get('val_loss', [])
+                                best_val_loss = min(val_losses) if val_losses else None
+                                metrics_ok = not self._metrics_are_unreliable(top_5_acc, kl_div, num_classes)
+
+                                if not metrics_ok and best_val_loss is not None:
+                                    # Replace with loss-based score; keep raw metrics for transparency
+                                    loss_score = self._score_from_val_loss(val_losses, num_classes)
+                                    composite = loss_score
+                                    display_top5 = loss_score   # approximate from loss
+                                    logger.info(
+                                        f"  [FALLBACK] {architecture}_variant_{var_idx+1}: "
+                                        f"unreliable metrics detected, using val_loss score {loss_score:.4f}"
+                                    )
+                                else:
+                                    composite = self._calculate_composite_score(top_5_acc, kl_div)
+                                    display_top5 = top_5_acc
+
                                 strength, bias = self._get_model_strengths_and_biases(
-                                    architecture_lower, game_folder.name, var_metrics, top_5_acc
+                                    architecture_lower, game_folder.name, var_metrics, display_top5
                                 )
-                                
+
                                 seed = variant_data.get('seed', None)
                                 variant_index = variant_data.get('variant_index', var_idx)
                                 model_name = f"{architecture}_variant_{variant_index + 1}"
                                 if seed:
                                     model_name += f"_seed_{seed}"
-                                
+
                                 results.append({
                                     'phase': '2C',
                                     'game': game_folder.name,
@@ -392,16 +459,18 @@ class Phase2DLeaderboard:
                                     'model_type': architecture_lower,
                                     'architecture': f"{architecture} Ensemble",
                                     'composite_score': composite,
-                                    'top_5_accuracy': top_5_acc,
+                                    'top_5_accuracy': display_top5,
                                     'top_10_accuracy': top_10_acc,
                                     'kl_divergence': kl_div,
                                     'strength': strength,
                                     'known_bias': bias,
-                                    'recommended_use': self._get_recommended_use(top_5_acc, architecture_lower, num_variants),
+                                    'recommended_use': self._get_recommended_use(display_top5, architecture_lower, num_variants),
                                     'health_score': composite,
                                     'ensemble_weight': max(0.0, composite),
+                                    'best_val_loss': best_val_loss,
+                                    'metrics_reliable': metrics_ok,
                                     'created_at': variant_data.get('created_at', datetime.now().isoformat()),
-                                    'model_path': str(lstm_summary_file),
+                                    'model_path': str(_lstm_file),
                                     'accuracy': var_metrics.get('accuracy', 0.0),
                                     'total_samples': None,
                                     'variant_index': variant_index,
@@ -409,50 +478,68 @@ class Phase2DLeaderboard:
                                 })
                         
                         except Exception as e:
-                            logger.warning(f"Failed to read LSTM variants from {lstm_summary_file}: {e}")
+                            logger.warning(f"Failed to read LSTM variants from {_lstm_file}: {e}")
                 
                 # Check for Transformer variants (metadata.json)
                 else:
                     metadata_file = variant_dir / "metadata.json"
-                    
+
                     if metadata_file.exists():
                         try:
                             with open(metadata_file, 'r') as f:
                                 variant_metadata = json.load(f)
-                            
-                            # Get metrics from corresponding training_summary_*.json file
+
+                            # Load base training_summary as fallback only (individual variant
+                            # metrics from metadata.json are authoritative and used first).
+                            fallback_metrics: dict = {}
                             metrics_file = game_folder / f"training_summary_{architecture_lower}.json"
-                            metrics_data = {}
-                            
                             if metrics_file.exists():
                                 try:
                                     with open(metrics_file, 'r') as f:
-                                        metrics_file_data = json.load(f)
-                                        metrics_data = metrics_file_data.get('metrics', {})
+                                        _msf = json.load(f)
+                                        fallback_metrics = _msf.get('metrics', {})
                                 except Exception as e:
                                     logger.warning(f"Failed to read metrics from {metrics_file}: {e}")
-                            
+
                             # Process individual variants from metadata
                             if 'variants' in variant_metadata:
                                 num_variants = variant_metadata.get('num_variants', len(variant_metadata['variants']))
-                                
+
+                                num_classes = self._get_num_classes_for_game(game_folder.name)
+
                                 for var_idx, variant_data in enumerate(variant_metadata['variants']):
-                                    # Use metrics from training_summary file for all variants
-                                    top_5_acc = float(metrics_data.get('top_5_accuracy', 0.0))
-                                    top_10_acc = float(metrics_data.get('top_10_accuracy', 0.0))
-                                    kl_div = float(metrics_data.get('kl_divergence', 0.0))
-                                    
-                                    composite = self._calculate_composite_score(top_5_acc, kl_div)
-                                    
+                                    # Use per-variant metrics from metadata.json (authoritative).
+                                    # Fall back to training_summary only if a variant has no metrics.
+                                    var_metrics = variant_data.get('metrics', fallback_metrics)
+                                    top_5_acc = float(var_metrics.get('top_5_accuracy', 0.0))
+                                    top_10_acc = float(var_metrics.get('top_10_accuracy', 0.0))
+                                    kl_div = float(var_metrics.get('kl_divergence', 0.0))
+
+                                    val_losses = variant_data.get('history', {}).get('val_loss', [])
+                                    best_val_loss = min(val_losses) if val_losses else None
+                                    metrics_ok = not self._metrics_are_unreliable(top_5_acc, kl_div, num_classes)
+
+                                    if not metrics_ok and best_val_loss is not None:
+                                        loss_score = self._score_from_val_loss(val_losses, num_classes)
+                                        composite = loss_score
+                                        display_top5 = loss_score
+                                        logger.info(
+                                            f"  [FALLBACK] {architecture}_variant_{var_idx+1}: "
+                                            f"unreliable metrics detected, using val_loss score {loss_score:.4f}"
+                                        )
+                                    else:
+                                        composite = self._calculate_composite_score(top_5_acc, kl_div)
+                                        display_top5 = top_5_acc
+
                                     strength, bias = self._get_model_strengths_and_biases(
-                                        architecture_lower, game_folder.name, metrics_data, top_5_acc
+                                        architecture_lower, game_folder.name, var_metrics, display_top5
                                     )
-                                    
+
                                     seed = variant_data.get('seed', None)
                                     model_name = f"{architecture}_variant_{var_idx + 1}"
                                     if seed:
                                         model_name += f"_seed_{seed}"
-                                    
+
                                     results.append({
                                         'phase': '2C',
                                         'game': game_folder.name,
@@ -460,17 +547,19 @@ class Phase2DLeaderboard:
                                         'model_type': architecture_lower,
                                         'architecture': f"{architecture} Ensemble",
                                         'composite_score': composite,
-                                        'top_5_accuracy': top_5_acc,
+                                        'top_5_accuracy': display_top5,
                                         'top_10_accuracy': top_10_acc,
                                         'kl_divergence': kl_div,
                                         'strength': strength,
                                         'known_bias': bias,
-                                        'recommended_use': self._get_recommended_use(top_5_acc, architecture_lower, num_variants),
+                                        'recommended_use': self._get_recommended_use(display_top5, architecture_lower, num_variants),
                                         'health_score': composite,
                                         'ensemble_weight': max(0.0, composite),
+                                        'best_val_loss': best_val_loss,
+                                        'metrics_reliable': metrics_ok,
                                         'created_at': variant_data.get('created_at', datetime.now().isoformat()),
                                         'model_path': str(metadata_file),
-                                        'accuracy': metrics_data.get('accuracy', 0.0),
+                                        'accuracy': var_metrics.get('accuracy', 0.0),
                                         'total_samples': None,
                                         'variant_index': var_idx,
                                         'seed': seed
@@ -501,6 +590,15 @@ class Phase2DLeaderboard:
         
         # Create DataFrame and sort by composite score
         df = pd.DataFrame(all_models)
+        # Fill optional columns that only variant rows carry (tree/neural rows don't have them)
+        if 'best_val_loss' not in df.columns:
+            df['best_val_loss'] = None
+        else:
+            df['best_val_loss'] = df['best_val_loss'].where(df['best_val_loss'].notna(), other=None)
+        if 'metrics_reliable' not in df.columns:
+            df['metrics_reliable'] = True
+        else:
+            df['metrics_reliable'] = df['metrics_reliable'].fillna(True)
         df = df.sort_values('composite_score', ascending=False).reset_index(drop=True)
         df['rank'] = range(1, len(df) + 1)
         

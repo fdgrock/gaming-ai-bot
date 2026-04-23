@@ -446,7 +446,7 @@ class AdvancedModelTrainer:
         """
         game_lower = game.lower()
         if 'max' in game_lower:
-            return 7  # Lotto Max: 7 numbers from 1-50
+            return 7  # Lotto Max: 7 numbers from 1-52
         elif '649' in game_lower or '6/49' in game_lower:
             return 6  # Lotto 6/49: 6 numbers from 1-49
         else:
@@ -550,7 +550,7 @@ class AdvancedModelTrainer:
         if max_number is None:
             game_lower = self.game.lower()
             if 'max' in game_lower:
-                max_number = 50  # Lotto Max: 1-50
+                max_number = 52  # Lotto Max: 1-52
             else:
                 max_number = 49  # Lotto 6/49: 1-49
             app_log(f"Auto-detected max_number={max_number} for game '{self.game}'", "info")
@@ -1351,14 +1351,14 @@ class AdvancedModelTrainer:
             num_classes = len(all_possible_classes)
         else:
             # MULTI-OUTPUT: Determine max possible classes from game type
-            # Lotto Max: numbers 1-50 → classes 0-49 (50 classes)
+            # Lotto Max: numbers 1-52 → classes 0-51 (52 classes)
             # Lotto 6/49: numbers 1-49 → classes 0-48 (49 classes)
             game_lower = self.game.lower()
             if 'max' in game_lower:
-                num_classes = 50  # Lotto Max: 1-50
+                num_classes = 52  # Lotto Max: 1-52
             else:
                 num_classes = 49  # Lotto 6/49: 1-49
-            
+
             max_class = num_classes - 1  # 0-based max index
             app_log(f"  Multi-output: {output_info['n_outputs']} outputs, each with {num_classes} classes (0-{max_class})", "info")
             
@@ -1993,14 +1993,14 @@ class AdvancedModelTrainer:
             num_classes = len(all_possible_classes)
         else:
             # MULTI-OUTPUT: Determine max possible classes from game type
-            # Lotto Max: numbers 1-50 → classes 0-49 (50 classes)
+            # Lotto Max: numbers 1-52 → classes 0-51 (52 classes)
             # Lotto 6/49: numbers 1-49 → classes 0-48 (49 classes)
             game_lower = self.game.lower()
             if 'max' in game_lower:
-                num_classes = 50  # Lotto Max: 1-50
+                num_classes = 52  # Lotto Max: 1-52
             else:
                 num_classes = 49  # Lotto 6/49: 1-49
-            
+
             max_class = num_classes - 1  # 0-based max index
             app_log(f"  Multi-output: {output_info['n_outputs']} outputs, each with {num_classes} classes (0-{max_class})", "info")
             

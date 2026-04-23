@@ -23,10 +23,12 @@ from advanced_feature_engineering import (
 )
 from advanced_data_loader import prepare_game_dataset
 
-# Setup logging
+# Setup logging - route to stdout so subprocess capture thread sees it immediately
 logging.basicConfig(
     level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    stream=sys.stdout,
+    force=True
 )
 logger = logging.getLogger(__name__)
 
@@ -56,7 +58,7 @@ class AdvancedPipelineOrchestrator:
             'lotto_max': GameConfig(
                 game_name='lotto_max',
                 num_balls=7,
-                num_numbers=50
+                num_numbers=52
             )
         }
     
@@ -218,13 +220,38 @@ class AdvancedPipelineOrchestrator:
 
 
 if __name__ == '__main__':
+    import argparse
+
+    parser = argparse.ArgumentParser(description="Run Phase 1 feature engineering")
+    parser.add_argument(
+        '--game', type=str, default=None,
+        help='Game to run: "lotto_6_49", "lotto_max", "Lotto 6/49", "Lotto Max", or omit for both'
+    )
+    args = parser.parse_args()
+
     # Find project root (tools is 1 level down from root)
     project_root = Path(__file__).parent.parent.resolve()
-    
-    # Run pipeline
+
     orchestrator = AdvancedPipelineOrchestrator(base_dir=project_root)
-    results = orchestrator.run_complete_pipeline()
-    
+
+    # Normalize game name if provided
+    _game_arg = args.game
+    if _game_arg:
+        _game_key = _game_arg.lower().replace(' ', '_').replace('/', '_')
+        if '649' in _game_key or _game_key == 'lotto_6_49':
+            _game_key = 'lotto_6_49'
+        elif 'max' in _game_key:
+            _game_key = 'lotto_max'
+        else:
+            _game_key = None  # unrecognized -> run both
+
+    if _game_arg and _game_key:
+        print(f"\n[Phase 1] Running feature engineering for {_game_key}", flush=True)
+        result = orchestrator.run_phase_1_feature_engineering(_game_key)
+        results = {_game_key: result}
+    else:
+        results = orchestrator.run_complete_pipeline()
+
     # Print summary
     print("\n" + "="*80)
     print("PIPELINE EXECUTION SUMMARY")

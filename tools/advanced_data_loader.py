@@ -132,10 +132,10 @@ class LotteryDataLoader:
             max_number = 49
         elif game_name == 'lotto_max':
             expected_balls = 7
-            max_number = 50
+            max_number = 52
         else:
             raise ValueError(f"Unknown game: {game_name}")
-        
+
         invalid_indices = []
         for idx, row in df.iterrows():
             numbers = row['numbers']
@@ -243,7 +243,7 @@ class DataPreprocessor:
         if game_name == 'lotto_6_49':
             max_number = 49
         elif game_name == 'lotto_max':
-            max_number = 50
+            max_number = 52
         else:
             raise ValueError(f"Unknown game: {game_name}")
         

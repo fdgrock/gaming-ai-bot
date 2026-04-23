@@ -115,51 +115,83 @@ class AdvancedCNNModel:
         Returns:
             Windows [n_windows, window_size, n_features]
         """
+        # Use < (N - window_size) so every window has a valid target at i+window_size.
         windows = []
-        for i in range(0, len(X) - window_size + 1, stride):
+        for i in range(0, len(X) - window_size, stride):
             windows.append(X[i:i + window_size])
         
         return np.array(windows)
     
-    def load_data_and_prepare(self, window_size: int = 10) -> Tuple[Dict[str, np.ndarray], np.ndarray]:
+    def load_data_and_prepare(self, window_size: int = 50) -> Tuple[Dict[str, np.ndarray], np.ndarray]:
         """Load and prepare data for CNN training."""
         logger.info(f"Loading engineered features from {self.data_dir}")
-        
-        # Load features
+
+        # Load temporal features
         temporal_df = pd.read_parquet(self.data_dir / "temporal_features.parquet")
-        X = temporal_df.drop(columns=['draw_index', 'number'], errors='ignore').values
+
+        # Merge global draw features (per-draw stats -> broadcast to all per-number rows)
+        _draw_col = 'draw_idx' if 'draw_idx' in temporal_df.columns else 'draw_index' if 'draw_index' in temporal_df.columns else None
+        try:
+            global_df = pd.read_parquet(self.data_dir / "global_features.parquet")
+            _gdraw_col = 'draw_idx' if 'draw_idx' in global_df.columns else 'draw_index'
+            _global_feat_cols = [c for c in global_df.columns if c not in {'draw_idx', 'draw_index'}]
+            global_subset = global_df[[_gdraw_col] + _global_feat_cols].rename(
+                columns={_gdraw_col: _draw_col or 'draw_idx'}
+            )
+            temporal_df = temporal_df.merge(global_subset, on=_draw_col or 'draw_idx', how='left')
+            logger.info(f"Merged global features: +{len(_global_feat_cols)} columns -> {temporal_df.shape[1]} total")
+        except Exception as _ge:
+            logger.warning(f"Could not merge global features (continuing with temporal only): {_ge}")
+
+        # Prepare feature matrix - drop all non-feature columns
+        _NON_FEAT = {'draw_index', 'draw_idx', 'number', 'target'}
+        X = temporal_df.drop(columns=[c for c in temporal_df.columns if c in _NON_FEAT], errors='ignore').values
         y_numbers = temporal_df['number'].values if 'number' in temporal_df.columns else None
-        
+
         logger.info(f"Feature shape: {X.shape}")
-        
+
         # Create rolling windows
-        X_windows = self.create_rolling_windows(X, window_size=window_size, stride=5)
-        
+        stride = 5
+        X_windows = self.create_rolling_windows(X, window_size=window_size, stride=stride)
+
         logger.info(f"Rolling windows shape: {X_windows.shape}")
-        
+
         # Normalize
         scaler = StandardScaler()
         X_reshaped = X_windows.reshape(X_windows.shape[0], -1)
         X_normalized = scaler.fit_transform(X_reshaped)
         X_windows = X_normalized.reshape(X_windows.shape)
-        
-        # Train/val/test split
-        n_samples = len(X_windows)
-        n_train = int(0.70 * n_samples)
-        n_val = int(0.15 * n_samples)
-        
+
+        # Temporal split on draw boundaries (prevents draw leakage between splits)
+        if _draw_col:
+            draw_indices = temporal_df[_draw_col].values
+            # seq_draw_idxs: draw_idx of the TARGET (one step after window end)
+            seq_draw_idxs = draw_indices[window_size::stride][:len(X_windows)]
+            _split_draw_idxs = draw_indices[window_size - 1::stride][:len(X_windows)]
+            unique_draws = np.unique(_split_draw_idxs)
+            n_draws = len(unique_draws)
+            split_draw_1 = unique_draws[int(0.70 * n_draws)]
+            split_draw_2 = unique_draws[int(0.85 * n_draws)]
+            n_train = int(np.searchsorted(_split_draw_idxs, split_draw_1, side='right'))
+            n_val = int(np.searchsorted(_split_draw_idxs, split_draw_2, side='right')) - n_train
+        else:
+            n_train = int(0.70 * len(X_windows))
+            n_val = int(0.15 * len(X_windows))
+            seq_draw_idxs = np.arange(len(X_windows))
+
         X_train = X_windows[:n_train]
         X_val = X_windows[n_train:n_train + n_val]
         X_test = X_windows[n_train + n_val:]
-        
+
         logger.info(f"Train shape: {X_train.shape}")
         logger.info(f"Val shape: {X_val.shape}")
         logger.info(f"Test shape: {X_test.shape}")
-        
+
         return {
             "X_train": X_train,
             "X_val": X_val,
-            "X_test": X_test
+            "X_test": X_test,
+            "seq_draw_idxs": seq_draw_idxs,  # draw_idx per window for target alignment
         }, y_numbers
     
     def build_model(self, input_shape: Tuple[int, ...]) -> Model:
@@ -266,9 +298,18 @@ class AdvancedCNNModel:
         y_pred_clipped = np.clip(y_pred_probs, 1e-10, 1 - 1e-10)
         ll = log_loss(y_true_onehot, y_pred_clipped)
         
-        # Composite score
-        composite = 0.6 * top_5_acc + 0.4 * (1 - np.tanh(kl_div_mean))
-        
+        # Composite score: exp(-kl) keeps calibration signal even when KL >> 1
+        composite = 0.6 * top_5_acc + 0.4 * float(np.exp(-max(0.0, kl_div_mean)))
+
+        # Sanity checks - warn if metrics look impossibly good
+        import math as _math
+        if top_5_acc > 0.95:
+            logger.warning(f"[SANITY] Suspiciously high Top-5 accuracy: {top_5_acc:.4f} - verify target alignment")
+        if ll <= 0.0:
+            logger.warning(f"[SANITY] Non-positive log-loss: {ll:.6f} - likely a metric calculation error")
+        if kl_div_mean > _math.log(y_pred_probs.shape[1]) + 1.0:
+            logger.warning(f"[SANITY] KL divergence {kl_div_mean:.4f} exceeds theoretical max - check predictions")
+
         return ModelMetrics(
             top_5_accuracy=float(top_5_acc),
             top_10_accuracy=float(top_10_acc),
@@ -276,7 +317,7 @@ class AdvancedCNNModel:
             log_loss_value=float(ll),
             composite_score=float(composite)
         )
-    
+
     def train_model(self, epochs: int = 50, batch_size: int = 32) -> Dict[str, Any]:
         """Train CNN model."""
         logger.info(f"\n{'='*60}")
@@ -285,7 +326,7 @@ class AdvancedCNNModel:
         logger.info(f"{'='*60}\n")
         
         # Load data
-        data, y_numbers = self.load_data_and_prepare(window_size=10)
+        data, y_numbers = self.load_data_and_prepare(window_size=50)
         
         X_train = data["X_train"]
         X_val = data["X_val"]
@@ -294,19 +335,63 @@ class AdvancedCNNModel:
         # Build model
         model = self.build_model(input_shape=(X_train.shape[1], X_train.shape[2]))
         
-        # Prepare targets
+        # Align targets to actual lottery numbers (window i -> y_numbers[50 + i*5])
         n_train, n_val, n_test = len(X_train), len(X_val), len(X_test)
         n_classes = self.game_config.num_numbers
-        
-        y_train_primary = np.random.randint(0, n_classes, n_train)
-        y_train_primary_onehot = np.eye(n_classes)[y_train_primary]
-        y_train_skipgram_onehot = np.eye(n_classes)[np.random.randint(0, n_classes, n_train)]
-        y_train_dist_onehot = np.eye(n_classes)[np.random.randint(0, n_classes, n_train)]
-        
-        y_val_primary = np.random.randint(0, n_classes, n_val)
-        y_val_primary_onehot = np.eye(n_classes)[y_val_primary]
-        y_val_skipgram_onehot = np.eye(n_classes)[np.random.randint(0, n_classes, n_val)]
-        y_val_dist_onehot = np.eye(n_classes)[np.random.randint(0, n_classes, n_val)]
+        seq_draw_idxs = data.get("seq_draw_idxs", np.array([]))
+
+        _num_seq = n_train + n_val + n_test
+        _raw_targets = np.clip(y_numbers[50::5].astype(int), 1, n_classes)
+        _raw_targets = _raw_targets[:min(_num_seq, len(_raw_targets))]
+        num_train = _raw_targets[:n_train]
+        num_val   = _raw_targets[n_train:n_train + n_val]
+        num_test  = _raw_targets[n_train + n_val:]
+
+        y_train_primary_onehot = np.eye(n_classes)[num_train - 1]
+        y_val_primary_onehot   = np.eye(n_classes)[num_val - 1]
+
+        # Fallback: all heads use primary target (overridden below when parquets available)
+        y_train_skipgram_onehot = y_train_primary_onehot.copy()
+        y_train_dist_onehot     = y_train_primary_onehot.copy()
+        y_val_skipgram_onehot   = y_val_primary_onehot.copy()
+        y_val_dist_onehot       = y_val_primary_onehot.copy()
+
+        # Override with actual skipgram and distribution targets from feature engineering
+        try:
+            _sg_df  = pd.read_parquet(self.data_dir / "skipgram_targets.parquet")
+            _dt_df  = pd.read_parquet(self.data_dir / "distribution_targets.parquet")
+            _sg_col = 'draw_idx' if 'draw_idx' in _sg_df.columns else 'draw_index'
+            _dt_col = 'draw_idx' if 'draw_idx' in _dt_df.columns else 'draw_index'
+
+            _sg_lookup: dict = {}
+            for _, _row in _sg_df.iterrows():
+                _vec = np.zeros(n_classes, dtype=np.float32)
+                for _n in _row['target_numbers']:
+                    if 1 <= _n <= n_classes:
+                        _vec[_n - 1] = 1.0
+                _s = _vec.sum()
+                _sg_lookup[int(_row[_sg_col])] = _vec / _s if _s > 0 else _vec
+
+            _dt_lookup: dict = {}
+            for _, _row in _dt_df.iterrows():
+                _arr = np.array(_row['distribution'], dtype=np.float32)
+                _s = _arr.sum()
+                _dt_lookup[int(_row[_dt_col])] = _arr / _s if _s > 0 else _arr
+
+            _def_sg = np.ones(n_classes, dtype=np.float32) / n_classes
+            _def_dt = np.ones(n_classes, dtype=np.float32) / n_classes
+
+            _seq_ids = seq_draw_idxs[:_num_seq].astype(int)
+            _y_sg_all  = np.array([_sg_lookup.get(int(d), _def_sg) for d in _seq_ids])
+            _y_dt_all  = np.array([_dt_lookup.get(int(d), _def_dt) for d in _seq_ids])
+
+            y_train_skipgram_onehot = _y_sg_all[:n_train]
+            y_train_dist_onehot     = _y_dt_all[:n_train]
+            y_val_skipgram_onehot   = _y_sg_all[n_train:n_train + n_val]
+            y_val_dist_onehot       = _y_dt_all[n_train:n_train + n_val]
+            logger.info("Using actual skipgram + distribution targets for multi-task heads")
+        except Exception as _te:
+            logger.warning(f"Could not load skipgram/distribution targets, using primary fallback: {_te}")
         
         # Train
         logger.info("Training model...")
@@ -332,10 +417,21 @@ class AdvancedCNNModel:
         
         # Evaluate
         logger.info("\nEvaluating on test set...")
+
+        # Defensive trim: ensure X_test and num_test have identical lengths.
+        _n_test_actual = min(len(X_test), len(num_test))
+        if _n_test_actual != len(X_test) or _n_test_actual != len(num_test):
+            logger.warning(
+                f"Trimming test set: X_test={len(X_test)}, num_test={len(num_test)} "
+                f"-> {_n_test_actual}"
+            )
+            X_test = X_test[:_n_test_actual]
+            num_test = num_test[:_n_test_actual]
+
         test_predictions = model.predict(X_test, verbose=0)
         y_pred_probs = test_predictions[0]
-        
-        y_test_primary = np.random.randint(0, n_classes, n_test)
+
+        y_test_primary = num_test  # 1-based lottery numbers (calculate_metrics does y_true-1)
         metrics = self.calculate_metrics(y_test_primary, y_pred_probs)
         
         logger.info(f"Test Top-5 Accuracy: {metrics.top_5_accuracy:.4f}")
@@ -347,7 +443,45 @@ class AdvancedCNNModel:
         model_path = self.models_dir / "cnn_model.h5"
         model.save(model_path)
         logger.info(f"Model saved: {model_path}")
-        
+
+        # Save feature schema + model card
+        try:
+            import sys as _sys; _sys.path.insert(0, str(Path(__file__).parent))
+            from model_card_utils import (
+                build_feature_schema, save_feature_schema,
+                build_model_card, save_model_card, derive_feature_cols,
+            )
+            _feat_schema_path = self.data_dir / "feature_schema_cnn.json"
+            if _feat_schema_path.exists():
+                import json as _json
+                with open(_feat_schema_path) as _f:
+                    _feat_schema = _json.load(_f)
+            else:
+                _td = pd.read_parquet(self.data_dir / "temporal_features.parquet")
+                _feat_schema = build_feature_schema(
+                    model_type="cnn", game=self.game_config.name,
+                    feature_cols=derive_feature_cols(_td),
+                    n_samples=n_train + n_val + n_test,
+                    n_train=n_train, n_val=n_val, n_test=n_test,
+                    window_size=50, lookback=None, stride=5,
+                )
+            save_feature_schema(_feat_schema, self.models_dir / "feature_schema.json")
+            _card = build_model_card(
+                architecture="cnn",
+                game=self.game_config.name,
+                feature_schema=_feat_schema,
+                metrics=metrics.to_dict(),
+                training_config={
+                    "epochs": epochs, "batch_size": batch_size,
+                    "window_size": 50, "stride": 5,
+                    "target_alignment": "actual_lottery_numbers_1based",
+                },
+            )
+            save_model_card(_card, model_path)
+            logger.info(f"Model card + feature schema saved alongside model")
+        except Exception as _e:
+            logger.warning(f"Could not save model card: {_e}")
+
         return {
             "model": model,
             "metrics": metrics,
@@ -374,7 +508,7 @@ def run_cnn_training_pipeline():
     config_max = GameConfig(
         name="lotto_max",
         num_balls=7,
-        num_numbers=50,
+        num_numbers=52,
         num_positions=7
     )
     
@@ -397,7 +531,7 @@ if __name__ == "__main__":
             trainer = AdvancedCNNModel(config)
             trainer.train_model(epochs=30, batch_size=32)
         elif "max" in args.game.lower() or args.game.lower() == "lotto max":
-            config = GameConfig(name="lotto_max", num_balls=7, num_numbers=50, num_positions=7)
+            config = GameConfig(name="lotto_max", num_balls=7, num_numbers=52, num_positions=7)
             trainer = AdvancedCNNModel(config)
             trainer.train_model(epochs=30, batch_size=32)
     else:

@@ -1566,13 +1566,31 @@ def render_phase_2d_section(game_filter: str = None):
                 with col3:
                     st.metric("Best Score", f"{phase_2c_df['composite_score'].max():.4f}")
                 
-                # Display table
+                # Show note when unreliable metrics are detected
+                if 'metrics_reliable' in phase_2c_df.columns:
+                    unreliable_count = (~phase_2c_df['metrics_reliable'].fillna(True)).sum()
+                    if unreliable_count > 0:
+                        st.info(
+                            f"ℹ️ {unreliable_count} variant(s) have pre-fix metrics (Score/Top-5 derived from "
+                            f"validation loss). Retrain variants to get accurate multi-ball hit rates."
+                        )
+
+                # Build display — include Val Loss when available
                 display_cols = ['rank', 'model_name', 'model_type', 'composite_score', 'top_5_accuracy', 'ensemble_weight']
+                col_names = ['Rank', 'Model', 'Type', 'Score', 'Top-5', 'Weight']
+                if 'best_val_loss' in phase_2c_df.columns and phase_2c_df['best_val_loss'].notna().any():
+                    display_cols.append('best_val_loss')
+                    col_names.append('Val Loss')
+
                 display_df = phase_2c_df[display_cols].copy()
-                display_df.columns = ['Rank', 'Model', 'Type', 'Score', 'Top-5', 'Weight']
+                display_df.columns = col_names
                 display_df['Score'] = display_df['Score'].apply(lambda x: f"{x:.4f}")
                 display_df['Top-5'] = display_df['Top-5'].apply(lambda x: f"{x:.1%}")
                 display_df['Weight'] = display_df['Weight'].apply(lambda x: f"{x:.4f}")
+                if 'Val Loss' in display_df.columns:
+                    display_df['Val Loss'] = display_df['Val Loss'].apply(
+                        lambda x: f"{x:.4f}" if x is not None and str(x) != 'nan' else "—"
+                    )
                 st.dataframe(display_df, use_container_width=True, hide_index=True)
             else:
                 st.info("No Phase 2C ensemble variant models found")
@@ -1958,8 +1976,13 @@ def render_phase_1_section(game_filter: str = None):
             if st.button(button_text, key="start_feature_gen", use_container_width=True):
                 # Generate for the selected game or all games
                 games_to_gen = ["Lotto 6/49", "Lotto Max"] if game_filter == "All Games" else [game_filter]
-                
-                cmd = [sys.executable, str(PROJECT_ROOT / "regenerate_features.py")]
+
+                # Use the Phase 1 orchestrator — it generates Temporal, Global,
+                # Skipgram, and Distribution features for all neural + tree trainers
+                cmd = [sys.executable, str(TOOLS_DIR / "advanced_pipeline_orchestrator.py")]
+                # Pass --game if a specific game is selected
+                if game_filter and game_filter != "All Games":
+                    cmd += ["--game", game_filter]
                 
                 log_dir = PROJECT_ROOT / "logs" / "training"
                 log_dir.mkdir(parents=True, exist_ok=True)
@@ -2057,6 +2080,8 @@ def render_phase_1_section(game_filter: str = None):
             )
             
             col1, col2 = st.columns([3, 1])
+            with col1:
+                st.caption("Output refreshes automatically every 3 seconds while running.")
             with col2:
                 if st.button("⏹️ Stop Generation", key="stop_feature_gen", use_container_width=True):
                     try:
@@ -2067,6 +2092,10 @@ def render_phase_1_section(game_filter: str = None):
                         proc_info["process"].kill()
                         st.success("✅ Generation force-stopped")
                     st.rerun()
+
+            # Auto-refresh while process is running so output stays live
+            time.sleep(3)
+            st.rerun()
 
 
 def render_advanced_ml_training_page(services_registry=None, ai_engines=None, components=None) -> None:
@@ -2133,56 +2162,119 @@ def render_advanced_ml_training_page(services_registry=None, ai_engines=None, co
             st.markdown("## 📈 Training Monitor")
             st.markdown("Real-time monitoring of active training processes")
             st.divider()
-            
+
+            # --- Zombie process detection constants ---
+            ZOMBIE_MINUTES = 90  # process running longer than this is flagged
+
             # Debug info
             with st.expander("🔍 Debug Info"):
                 st.write(f"Session State Keys: {list(st.session_state.keys())}")
                 if "training_processes" in st.session_state:
                     st.write(f"Training Processes: {len(st.session_state.training_processes)} total")
                     for key, proc in st.session_state.training_processes.items():
-                        st.write(f"  - {key}: Status={proc['process'].poll() is None} (running={proc['process'].poll() is None})")
+                        _p = proc.get("process")
+                        _running = _p is not None and _p.poll() is None
+                        st.write(f"  - {key}: running={_running}")
                 else:
                     st.write("No training_processes in session state")
-            
+
             # Check for active processes
             has_training_processes = "training_processes" in st.session_state and st.session_state.training_processes
-            
+
             if has_training_processes:
-                active_processes = {
-                    k: v for k, v in st.session_state.training_processes.items()
-                    if v["process"].poll() is None
-                }
-                
+                active_processes = {}
+                zombie_processes = {}
+
+                for k, v in st.session_state.training_processes.items():
+                    _proc = v.get("process")
+                    if _proc is not None and _proc.poll() is None:
+                        # Check for zombie: running too long
+                        _started = v.get("started_at", datetime.now())
+                        if isinstance(_started, str):
+                            try:
+                                _started = datetime.fromisoformat(_started)
+                            except Exception:
+                                _started = datetime.now()
+                        _run_mins = (datetime.now() - _started).total_seconds() / 60
+                        if _run_mins > ZOMBIE_MINUTES:
+                            zombie_processes[k] = {**v, "_run_minutes": _run_mins}
+                        else:
+                            active_processes[k] = {**v, "_run_minutes": _run_mins}
+
+                # Show zombies first with warning
+                if zombie_processes:
+                    st.markdown("### ⚠️ Possible Zombie Processes")
+                    st.warning(
+                        f"{len(zombie_processes)} process(es) have been running for "
+                        f">{ZOMBIE_MINUTES} minutes without completing. They may be stuck."
+                    )
+                    for process_key, proc_info in zombie_processes.items():
+                        _mins = proc_info.get('_run_minutes', 0)
+                        col1, col2 = st.columns([4, 1])
+                        with col1:
+                            st.error(
+                                f"**{proc_info.get('trainer_name', process_key)}** — "
+                                f"running {_mins:.0f} min (PID {proc_info.get('pid', '?')})"
+                            )
+                        with col2:
+                            if st.button("💀 Force Kill", key=f"kill_{process_key}", use_container_width=True):
+                                try:
+                                    proc_info["process"].kill()
+                                    proc_info["process"].wait(timeout=3)
+                                except Exception:
+                                    pass
+                                cleanup_training_process(process_key)
+                                st.rerun()
+                    st.divider()
+
                 if active_processes:
                     st.markdown("### 🟢 Active Training Sessions")
-                    
                     for process_key, proc_info in active_processes.items():
                         col1, col2 = st.columns([4, 1])
-                        
                         with col1:
                             display_process_monitor(process_key)
-                        
+                            _mins = proc_info.get('_run_minutes', 0)
+                            st.caption(f"Running {_mins:.1f} min")
                         with col2:
-                            if st.button(
-                                "⏹️ Stop",
-                                key=f"stop_{process_key}",
-                                use_container_width=True
-                            ):
+                            if st.button("⏹️ Stop", key=f"stop_{process_key}", use_container_width=True):
                                 try:
                                     proc_info["process"].terminate()
                                     proc_info["process"].wait(timeout=5)
                                     st.success("✅ Process stopped")
-                                except:
+                                except Exception:
                                     proc_info["process"].kill()
                                     st.success("✅ Process force-stopped")
                                 st.rerun()
-                        
                         st.divider()
-                else:
+                elif not zombie_processes:
                     st.info("ℹ️ No active training processes at this moment (check history below)")
             else:
                 st.warning("⚠️ No training session data in memory. Start a training from one of the tabs above.")
-            
+
+            # Training statistics from saved summaries
+            st.markdown("### 📊 Last Training Statistics")
+            _base_models_dir = Path(__file__).parent.parent.parent / "models" / "advanced"
+            _stats_found = False
+            for _game in ["lotto_6_49", "lotto_max"]:
+                _summary_path = _base_models_dir / _game / "training_summary.json"
+                if _summary_path.exists():
+                    try:
+                        with open(_summary_path) as _f:
+                            _summary = json.load(_f)
+                        _stats_found = True
+                        with st.expander(f"📋 {_game.replace('_', ' ').title()} — Last Tree Training Summary"):
+                            _archs = _summary.get("architectures", {})
+                            for _arch, _adata in _archs.items():
+                                _agg = _adata.get("aggregate_metrics", {})
+                                _col1, _col2, _col3 = st.columns(3)
+                                _col1.metric(f"{_arch.upper()} Top-5 Acc", f"{_agg.get('mean_top_5_accuracy', 0):.4f}")
+                                _col2.metric("KL Divergence", f"{_agg.get('mean_kl_divergence', 0):.4f}")
+                                _col3.metric("Composite Score", f"{_agg.get('mean_composite_score', 0):.4f}")
+                    except Exception as _e:
+                        st.caption(f"Could not load {_game} summary: {_e}")
+            if not _stats_found:
+                st.caption("No training summaries found yet. Run Phase 2A tree model training to generate statistics.")
+
             # Show history
             if st.session_state.get("training_history"):
                 st.markdown("### 📋 Recent Training History")

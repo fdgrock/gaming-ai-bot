@@ -55,7 +55,7 @@ def get_game_config(game: str) -> Dict[str, Any]:
         "lotto_max": {
             "main_numbers": 7,
             "bonus_number": 1,
-            "number_range": (1, 50),
+            "number_range": (1, 52),
             "draw_frequency": "daily"
         },
         "lotto_6_49": {
