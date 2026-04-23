@@ -63,7 +63,12 @@ class AdvancedFeatureGenerator:
         
         for d in [self.lstm_dir, self.transformer_dir, self.cnn_dir, self.xgboost_dir, self.catboost_dir, self.lightgbm_dir]:
             d.mkdir(parents=True, exist_ok=True)
-    
+
+        # Correct max number for each game: Lotto Max uses 1-52, Lotto 6/49 uses 1-49.
+        # All feature calculations must use this value so zone buckets, percentiles,
+        # and frequency vectors are computed over the right range.
+        self._game_max_num: int = 52 if "max" in self.game.lower() else 49
+
     def _create_feature_schema(
         self,
         model_type: str,
@@ -458,8 +463,7 @@ class AdvancedFeatureGenerator:
             
             data = self._parse_numbers(raw_data)
             
-            # Determine max number based on game
-            max_num = 50 if "6" in self.game else 50
+            max_num = self._game_max_num
             
             sequences_list = []
             feature_names = None
@@ -592,9 +596,9 @@ class AdvancedFeatureGenerator:
         """
         try:
             app_log(f"Generating advanced CNN embeddings (dim={embedding_dim})", "info")
-            
+
             data = self._parse_numbers(raw_data)
-            max_num = 50
+            max_num = self._game_max_num
             
             # Generate comprehensive features
             features_list = []
@@ -667,9 +671,10 @@ class AdvancedFeatureGenerator:
                     # Use dimensionality reduction
                     embedding = combined[:embedding_dim]
                 else:
-                    # Pad with learned patterns
+                    # Deterministic zero-padding — random padding was non-reproducible
+                    # and prevented models from learning stable patterns across runs.
                     padding_size = embedding_dim - len(combined)
-                    padding = np.random.randn(padding_size) * 0.1
+                    padding = np.zeros(padding_size)
                     embedding = np.concatenate([combined, padding])
                 
                 embeddings.append(embedding)
@@ -740,9 +745,9 @@ class AdvancedFeatureGenerator:
         """
         try:
             app_log(f"Generating advanced Transformer embeddings (dim={embedding_dim})", "info")
-            
+
             data = self._parse_numbers(raw_data)
-            max_num = 50
+            max_num = self._game_max_num
             
             # Generate comprehensive features
             features_list = []
@@ -809,9 +814,10 @@ class AdvancedFeatureGenerator:
                     # Use PCA-like projection
                     embedding = combined[:embedding_dim]
                 else:
-                    # Pad with learned patterns
+                    # Deterministic zero-padding — random padding was non-reproducible
+                    # and prevented models from learning stable patterns across runs.
                     padding_size = embedding_dim - len(combined)
-                    padding = np.random.randn(padding_size) * 0.1
+                    padding = np.zeros(padding_size)
                     embedding = np.concatenate([combined, padding])
                 
                 embeddings.append(embedding)
@@ -883,9 +889,9 @@ class AdvancedFeatureGenerator:
         """
         try:
             app_log(f"Generating Transformer features for CSV export (output_dim={output_dim})", "info")
-            
+
             data = self._parse_numbers(raw_data)
-            max_num = 50
+            max_num = self._game_max_num
             
             # Generate base features from each draw
             features_list = []
@@ -1072,207 +1078,186 @@ class AdvancedFeatureGenerator:
             app_log(f"Error saving Transformer CSV features: {e}", "error")
             return False
     
+    def _generate_tree_features(
+        self,
+        raw_data: pd.DataFrame,
+        include_extra_features: bool = True,
+    ) -> Tuple[pd.DataFrame, List[str], pd.DataFrame]:
+        """Shared feature computation used by XGBoost, CatBoost, and LightGBM."""
+        data = self._parse_numbers(raw_data)
+        features_df = pd.DataFrame()
+        features_df["draw_date"] = data["draw_date"]
+
+        if "numbers" in data.columns:
+            features_df["numbers"] = data["numbers"]
+
+        # 1. BASIC STATISTICAL FEATURES
+        features_df["sum"] = data["numbers_list"].apply(np.sum)
+        features_df["mean"] = data["numbers_list"].apply(np.mean)
+        features_df["std"] = data["numbers_list"].apply(np.std)
+        features_df["var"] = data["numbers_list"].apply(np.var)
+        features_df["min"] = data["numbers_list"].apply(np.min)
+        features_df["max"] = data["numbers_list"].apply(np.max)
+        features_df["range"] = features_df["max"] - features_df["min"]
+        features_df["median"] = data["numbers_list"].apply(np.median)
+        features_df["skewness"] = data["numbers_list"].apply(lambda x: float(stats.skew(x)))
+        features_df["kurtosis"] = data["numbers_list"].apply(lambda x: float(stats.kurtosis(x)))
+
+        # 2. DISTRIBUTION FEATURES
+        for i in range(5):
+            low = i * 10
+            high = (i + 1) * 10
+            features_df[f"bucket_{i}_count"] = data["numbers_list"].apply(
+                lambda x: sum(1 for n in x if low <= n < high)
+            )
+        features_df["q1"] = data["numbers_list"].apply(lambda x: np.percentile(x, 25))
+        features_df["q2"] = data["numbers_list"].apply(lambda x: np.percentile(x, 50))
+        features_df["q3"] = data["numbers_list"].apply(lambda x: np.percentile(x, 75))
+        features_df["iqr"] = features_df["q3"] - features_df["q1"]
+        features_df["p10"] = data["numbers_list"].apply(lambda x: np.percentile(x, 10))
+        features_df["p90"] = data["numbers_list"].apply(lambda x: np.percentile(x, 90))
+        features_df["p05"] = data["numbers_list"].apply(lambda x: np.percentile(x, 5))
+        features_df["p95"] = data["numbers_list"].apply(lambda x: np.percentile(x, 95))
+
+        # 3. PARITY FEATURES
+        features_df["even_count"] = data["numbers_list"].apply(lambda x: sum(1 for n in x if n % 2 == 0))
+        features_df["odd_count"] = data["numbers_list"].apply(lambda x: sum(1 for n in x if n % 2 == 1))
+        features_df["even_odd_ratio"] = features_df["even_count"] / (features_df["odd_count"] + 1e-8)
+        for mod in [3, 5, 7, 11]:
+            features_df[f"mod_{mod}_var"] = data["numbers_list"].apply(
+                lambda x: float(np.var([n % mod for n in x]))
+            )
+
+        # 4. SPACING FEATURES
+        def gap_analysis(numbers):
+            sorted_nums = sorted(numbers)
+            gaps = np.diff(sorted_nums)
+            return {'mean_gap': np.mean(gaps), 'max_gap': np.max(gaps), 'min_gap': np.min(gaps), 'std_gap': np.std(gaps)}
+
+        gap_data = data["numbers_list"].apply(gap_analysis)
+        features_df["mean_gap"] = gap_data.apply(lambda x: x['mean_gap'])
+        features_df["max_gap"] = gap_data.apply(lambda x: x['max_gap'])
+        features_df["min_gap"] = gap_data.apply(lambda x: x['min_gap'])
+        features_df["std_gap"] = gap_data.apply(lambda x: x['std_gap'])
+
+        def count_consecutive(numbers):
+            sorted_nums = sorted(numbers)
+            max_cons = curr_cons = 1
+            for i in range(len(sorted_nums) - 1):
+                if sorted_nums[i + 1] - sorted_nums[i] == 1:
+                    curr_cons += 1
+                    max_cons = max(max_cons, curr_cons)
+                else:
+                    curr_cons = 1
+            return max_cons
+
+        features_df["max_consecutive"] = data["numbers_list"].apply(count_consecutive)
+        features_df["large_gap_count"] = data["numbers_list"].apply(
+            lambda x: sum(1 for gap in np.diff(sorted(x)) if gap > 10)
+        )
+
+        # 5. HISTORICAL FREQUENCY FEATURES
+        for window in [5, 10, 20, 30, 60]:
+            freq_features, new_features = [], []
+            for idx in range(len(data)):
+                if idx < window:
+                    freq_features.append(0)
+                    new_features.append(0)
+                else:
+                    current_nums = set(data.iloc[idx]["numbers_list"])
+                    historical = data.iloc[max(0, idx - window):idx]["numbers_list"]
+                    freq_count = sum(len(current_nums & set(h)) for h in historical)
+                    freq_features.append(freq_count / (window * len(current_nums) + 1e-8))
+                    recent_all: set = set()
+                    for h in historical:
+                        recent_all.update(h)
+                    new_features.append(len(current_nums - recent_all))
+            features_df[f"freq_match_w{window}"] = freq_features
+            features_df[f"new_numbers_w{window}"] = new_features
+
+        # 6. ROLLING STATISTICS
+        for window in [3, 5, 10]:
+            features_df[f"rolling_sum_w{window}"] = features_df["sum"].rolling(window=window, min_periods=1).mean()
+            features_df[f"rolling_mean_w{window}"] = features_df["mean"].rolling(window=window, min_periods=1).mean()
+            features_df[f"rolling_std_w{window}"] = features_df["mean"].rolling(window=window, min_periods=1).std()
+
+        # 7. TEMPORAL FEATURES
+        features_df["day_of_week"] = features_df["draw_date"].dt.dayofweek
+        features_df["month"] = features_df["draw_date"].dt.month
+        features_df["day_of_year"] = features_df["draw_date"].dt.dayofyear
+        features_df["week_of_year"] = features_df["draw_date"].dt.isocalendar().week
+        features_df["is_weekend"] = (features_df["day_of_week"] >= 5).astype(int)
+        features_df["season"] = features_df["month"].apply(lambda m: (m % 12) // 3)
+        features_df["days_since_last"] = features_df["draw_date"].diff().dt.days.fillna(0)
+
+        # 8. BONUS FEATURES
+        features_df["bonus"] = data["bonus_int"]
+        features_df["bonus_even_odd"] = (data["bonus_int"] % 2).apply(lambda x: 1.0 if x == 1 else 0.0)
+        features_df["bonus_change"] = features_df["bonus"].diff().fillna(0)
+        features_df["bonus_repeating"] = (features_df["bonus"] == features_df["bonus"].shift(1)).astype(int).fillna(0)
+        for window in [5, 10]:
+            freq_list = []
+            for idx in range(len(features_df)):
+                if idx < window:
+                    freq_list.append(0)
+                else:
+                    freq = (features_df["bonus"].iloc[idx - window:idx] == features_df["bonus"].iloc[idx]).sum() / window
+                    freq_list.append(freq)
+            features_df[f"bonus_freq_w{window}"] = freq_list
+
+        # 9. JACKPOT FEATURES
+        features_df["jackpot"] = data["jackpot"]
+        features_df["jackpot_log"] = np.log1p(features_df["jackpot"])
+        features_df["jackpot_millions"] = features_df["jackpot"] / 1_000_000
+        features_df["jackpot_change"] = features_df["jackpot"].diff().fillna(0)
+        features_df["jackpot_change_pct"] = features_df["jackpot"].pct_change().fillna(0)
+        features_df["jackpot_rolling_mean"] = features_df["jackpot"].rolling(window=5, min_periods=1).mean()
+        features_df["jackpot_rolling_std"] = features_df["jackpot"].rolling(window=5, min_periods=1).std()
+        features_df["jackpot_z_score"] = (features_df["jackpot"] - features_df["jackpot"].mean()) / (features_df["jackpot"].std() + 1e-8)
+
+        # 10. ENTROPY
+        def calculate_entropy(numbers):
+            hist, _ = np.histogram(numbers, bins=max(2, len(numbers) // 2))
+            hist = hist / hist.sum()
+            return -np.sum(hist * np.log2(hist + 1e-10))
+
+        features_df["entropy"] = data["numbers_list"].apply(calculate_entropy)
+
+        # 11. ADDITIONAL PREDICTIVE FEATURES (CatBoost / LightGBM only)
+        if include_extra_features:
+            features_df["num_uniqueness"] = data["numbers_list"].apply(lambda x: len(set(x)) / len(x))
+            features_df["sum_div_count"] = data["numbers_list"].apply(lambda x: np.sum(x) / len(x))
+            features_df["first_num"] = data["numbers_list"].apply(lambda x: x[0] if len(x) > 0 else 0)
+            features_df["last_num"] = data["numbers_list"].apply(lambda x: x[-1] if len(x) > 0 else 0)
+            features_df["center_mass"] = data["numbers_list"].apply(lambda x: np.mean(sorted(x)))
+            features_df["even_sum"] = data["numbers_list"].apply(lambda x: sum(n for n in x if n % 2 == 0))
+            features_df["odd_sum"] = data["numbers_list"].apply(lambda x: sum(n for n in x if n % 2 == 1))
+            features_df["max_min_ratio"] = data["numbers_list"].apply(lambda x: max(x) / (min(x) + 1e-8) if x else 0)
+
+        features_df = features_df.fillna(0)
+        # Exclude non-feature columns: draw_date (datetime) and numbers (string target)
+        feature_cols = [col for col in features_df.columns if col not in ('draw_date', 'numbers')]
+
+        # Pad / truncate to 93 features
+        while len(feature_cols) < 93:
+            pad_col = f"padding_{len(feature_cols)}"
+            features_df[pad_col] = 0.0
+            feature_cols.append(pad_col)
+        feature_cols = feature_cols[:93]
+
+        return features_df, feature_cols, data
+
     def generate_xgboost_features(self, raw_data: pd.DataFrame) -> Tuple[pd.DataFrame, Dict[str, Any]]:
-        """
-        Generate comprehensive XGBoost features from raw lottery data.
-        
-        Creates 100+ engineered features for gradient boosting, including:
-        - Statistical distributions
-        - Historical patterns
-        - Frequency analysis
-        - Spatial relationships
-        - Temporal patterns
-        """
+        """Generate XGBoost features (93 engineered features, no extra predictive block)."""
         try:
             app_log("Generating comprehensive XGBoost features...", "info")
-            
-            data = self._parse_numbers(raw_data)
-            max_num = 50
-            
-            features_df = pd.DataFrame()
-            features_df["draw_date"] = data["draw_date"]
-            
-            # ✅ CRITICAL: Preserve original numbers for multi-output target extraction
-            if "numbers" in data.columns:
-                features_df["numbers"] = data["numbers"]
-            
-            # 1. BASIC STATISTICAL FEATURES (10 features)
-            features_df["sum"] = data["numbers_list"].apply(np.sum)
-            features_df["mean"] = data["numbers_list"].apply(np.mean)
-            features_df["std"] = data["numbers_list"].apply(np.std)
-            features_df["var"] = data["numbers_list"].apply(np.var)
-            features_df["min"] = data["numbers_list"].apply(np.min)
-            features_df["max"] = data["numbers_list"].apply(np.max)
-            features_df["range"] = features_df["max"] - features_df["min"]
-            features_df["median"] = data["numbers_list"].apply(np.median)
-            features_df["skewness"] = data["numbers_list"].apply(lambda x: float(stats.skew(x)))
-            features_df["kurtosis"] = data["numbers_list"].apply(lambda x: float(stats.kurtosis(x)))
-            
-            # 2. DISTRIBUTION FEATURES (15 features)
-            for i in range(5):
-                low = i * 10
-                high = (i + 1) * 10
-                features_df[f"bucket_{i}_count"] = data["numbers_list"].apply(
-                    lambda x: sum(1 for n in x if low <= n < high)
-                )
-            
-            features_df["q1"] = data["numbers_list"].apply(lambda x: np.percentile(x, 25))
-            features_df["q2"] = data["numbers_list"].apply(lambda x: np.percentile(x, 50))
-            features_df["q3"] = data["numbers_list"].apply(lambda x: np.percentile(x, 75))
-            features_df["iqr"] = features_df["q3"] - features_df["q1"]
-            
-            features_df["p10"] = data["numbers_list"].apply(lambda x: np.percentile(x, 10))
-            features_df["p90"] = data["numbers_list"].apply(lambda x: np.percentile(x, 90))
-            features_df["p05"] = data["numbers_list"].apply(lambda x: np.percentile(x, 5))
-            features_df["p95"] = data["numbers_list"].apply(lambda x: np.percentile(x, 95))
-            
-            # 3. PARITY FEATURES (8 features)
-            features_df["even_count"] = data["numbers_list"].apply(lambda x: sum(1 for n in x if n % 2 == 0))
-            features_df["odd_count"] = data["numbers_list"].apply(lambda x: sum(1 for n in x if n % 2 == 1))
-            features_df["even_odd_ratio"] = features_df["even_count"] / (features_df["odd_count"] + 1e-8)
-            
-            for mod in [3, 5, 7, 11]:
-                features_df[f"mod_{mod}_var"] = data["numbers_list"].apply(
-                    lambda x: float(np.var([n % mod for n in x]))
-                )
-            
-            # 4. SPACING FEATURES (8 features)
-            def gap_analysis(numbers):
-                sorted_nums = sorted(numbers)
-                gaps = np.diff(sorted_nums)
-                return {
-                    'mean_gap': np.mean(gaps),
-                    'max_gap': np.max(gaps),
-                    'min_gap': np.min(gaps),
-                    'std_gap': np.std(gaps)
-                }
-            
-            gap_data = data["numbers_list"].apply(gap_analysis)
-            features_df["mean_gap"] = gap_data.apply(lambda x: x['mean_gap'])
-            features_df["max_gap"] = gap_data.apply(lambda x: x['max_gap'])
-            features_df["min_gap"] = gap_data.apply(lambda x: x['min_gap'])
-            features_df["std_gap"] = gap_data.apply(lambda x: x['std_gap'])
-            
-            def count_consecutive(numbers):
-                sorted_nums = sorted(numbers)
-                max_cons = 1
-                curr_cons = 1
-                for i in range(len(sorted_nums) - 1):
-                    if sorted_nums[i+1] - sorted_nums[i] == 1:
-                        curr_cons += 1
-                        max_cons = max(max_cons, curr_cons)
-                    else:
-                        curr_cons = 1
-                return max_cons
-            
-            features_df["max_consecutive"] = data["numbers_list"].apply(count_consecutive)
-            features_df["large_gap_count"] = gap_data.apply(
-                lambda x: sum(1 for gap in np.diff(sorted(data["numbers_list"].iloc[0])) if gap > 10)
-            )
-            
-            # 5. HISTORICAL FREQUENCY FEATURES (20 features)
-            for window in [5, 10, 20, 30, 60]:
-                freq_features = []
-                for idx in range(len(data)):
-                    if idx < window:
-                        freq_features.append(0)
-                    else:
-                        current_nums = set(data.iloc[idx]["numbers_list"])
-                        historical = data.iloc[max(0, idx-window):idx]["numbers_list"]
-                        freq_count = sum(len(current_nums & set(hist_nums)) for hist_nums in historical)
-                        freq_features.append(freq_count / (window * len(current_nums) + 1e-8))
-                
-                features_df[f"freq_match_w{window}"] = freq_features
-                
-                # New numbers not in recent history
-                new_features = []
-                for idx in range(len(data)):
-                    if idx < window:
-                        new_features.append(0)
-                    else:
-                        current_nums = set(data.iloc[idx]["numbers_list"])
-                        historical = data.iloc[max(0, idx-window):idx]["numbers_list"]
-                        recent_all = set()
-                        for hist_nums in historical:
-                            recent_all.update(hist_nums)
-                        new_count = len(current_nums - recent_all)
-                        new_features.append(new_count)
-                
-                features_df[f"new_numbers_w{window}"] = new_features
-            
-            # 6. ROLLING STATISTICS (15 features)
-            for window in [3, 5, 10]:
-                features_df[f"rolling_sum_w{window}"] = features_df["sum"].rolling(window=window, min_periods=1).mean()
-                features_df[f"rolling_mean_w{window}"] = features_df["mean"].rolling(window=window, min_periods=1).mean()
-                features_df[f"rolling_std_w{window}"] = features_df["mean"].rolling(window=window, min_periods=1).std()
-            
-            # 7. TEMPORAL FEATURES (10 features)
-            features_df["day_of_week"] = features_df["draw_date"].dt.dayofweek
-            features_df["month"] = features_df["draw_date"].dt.month
-            features_df["day_of_year"] = features_df["draw_date"].dt.dayofyear
-            features_df["week_of_year"] = features_df["draw_date"].dt.isocalendar().week
-            features_df["is_weekend"] = (features_df["day_of_week"] >= 5).astype(int)
-            features_df["season"] = features_df["month"].apply(lambda m: (m % 12) // 3)
-            
-            features_df["days_since_last"] = (features_df["draw_date"].diff()).dt.days
-            features_df["days_since_last"] = features_df["days_since_last"].fillna(0)
-            
-            # 8. BONUS FEATURES (8 features)
-            features_df["bonus"] = data["bonus_int"]
-            features_df["bonus_even_odd"] = (data["bonus_int"] % 2).apply(lambda x: 1.0 if x == 1 else 0.0)
-            features_df["bonus_change"] = features_df["bonus"].diff().fillna(0)
-            features_df["bonus_repeating"] = (features_df["bonus"] == features_df["bonus"].shift(1)).astype(int).fillna(0)
-            
-            for window in [5, 10]:
-                freq_list = []
-                for idx in range(len(features_df)):
-                    if idx < window:
-                        freq_list.append(0)
-                    else:
-                        freq = (features_df["bonus"].iloc[idx-window:idx] == features_df["bonus"].iloc[idx]).sum() / window
-                        freq_list.append(freq)
-                features_df[f"bonus_freq_w{window}"] = freq_list
-            
-            # 9. JACKPOT FEATURES (8 features)
-            features_df["jackpot"] = data["jackpot"]
-            features_df["jackpot_log"] = np.log1p(features_df["jackpot"])
-            features_df["jackpot_millions"] = features_df["jackpot"] / 1_000_000
-            features_df["jackpot_change"] = features_df["jackpot"].diff().fillna(0)
-            features_df["jackpot_change_pct"] = features_df["jackpot"].pct_change().fillna(0)
-            features_df["jackpot_rolling_mean"] = features_df["jackpot"].rolling(window=5, min_periods=1).mean()
-            features_df["jackpot_rolling_std"] = features_df["jackpot"].rolling(window=5, min_periods=1).std()
-            features_df["jackpot_z_score"] = (features_df["jackpot"] - features_df["jackpot"].mean()) / (features_df["jackpot"].std() + 1e-8)
-            
-            # 10. ENTROPY AND RANDOMNESS (5 features)
-            def calculate_entropy(numbers):
-                hist, _ = np.histogram(numbers, bins=max(2, len(numbers)//2))
-                hist = hist / hist.sum()
-                return -np.sum(hist * np.log2(hist + 1e-10))
-            
-            features_df["entropy"] = data["numbers_list"].apply(calculate_entropy)
-            
-            # Fill NaN values
-            features_df = features_df.fillna(0)
-            
-            # Drop draw_date for model training
-            feature_cols = [col for col in features_df.columns if col != 'draw_date']
-            
-            # Ensure exactly 93 features for XGBoost model compatibility
-            target_features = 93
-            if len(feature_cols) < target_features:
-                # Add padding columns filled with zeros
-                num_padding = target_features - len(feature_cols)
-                for i in range(num_padding):
-                    pad_col = f"padding_{i}"
-                    features_df[pad_col] = 0
-                    feature_cols.append(pad_col)
-                app_log(f"Padded XGBoost features from {len(feature_cols) - num_padding} to {target_features}", "info")
-            elif len(feature_cols) > target_features:
-                # Truncate to top 93 features (keep existing ones, drop padding if any)
-                feature_cols = feature_cols[:target_features]
-                features_df = features_df[feature_cols]
-                app_log(f"Truncated XGBoost features to {target_features}", "info")
-            
+            features_df, feature_cols, data = self._generate_tree_features(raw_data, include_extra_features=False)
+
+            feature_categories = [
+                "basic_statistics", "distribution", "parity", "spacing",
+                "historical_frequency", "rolling_statistics", "temporal",
+                "bonus", "jackpot", "entropy_randomness",
+            ]
             metadata = {
                 "model_type": "xgboost",
                 "game": self.game,
@@ -1287,42 +1272,27 @@ class AdvancedFeatureGenerator:
                     "rolling_windows": [3, 5, 10],
                     "modulo_operations": [3, 5, 7, 11],
                     "percentiles": [5, 10, 25, 50, 75, 90, 95],
-                    "target_features": target_features,
-                    "feature_categories": [
-                        "basic_statistics", "distribution", "parity", "spacing",
-                        "historical_frequency", "rolling_statistics", "temporal",
-                        "bonus", "jackpot", "entropy_randomness"
-                    ]
+                    "target_features": 93,
+                    "feature_categories": feature_categories,
                 },
-                "file_info": [
-                    {
-                        "file": str(f),
-                        "draws_count": len(pd.read_csv(f))
-                    }
-                    for f in self.get_raw_files()
-                ]
+                "file_info": [{"file": str(f), "draws_count": len(pd.read_csv(f))} for f in self.get_raw_files()],
             }
-            
-            app_log(f"✓ Generated {len(feature_cols)} advanced XGBoost features for {len(features_df)} draws (target: {target_features})", "info")
-            
-            # CREATE FEATURE SCHEMA
-            data_date_range = {
-                "min": str(features_df["draw_date"].min()),
-                "max": str(features_df["draw_date"].max())
-            }
+
+            data_date_range = {"min": str(features_df["draw_date"].min()), "max": str(features_df["draw_date"].max())}
             schema = self._create_feature_schema(
                 model_type="xgboost",
                 feature_names=feature_cols,
-                normalization_method="None",  # XGBoost uses raw values
+                normalization_method="None",
                 data_shape=(len(features_df), len(feature_cols)),
                 data_date_range=data_date_range,
-                feature_categories=metadata["params"]["feature_categories"],
-                notes="XGBoost features generated with advanced feature engineering"
+                feature_categories=feature_categories,
+                notes="XGBoost features generated with advanced feature engineering",
             )
             self._save_schema_with_features(schema, "xgboost")
-            
+
+            app_log(f"✓ Generated {len(feature_cols)} advanced XGBoost features for {len(features_df)} draws", "info")
             return features_df, metadata
-            
+
         except Exception as e:
             app_log(f"Error generating XGBoost features: {e}", "error")
             raise
@@ -1448,465 +1418,85 @@ class AdvancedFeatureGenerator:
             return False
     
     def generate_catboost_features(self, raw_data: pd.DataFrame) -> Tuple[pd.DataFrame, Dict[str, Any]]:
-        """
-        Generate comprehensive CatBoost features from raw lottery data.
-        Optimized for categorical features with 115+ engineered features.
-        """
+        """Generate CatBoost features (93 engineered features including extra predictive block)."""
         try:
             app_log("Generating CatBoost features optimized for categorical boosting...", "info")
-            
-            data = self._parse_numbers(raw_data)
-            features_df = pd.DataFrame()
-            features_df["draw_date"] = data["draw_date"]
-            
-            # ✅ CRITICAL: Preserve original numbers for multi-output target extraction
-            if "numbers" in data.columns:
-                features_df["numbers"] = data["numbers"]
-            
-            # 1. BASIC STATISTICAL FEATURES (10 features)
-            features_df["sum"] = data["numbers_list"].apply(np.sum)
-            features_df["mean"] = data["numbers_list"].apply(np.mean)
-            features_df["std"] = data["numbers_list"].apply(np.std)
-            features_df["var"] = data["numbers_list"].apply(np.var)
-            features_df["min"] = data["numbers_list"].apply(np.min)
-            features_df["max"] = data["numbers_list"].apply(np.max)
-            features_df["range"] = features_df["max"] - features_df["min"]
-            features_df["median"] = data["numbers_list"].apply(np.median)
-            features_df["skewness"] = data["numbers_list"].apply(lambda x: float(stats.skew(x)))
-            features_df["kurtosis"] = data["numbers_list"].apply(lambda x: float(stats.kurtosis(x)))
-            
-            # 2. DISTRIBUTION FEATURES (15 features)
-            for i in range(5):
-                low = i * 10
-                high = (i + 1) * 10
-                features_df[f"bucket_{i}_count"] = data["numbers_list"].apply(
-                    lambda x: sum(1 for n in x if low <= n < high)
-                )
-            
-            features_df["q1"] = data["numbers_list"].apply(lambda x: np.percentile(x, 25))
-            features_df["q2"] = data["numbers_list"].apply(lambda x: np.percentile(x, 50))
-            features_df["q3"] = data["numbers_list"].apply(lambda x: np.percentile(x, 75))
-            features_df["iqr"] = features_df["q3"] - features_df["q1"]
-            
-            features_df["p10"] = data["numbers_list"].apply(lambda x: np.percentile(x, 10))
-            features_df["p90"] = data["numbers_list"].apply(lambda x: np.percentile(x, 90))
-            features_df["p05"] = data["numbers_list"].apply(lambda x: np.percentile(x, 5))
-            features_df["p95"] = data["numbers_list"].apply(lambda x: np.percentile(x, 95))
-            
-            # 3. PARITY FEATURES (8 features)
-            features_df["even_count"] = data["numbers_list"].apply(lambda x: sum(1 for n in x if n % 2 == 0))
-            features_df["odd_count"] = data["numbers_list"].apply(lambda x: sum(1 for n in x if n % 2 == 1))
-            features_df["even_odd_ratio"] = features_df["even_count"] / (features_df["odd_count"] + 1e-8)
-            
-            for mod in [3, 5, 7, 11]:
-                features_df[f"mod_{mod}_var"] = data["numbers_list"].apply(
-                    lambda x: float(np.var([n % mod for n in x]))
-                )
-            
-            # 4. SPACING FEATURES (8 features)
-            def gap_analysis(numbers):
-                sorted_nums = sorted(numbers)
-                gaps = np.diff(sorted_nums)
-                return {
-                    'mean_gap': np.mean(gaps),
-                    'max_gap': np.max(gaps),
-                    'min_gap': np.min(gaps),
-                    'std_gap': np.std(gaps)
-                }
-            
-            gap_data = data["numbers_list"].apply(gap_analysis)
-            features_df["mean_gap"] = gap_data.apply(lambda x: x['mean_gap'])
-            features_df["max_gap"] = gap_data.apply(lambda x: x['max_gap'])
-            features_df["min_gap"] = gap_data.apply(lambda x: x['min_gap'])
-            features_df["std_gap"] = gap_data.apply(lambda x: x['std_gap'])
-            
-            def count_consecutive(numbers):
-                sorted_nums = sorted(numbers)
-                max_cons = 1
-                curr_cons = 1
-                for i in range(len(sorted_nums) - 1):
-                    if sorted_nums[i+1] - sorted_nums[i] == 1:
-                        curr_cons += 1
-                        max_cons = max(max_cons, curr_cons)
-                    else:
-                        curr_cons = 1
-                return max_cons
-            
-            features_df["max_consecutive"] = data["numbers_list"].apply(count_consecutive)
-            features_df["large_gap_count"] = data["numbers_list"].apply(
-                lambda x: sum(1 for gap in np.diff(sorted(x)) if gap > 10)
-            )
-            
-            # 5. HISTORICAL FREQUENCY FEATURES (20 features)
-            for window in [5, 10, 20, 30, 60]:
-                freq_features = []
-                for idx in range(len(data)):
-                    if idx < window:
-                        freq_features.append(0)
-                    else:
-                        current_nums = set(data.iloc[idx]["numbers_list"])
-                        historical = data.iloc[max(0, idx-window):idx]["numbers_list"]
-                        freq_count = sum(len(current_nums & set(hist_nums)) for hist_nums in historical)
-                        freq_features.append(freq_count / (window * len(current_nums) + 1e-8))
-                
-                features_df[f"freq_match_w{window}"] = freq_features
-                
-                # New numbers not in recent history
-                new_features = []
-                for idx in range(len(data)):
-                    if idx < window:
-                        new_features.append(0)
-                    else:
-                        current_nums = set(data.iloc[idx]["numbers_list"])
-                        historical = data.iloc[max(0, idx-window):idx]["numbers_list"]
-                        recent_all = set()
-                        for hist_nums in historical:
-                            recent_all.update(hist_nums)
-                        new_count = len(current_nums - recent_all)
-                        new_features.append(new_count)
-                
-                features_df[f"new_numbers_w{window}"] = new_features
-            
-            # 6. ROLLING STATISTICS (15 features)
-            for window in [3, 5, 10]:
-                features_df[f"rolling_sum_w{window}"] = features_df["sum"].rolling(window=window, min_periods=1).mean()
-                features_df[f"rolling_mean_w{window}"] = features_df["mean"].rolling(window=window, min_periods=1).mean()
-                features_df[f"rolling_std_w{window}"] = features_df["mean"].rolling(window=window, min_periods=1).std()
-            
-            # 7. TEMPORAL FEATURES (10 features)
-            features_df["day_of_week"] = features_df["draw_date"].dt.dayofweek
-            features_df["month"] = features_df["draw_date"].dt.month
-            features_df["day_of_year"] = features_df["draw_date"].dt.dayofyear
-            features_df["week_of_year"] = features_df["draw_date"].dt.isocalendar().week
-            features_df["is_weekend"] = (features_df["day_of_week"] >= 5).astype(int)
-            features_df["season"] = features_df["month"].apply(lambda m: (m % 12) // 3)
-            
-            features_df["days_since_last"] = (features_df["draw_date"].diff()).dt.days
-            features_df["days_since_last"] = features_df["days_since_last"].fillna(0)
-            
-            # 8. BONUS FEATURES (8 features)
-            features_df["bonus"] = data["bonus_int"]
-            features_df["bonus_even_odd"] = (data["bonus_int"] % 2).apply(lambda x: 1.0 if x == 1 else 0.0)
-            features_df["bonus_change"] = features_df["bonus"].diff().fillna(0)
-            features_df["bonus_repeating"] = (features_df["bonus"] == features_df["bonus"].shift(1)).astype(int).fillna(0)
-            
-            for window in [5, 10]:
-                freq_list = []
-                for idx in range(len(features_df)):
-                    if idx < window:
-                        freq_list.append(0)
-                    else:
-                        freq = (features_df["bonus"].iloc[idx-window:idx] == features_df["bonus"].iloc[idx]).sum() / window
-                        freq_list.append(freq)
-                features_df[f"bonus_freq_w{window}"] = freq_list
-            
-            # 9. JACKPOT FEATURES (8 features)
-            features_df["jackpot"] = data["jackpot"]
-            features_df["jackpot_log"] = np.log1p(features_df["jackpot"])
-            features_df["jackpot_millions"] = features_df["jackpot"] / 1_000_000
-            features_df["jackpot_change"] = features_df["jackpot"].diff().fillna(0)
-            features_df["jackpot_change_pct"] = features_df["jackpot"].pct_change().fillna(0)
-            features_df["jackpot_rolling_mean"] = features_df["jackpot"].rolling(window=5, min_periods=1).mean()
-            features_df["jackpot_rolling_std"] = features_df["jackpot"].rolling(window=5, min_periods=1).std()
-            features_df["jackpot_z_score"] = (features_df["jackpot"] - features_df["jackpot"].mean()) / (features_df["jackpot"].std() + 1e-8)
-            
-            # 10. ENTROPY AND RANDOMNESS (5 features)
-            def calculate_entropy(numbers):
-                hist, _ = np.histogram(numbers, bins=max(2, len(numbers)//2))
-                hist = hist / hist.sum()
-                return -np.sum(hist * np.log2(hist + 1e-10))
-            
-            features_df["entropy"] = data["numbers_list"].apply(calculate_entropy)
-            
-            # 11. ADDITIONAL PREDICTIVE FEATURES (8 features to reach 85 total)
-            # These features improve model predictions and match training data dimensions
-            features_df["num_uniqueness"] = data["numbers_list"].apply(lambda x: len(set(x)) / len(x))
-            features_df["sum_div_count"] = data["numbers_list"].apply(lambda x: np.sum(x) / len(x))
-            features_df["first_num"] = data["numbers_list"].apply(lambda x: x[0] if len(x) > 0 else 0)
-            features_df["last_num"] = data["numbers_list"].apply(lambda x: x[-1] if len(x) > 0 else 0)
-            features_df["center_mass"] = data["numbers_list"].apply(lambda x: np.mean(sorted(x)))
-            features_df["even_sum"] = data["numbers_list"].apply(lambda x: sum(n for n in x if n % 2 == 0))
-            features_df["odd_sum"] = data["numbers_list"].apply(lambda x: sum(n for n in x if n % 2 == 1))
-            features_df["max_min_ratio"] = data["numbers_list"].apply(lambda x: max(x) / (min(x) + 1e-8) if len(x) > 0 else 0)
-            
-            # Fill NaN values
-            features_df = features_df.fillna(0)
-            
-            # Drop draw_date for model training
-            feature_cols = [col for col in features_df.columns if col != 'draw_date']
-            
-            # Pad to 93 features for model compatibility
-            while len(feature_cols) < 93:
-                pad_idx = len(feature_cols)
-                features_df[f'padding_{pad_idx}'] = 0.0
-                feature_cols.append(f'padding_{pad_idx}')
-            feature_cols = feature_cols[:93]
-            
+            features_df, feature_cols, data = self._generate_tree_features(raw_data, include_extra_features=True)
+
+            feature_categories = [
+                'Statistical', 'Distribution', 'Parity', 'Spacing',
+                'Historical Frequency', 'Rolling Statistics', 'Temporal',
+                'Bonus', 'Jackpot', 'Entropy', 'Additional Predictive',
+            ]
             metadata = {
                 'model_type': 'catboost',
                 'generated_at': datetime.now().isoformat(),
                 'total_draws': len(features_df),
                 'feature_count': len(feature_cols),
+                'features': feature_cols,
                 'params': {
-                    'feature_categories': [
-                        'Statistical', 'Distribution', 'Parity', 'Spacing',
-                        'Historical Frequency', 'Rolling Statistics', 'Temporal',
-                        'Bonus', 'Jackpot', 'Entropy', 'Additional Predictive'
-                    ],
+                    'feature_categories': feature_categories,
                     'categorical_features': [
                         'bucket_0_count', 'bucket_1_count', 'bucket_2_count', 'bucket_3_count', 'bucket_4_count',
-                        'even_count', 'odd_count', 'is_weekend', 'bonus_repeating'
-                    ]
-                }
+                        'even_count', 'odd_count', 'is_weekend', 'bonus_repeating',
+                    ],
+                },
             }
-            
-            # CREATE FEATURE SCHEMA
-            data_date_range = {
-                "min": str(features_df["draw_date"].min()),
-                "max": str(features_df["draw_date"].max())
-            }
+
+            data_date_range = {"min": str(features_df["draw_date"].min()), "max": str(features_df["draw_date"].max())}
             schema = self._create_feature_schema(
                 model_type="catboost",
                 feature_names=feature_cols,
-                normalization_method="None",  # CatBoost handles normalization
+                normalization_method="None",
                 data_shape=(len(features_df), len(feature_cols)),
                 data_date_range=data_date_range,
-                feature_categories=metadata["params"]["feature_categories"],
-                notes="CatBoost features with categorical feature optimization"
+                feature_categories=feature_categories,
+                notes="CatBoost features with categorical feature optimization",
             )
             self._save_schema_with_features(schema, "catboost")
-            
+
+            app_log(f"✓ Generated {len(feature_cols)} CatBoost features for {len(features_df)} draws", "info")
             return features_df, metadata
         except Exception as e:
             app_log(f"Error generating CatBoost features: {e}", "error")
             return pd.DataFrame(), {}
     
     def generate_lightgbm_features(self, raw_data: pd.DataFrame) -> Tuple[pd.DataFrame, Dict[str, Any]]:
-        """
-        Generate comprehensive LightGBM features from raw lottery data.
-        Optimized for gradient boosting with 115+ engineered features.
-        """
+        """Generate LightGBM features (93 engineered features including extra predictive block)."""
         try:
             app_log("Generating LightGBM features optimized for gradient boosting...", "info")
-            
-            data = self._parse_numbers(raw_data)
-            features_df = pd.DataFrame()
-            features_df["draw_date"] = data["draw_date"]
-            
-            # ✅ CRITICAL: Preserve original numbers for multi-output target extraction
-            if "numbers" in data.columns:
-                features_df["numbers"] = data["numbers"]
-            
-            # 1. BASIC STATISTICAL FEATURES (10 features)
-            features_df["sum"] = data["numbers_list"].apply(np.sum)
-            features_df["mean"] = data["numbers_list"].apply(np.mean)
-            features_df["std"] = data["numbers_list"].apply(np.std)
-            features_df["var"] = data["numbers_list"].apply(np.var)
-            features_df["min"] = data["numbers_list"].apply(np.min)
-            features_df["max"] = data["numbers_list"].apply(np.max)
-            features_df["range"] = features_df["max"] - features_df["min"]
-            features_df["median"] = data["numbers_list"].apply(np.median)
-            features_df["skewness"] = data["numbers_list"].apply(lambda x: float(stats.skew(x)))
-            features_df["kurtosis"] = data["numbers_list"].apply(lambda x: float(stats.kurtosis(x)))
-            
-            # 2. DISTRIBUTION FEATURES (15 features)
-            for i in range(5):
-                low = i * 10
-                high = (i + 1) * 10
-                features_df[f"bucket_{i}_count"] = data["numbers_list"].apply(
-                    lambda x: sum(1 for n in x if low <= n < high)
-                )
-            
-            features_df["q1"] = data["numbers_list"].apply(lambda x: np.percentile(x, 25))
-            features_df["q2"] = data["numbers_list"].apply(lambda x: np.percentile(x, 50))
-            features_df["q3"] = data["numbers_list"].apply(lambda x: np.percentile(x, 75))
-            features_df["iqr"] = features_df["q3"] - features_df["q1"]
-            
-            features_df["p10"] = data["numbers_list"].apply(lambda x: np.percentile(x, 10))
-            features_df["p90"] = data["numbers_list"].apply(lambda x: np.percentile(x, 90))
-            features_df["p05"] = data["numbers_list"].apply(lambda x: np.percentile(x, 5))
-            features_df["p95"] = data["numbers_list"].apply(lambda x: np.percentile(x, 95))
-            
-            # 3. PARITY FEATURES (8 features)
-            features_df["even_count"] = data["numbers_list"].apply(lambda x: sum(1 for n in x if n % 2 == 0))
-            features_df["odd_count"] = data["numbers_list"].apply(lambda x: sum(1 for n in x if n % 2 == 1))
-            features_df["even_odd_ratio"] = features_df["even_count"] / (features_df["odd_count"] + 1e-8)
-            
-            for mod in [3, 5, 7, 11]:
-                features_df[f"mod_{mod}_var"] = data["numbers_list"].apply(
-                    lambda x: float(np.var([n % mod for n in x]))
-                )
-            
-            # 4. SPACING FEATURES (8 features)
-            def gap_analysis(numbers):
-                sorted_nums = sorted(numbers)
-                gaps = np.diff(sorted_nums)
-                return {
-                    'mean_gap': np.mean(gaps),
-                    'max_gap': np.max(gaps),
-                    'min_gap': np.min(gaps),
-                    'std_gap': np.std(gaps)
-                }
-            
-            gap_data = data["numbers_list"].apply(gap_analysis)
-            features_df["mean_gap"] = gap_data.apply(lambda x: x['mean_gap'])
-            features_df["max_gap"] = gap_data.apply(lambda x: x['max_gap'])
-            features_df["min_gap"] = gap_data.apply(lambda x: x['min_gap'])
-            features_df["std_gap"] = gap_data.apply(lambda x: x['std_gap'])
-            
-            def count_consecutive(numbers):
-                sorted_nums = sorted(numbers)
-                max_cons = 1
-                curr_cons = 1
-                for i in range(len(sorted_nums) - 1):
-                    if sorted_nums[i+1] - sorted_nums[i] == 1:
-                        curr_cons += 1
-                        max_cons = max(max_cons, curr_cons)
-                    else:
-                        curr_cons = 1
-                return max_cons
-            
-            features_df["max_consecutive"] = data["numbers_list"].apply(count_consecutive)
-            features_df["large_gap_count"] = data["numbers_list"].apply(
-                lambda x: sum(1 for gap in np.diff(sorted(x)) if gap > 10)
-            )
-            
-            # 5. HISTORICAL FREQUENCY FEATURES (20 features)
-            for window in [5, 10, 20, 30, 60]:
-                freq_features = []
-                for idx in range(len(data)):
-                    if idx < window:
-                        freq_features.append(0)
-                    else:
-                        current_nums = set(data.iloc[idx]["numbers_list"])
-                        historical = data.iloc[max(0, idx-window):idx]["numbers_list"]
-                        freq_count = sum(len(current_nums & set(hist_nums)) for hist_nums in historical)
-                        freq_features.append(freq_count / (window * len(current_nums) + 1e-8))
-                
-                features_df[f"freq_match_w{window}"] = freq_features
-                
-                # New numbers not in recent history
-                new_features = []
-                for idx in range(len(data)):
-                    if idx < window:
-                        new_features.append(0)
-                    else:
-                        current_nums = set(data.iloc[idx]["numbers_list"])
-                        historical = data.iloc[max(0, idx-window):idx]["numbers_list"]
-                        recent_all = set()
-                        for hist_nums in historical:
-                            recent_all.update(hist_nums)
-                        new_count = len(current_nums - recent_all)
-                        new_features.append(new_count)
-                
-                features_df[f"new_numbers_w{window}"] = new_features
-            
-            # 6. ROLLING STATISTICS (15 features)
-            for window in [3, 5, 10]:
-                features_df[f"rolling_sum_w{window}"] = features_df["sum"].rolling(window=window, min_periods=1).mean()
-                features_df[f"rolling_mean_w{window}"] = features_df["mean"].rolling(window=window, min_periods=1).mean()
-                features_df[f"rolling_std_w{window}"] = features_df["mean"].rolling(window=window, min_periods=1).std()
-            
-            # 7. TEMPORAL FEATURES (10 features)
-            features_df["day_of_week"] = features_df["draw_date"].dt.dayofweek
-            features_df["month"] = features_df["draw_date"].dt.month
-            features_df["day_of_year"] = features_df["draw_date"].dt.dayofyear
-            features_df["week_of_year"] = features_df["draw_date"].dt.isocalendar().week
-            features_df["is_weekend"] = (features_df["day_of_week"] >= 5).astype(int)
-            features_df["season"] = features_df["month"].apply(lambda m: (m % 12) // 3)
-            
-            features_df["days_since_last"] = (features_df["draw_date"].diff()).dt.days
-            features_df["days_since_last"] = features_df["days_since_last"].fillna(0)
-            
-            # 8. BONUS FEATURES (8 features)
-            features_df["bonus"] = data["bonus_int"]
-            features_df["bonus_even_odd"] = (data["bonus_int"] % 2).apply(lambda x: 1.0 if x == 1 else 0.0)
-            features_df["bonus_change"] = features_df["bonus"].diff().fillna(0)
-            features_df["bonus_repeating"] = (features_df["bonus"] == features_df["bonus"].shift(1)).astype(int).fillna(0)
-            
-            for window in [5, 10]:
-                freq_list = []
-                for idx in range(len(features_df)):
-                    if idx < window:
-                        freq_list.append(0)
-                    else:
-                        freq = (features_df["bonus"].iloc[idx-window:idx] == features_df["bonus"].iloc[idx]).sum() / window
-                        freq_list.append(freq)
-                features_df[f"bonus_freq_w{window}"] = freq_list
-            
-            # 9. JACKPOT FEATURES (8 features)
-            features_df["jackpot"] = data["jackpot"]
-            features_df["jackpot_log"] = np.log1p(features_df["jackpot"])
-            features_df["jackpot_millions"] = features_df["jackpot"] / 1_000_000
-            features_df["jackpot_change"] = features_df["jackpot"].diff().fillna(0)
-            features_df["jackpot_change_pct"] = features_df["jackpot"].pct_change().fillna(0)
-            features_df["jackpot_rolling_mean"] = features_df["jackpot"].rolling(window=5, min_periods=1).mean()
-            features_df["jackpot_rolling_std"] = features_df["jackpot"].rolling(window=5, min_periods=1).std()
-            features_df["jackpot_z_score"] = (features_df["jackpot"] - features_df["jackpot"].mean()) / (features_df["jackpot"].std() + 1e-8)
-            
-            # 10. ENTROPY AND RANDOMNESS (5 features)
-            def calculate_entropy(numbers):
-                hist, _ = np.histogram(numbers, bins=max(2, len(numbers)//2))
-                hist = hist / hist.sum()
-                return -np.sum(hist * np.log2(hist + 1e-10))
-            
-            features_df["entropy"] = data["numbers_list"].apply(calculate_entropy)
-            
-            # 11. ADDITIONAL PREDICTIVE FEATURES (8 features to reach 85 total)
-            # These features improve model predictions and match training data dimensions
-            features_df["num_uniqueness"] = data["numbers_list"].apply(lambda x: len(set(x)) / len(x))
-            features_df["sum_div_count"] = data["numbers_list"].apply(lambda x: np.sum(x) / len(x))
-            features_df["first_num"] = data["numbers_list"].apply(lambda x: x[0] if len(x) > 0 else 0)
-            features_df["last_num"] = data["numbers_list"].apply(lambda x: x[-1] if len(x) > 0 else 0)
-            features_df["center_mass"] = data["numbers_list"].apply(lambda x: np.mean(sorted(x)))
-            features_df["even_sum"] = data["numbers_list"].apply(lambda x: sum(n for n in x if n % 2 == 0))
-            features_df["odd_sum"] = data["numbers_list"].apply(lambda x: sum(n for n in x if n % 2 == 1))
-            features_df["max_min_ratio"] = data["numbers_list"].apply(lambda x: max(x) / (min(x) + 1e-8) if len(x) > 0 else 0)
-            
-            # Fill NaN values
-            features_df = features_df.fillna(0)
-            
-            # Drop draw_date for model training
-            feature_cols = [col for col in features_df.columns if col != 'draw_date']
-            
-            # Pad to 93 features for model compatibility
-            while len(feature_cols) < 93:
-                pad_idx = len(feature_cols)
-                features_df[f'padding_{pad_idx}'] = 0.0
-                feature_cols.append(f'padding_{pad_idx}')
-            feature_cols = feature_cols[:93]
-            
+            features_df, feature_cols, data = self._generate_tree_features(raw_data, include_extra_features=True)
+
+            feature_categories = [
+                'Statistical', 'Distribution', 'Parity', 'Spacing',
+                'Historical Frequency', 'Rolling Statistics', 'Temporal',
+                'Bonus', 'Jackpot', 'Entropy', 'Additional Predictive',
+            ]
             metadata = {
                 'model_type': 'lightgbm',
                 'generated_at': datetime.now().isoformat(),
                 'total_draws': len(features_df),
                 'feature_count': len(feature_cols),
+                'features': feature_cols,
                 'params': {
-                    'feature_categories': [
-                        'Statistical', 'Distribution', 'Parity', 'Spacing',
-                        'Historical Frequency', 'Rolling Statistics', 'Temporal',
-                        'Bonus', 'Jackpot', 'Entropy', 'Additional Predictive'
-                    ],
-                    'metric': 'gamma'
-                }
+                    'feature_categories': feature_categories,
+                    'metric': 'gamma',
+                },
             }
-            
-            # CREATE FEATURE SCHEMA
-            data_date_range = {
-                "min": str(features_df["draw_date"].min()),
-                "max": str(features_df["draw_date"].max())
-            }
+
+            data_date_range = {"min": str(features_df["draw_date"].min()), "max": str(features_df["draw_date"].max())}
             schema = self._create_feature_schema(
                 model_type="lightgbm",
                 feature_names=feature_cols,
-                normalization_method="None",  # LightGBM handles normalization
+                normalization_method="None",
                 data_shape=(len(features_df), len(feature_cols)),
                 data_date_range=data_date_range,
-                feature_categories=metadata["params"]["feature_categories"],
-                notes="LightGBM features optimized for gradient boosting"
+                feature_categories=feature_categories,
+                notes="LightGBM features optimized for gradient boosting",
             )
             self._save_schema_with_features(schema, "lightgbm")
-            
+
+            app_log(f"✓ Generated {len(feature_cols)} LightGBM features for {len(features_df)} draws", "info")
             return features_df, metadata
         except Exception as e:
             app_log(f"Error generating LightGBM features: {e}", "error")
@@ -2260,7 +1850,7 @@ class AdvancedFeatureGenerator:
                                numbers: List[int], config: Dict[str, Any]) -> Dict[str, float]:
         """Apply enhanced lottery features based on configuration."""
         features = {}
-        max_num = 50
+        max_num = self._game_max_num
         
         if config.get('frequency', False):
             freq_windows = config.get('frequency_windows', [10, 20, 50])

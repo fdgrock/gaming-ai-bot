@@ -793,24 +793,24 @@ class ProbabilityGenerator:
                         logger.info(f"Transformer features fallback, shape: {features.shape}")
                     
                 elif model_type == "xgboost":
-                    features_df, _ = self.feature_generator.generate_xgboost_features(historical_data)
-                    # DataFrame with multiple rows - take last row
-                    numeric_cols = features_df.select_dtypes(include=[np.number]).columns
-                    features = features_df[numeric_cols].iloc[-1:].values
+                    features_df, feat_meta = self.feature_generator.generate_xgboost_features(historical_data)
+                    feat_names = feat_meta.get("features") or list(features_df.select_dtypes(include=[np.number]).columns)
+                    feat_names = [c for c in feat_names if c in features_df.columns]
+                    features = features_df[feat_names].iloc[-1:].values
                     logger.info(f"XGBoost features shape: {features.shape}")
-                    
+
                 elif model_type == "catboost":
-                    features_df, _ = self.feature_generator.generate_catboost_features(historical_data)
-                    # DataFrame with multiple rows - take last row
-                    numeric_cols = features_df.select_dtypes(include=[np.number]).columns
-                    features = features_df[numeric_cols].iloc[-1:].values
+                    features_df, feat_meta = self.feature_generator.generate_catboost_features(historical_data)
+                    feat_names = feat_meta.get("features") or list(features_df.select_dtypes(include=[np.number]).columns)
+                    feat_names = [c for c in feat_names if c in features_df.columns]
+                    features = features_df[feat_names].iloc[-1:].values
                     logger.info(f"CatBoost features shape: {features.shape}")
-                    
+
                 elif model_type == "lightgbm":
-                    features_df, _ = self.feature_generator.generate_lightgbm_features(historical_data)
-                    # DataFrame with multiple rows - take last row
-                    numeric_cols = features_df.select_dtypes(include=[np.number]).columns
-                    features = features_df[numeric_cols].iloc[-1:].values
+                    features_df, feat_meta = self.feature_generator.generate_lightgbm_features(historical_data)
+                    feat_names = feat_meta.get("features") or list(features_df.select_dtypes(include=[np.number]).columns)
+                    feat_names = [c for c in feat_names if c in features_df.columns]
+                    features = features_df[feat_names].iloc[-1:].values
                     logger.info(f"LightGBM features shape: {features.shape}")
                     
                 else:
