@@ -8,6 +8,7 @@ import numpy as np
 from typing import Optional, Dict, Any, List, Tuple
 from pathlib import Path
 import os
+import time
 from datetime import datetime
 import requests
 
@@ -491,13 +492,18 @@ def _scrape_lottery_data(url: str, year: int) -> Optional[pd.DataFrame]:
                 last_error = f"Connection timed out after {timeout} seconds"
                 app_log(f"Attempt {attempt + 1} timed out", "warning")
                 if attempt < max_retries - 1:
-                    st.warning(f"Attempt {attempt + 1} timed out. Retrying with longer timeout...")
+                    wait_sec = 2 ** attempt
+                    st.warning(f"Attempt {attempt + 1} timed out. Waiting {wait_sec}s before retry...")
+                    time.sleep(wait_sec)
             except requests.exceptions.RequestException as e:
                 last_error = str(e)
                 app_log(f"Attempt {attempt + 1} failed: {e}", "warning")
                 if attempt < max_retries - 1:
-                    st.warning(f"Attempt {attempt + 1} failed: {str(e)}. Retrying...")
-                break  # Don't retry on non-timeout errors
+                    wait_sec = 2 ** attempt
+                    st.warning(f"Attempt {attempt + 1} failed: {str(e)}. Waiting {wait_sec}s before retry...")
+                    time.sleep(wait_sec)
+                else:
+                    break  # Don't retry on non-timeout errors after last attempt
         
         if response is None:
             error_msg = f"Failed to fetch URL after {max_retries} attempts: {last_error}"
@@ -1629,7 +1635,7 @@ def _render_advanced_features():
                 enhanced_features_config = st.session_state.get('enhanced_features_config', {})
                 target_representation = st.session_state.get('target_representation_mode', 'binary')
                 
-                xgb_features, xgb_metadata = feature_gen.generate_xgboost_features(raw_data)
+                xgb_features, xgb_metadata = feature_gen.generate_xgboost_features(raw_data, feature_config=enhanced_features_config)
                 original_feature_count = len(xgb_features.columns)
                 
                 # Track quality indicators for save function
@@ -1757,7 +1763,7 @@ def _render_advanced_features():
                 enhanced_features_config = st.session_state.get('enhanced_features_config', {})
                 target_representation = st.session_state.get('target_representation_mode', 'binary')
                 
-                cb_features, cb_metadata = feature_gen.generate_catboost_features(raw_data)
+                cb_features, cb_metadata = feature_gen.generate_catboost_features(raw_data, feature_config=enhanced_features_config)
                 original_feature_count = len(cb_features.columns)
                 
                 # Track quality indicators
@@ -1867,7 +1873,7 @@ def _render_advanced_features():
                 enhanced_features_config = st.session_state.get('enhanced_features_config', {})
                 target_representation = st.session_state.get('target_representation_mode', 'binary')
                 
-                lgb_features, lgb_metadata = feature_gen.generate_lightgbm_features(raw_data)
+                lgb_features, lgb_metadata = feature_gen.generate_lightgbm_features(raw_data, feature_config=enhanced_features_config)
                 original_feature_count = len(lgb_features.columns)
                 
                 # Track quality indicators

@@ -1082,6 +1082,7 @@ class AdvancedFeatureGenerator:
         self,
         raw_data: pd.DataFrame,
         include_extra_features: bool = True,
+        freq_windows: Optional[List[int]] = None,
     ) -> Tuple[pd.DataFrame, List[str], pd.DataFrame]:
         """Shared feature computation used by XGBoost, CatBoost, and LightGBM."""
         data = self._parse_numbers(raw_data)
@@ -1157,7 +1158,8 @@ class AdvancedFeatureGenerator:
         )
 
         # 5. HISTORICAL FREQUENCY FEATURES
-        for window in [5, 10, 20, 30, 60]:
+        _freq_windows = sorted(set(freq_windows)) if freq_windows else [5, 10, 20, 30, 60]
+        for window in _freq_windows:
             freq_features, new_features = [], []
             for idx in range(len(data)):
                 if idx < window:
@@ -1247,12 +1249,20 @@ class AdvancedFeatureGenerator:
 
         return features_df, feature_cols, data
 
-    def generate_xgboost_features(self, raw_data: pd.DataFrame) -> Tuple[pd.DataFrame, Dict[str, Any]]:
+    def generate_xgboost_features(
+        self,
+        raw_data: pd.DataFrame,
+        feature_config: Optional[Dict[str, Any]] = None,
+    ) -> Tuple[pd.DataFrame, Dict[str, Any]]:
         """Generate XGBoost features (93 engineered features, no extra predictive block)."""
         try:
             app_log("Generating comprehensive XGBoost features...", "info")
-            features_df, feature_cols, data = self._generate_tree_features(raw_data, include_extra_features=False)
+            freq_windows = (feature_config or {}).get("frequency_windows") or None
+            features_df, feature_cols, data = self._generate_tree_features(
+                raw_data, include_extra_features=False, freq_windows=freq_windows
+            )
 
+            actual_windows = sorted(set(freq_windows)) if freq_windows else [5, 10, 20, 30, 60]
             feature_categories = [
                 "basic_statistics", "distribution", "parity", "spacing",
                 "historical_frequency", "rolling_statistics", "temporal",
@@ -1267,8 +1277,9 @@ class AdvancedFeatureGenerator:
                 "feature_count": len(feature_cols),
                 "features": feature_cols,
                 "timestamp": datetime.now().isoformat(),
+                "feature_config": feature_config or {},
                 "params": {
-                    "lookback_windows": [5, 10, 20, 30, 60],
+                    "lookback_windows": actual_windows,
                     "rolling_windows": [3, 5, 10],
                     "modulo_operations": [3, 5, 7, 11],
                     "percentiles": [5, 10, 25, 50, 75, 90, 95],
@@ -1417,11 +1428,18 @@ class AdvancedFeatureGenerator:
             app_log(f"Error saving XGBoost features: {e}", "error")
             return False
     
-    def generate_catboost_features(self, raw_data: pd.DataFrame) -> Tuple[pd.DataFrame, Dict[str, Any]]:
+    def generate_catboost_features(
+        self,
+        raw_data: pd.DataFrame,
+        feature_config: Optional[Dict[str, Any]] = None,
+    ) -> Tuple[pd.DataFrame, Dict[str, Any]]:
         """Generate CatBoost features (93 engineered features including extra predictive block)."""
         try:
             app_log("Generating CatBoost features optimized for categorical boosting...", "info")
-            features_df, feature_cols, data = self._generate_tree_features(raw_data, include_extra_features=True)
+            freq_windows = (feature_config or {}).get("frequency_windows") or None
+            features_df, feature_cols, data = self._generate_tree_features(
+                raw_data, include_extra_features=True, freq_windows=freq_windows
+            )
 
             feature_categories = [
                 'Statistical', 'Distribution', 'Parity', 'Spacing',
@@ -1461,11 +1479,18 @@ class AdvancedFeatureGenerator:
             app_log(f"Error generating CatBoost features: {e}", "error")
             return pd.DataFrame(), {}
     
-    def generate_lightgbm_features(self, raw_data: pd.DataFrame) -> Tuple[pd.DataFrame, Dict[str, Any]]:
+    def generate_lightgbm_features(
+        self,
+        raw_data: pd.DataFrame,
+        feature_config: Optional[Dict[str, Any]] = None,
+    ) -> Tuple[pd.DataFrame, Dict[str, Any]]:
         """Generate LightGBM features (93 engineered features including extra predictive block)."""
         try:
             app_log("Generating LightGBM features optimized for gradient boosting...", "info")
-            features_df, feature_cols, data = self._generate_tree_features(raw_data, include_extra_features=True)
+            freq_windows = (feature_config or {}).get("frequency_windows") or None
+            features_df, feature_cols, data = self._generate_tree_features(
+                raw_data, include_extra_features=True, freq_windows=freq_windows
+            )
 
             feature_categories = [
                 'Statistical', 'Distribution', 'Parity', 'Spacing',
