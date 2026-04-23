@@ -447,7 +447,15 @@ class ProbabilityGenerator:
             if model_type in ["xgboost", "catboost", "lightgbm"]:
                 # Tree models use joblib and output class probabilities
                 model = joblib.load(model_path)
-                
+
+                # Apply the scaler that was saved alongside the model at training time
+                if hasattr(model, 'scaler_') and model.scaler_ is not None:
+                    try:
+                        features = model.scaler_.transform(features)
+                        logger.info(f"Applied saved scaler ({type(model.scaler_).__name__}) to {model_type} features")
+                    except Exception as scaler_err:
+                        logger.warning(f"Could not apply scaler: {scaler_err} — using unscaled features")
+
                 if hasattr(model, 'predict_proba'):
                     proba_output = model.predict_proba(features)
                     
