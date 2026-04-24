@@ -3327,6 +3327,46 @@ understanding that lottery outcomes remain random and unpredictable.
             except Exception as _profile_blend_err:
                 strategy_log['jackpot_profile_blend_error'] = str(_profile_blend_err)[:200]
 
+        # ── Pre-compute historical frequencies ONCE ───────────────────────────
+        # Used for: (a) historical frequency gravity correction, (b) ghost detection,
+        # (c) learning blend ghost cap.  Must be computed before the learning-file
+        # blend (line below) and the gravity correction that follow.
+        _precomp_hist_freq = np.ones(max_number, dtype=np.float64) / max_number
+        _precomp_ghost_nums: set = set()
+        _precomp_ghost_threshold: float = 5.0
+        try:
+            import glob as _pcg
+            _pcg_folder = _sanitize_game_name(self.game)
+            _pcg_csvs = sorted(_pcg.glob(str(Path("data") / _pcg_folder / "*.csv")))
+            if _pcg_csvs:
+                import pandas as _pd_pc
+                _pcg_chunks = [_pd_pc.read_csv(f, usecols=['numbers']) for f in _pcg_csvs[-3:]]
+                _pcg_df = _pd_pc.concat(_pcg_chunks, ignore_index=True)
+                _pcg_cnt: dict = {}
+                for _pcg_row in _pcg_df['numbers'].dropna():
+                    for _pcg_n in str(_pcg_row).split(','):
+                        try:
+                            _pcg_ni = int(_pcg_n.strip())
+                            if 1 <= _pcg_ni <= max_number:
+                                _pcg_cnt[_pcg_ni] = _pcg_cnt.get(_pcg_ni, 0) + 1
+                        except ValueError:
+                            pass
+                if _pcg_cnt:
+                    _pcg_max = max(_pcg_cnt.values())
+                    _precomp_ghost_threshold = max(5.0, _pcg_max * 0.02)
+                    _precomp_ghost_nums = {
+                        n for n in range(1, max_number + 1)
+                        if _pcg_cnt.get(n, 0) < _precomp_ghost_threshold
+                    }
+                    _pcg_freq = np.array(
+                        [float(_pcg_cnt.get(n, 0)) for n in range(1, max_number + 1)],
+                        dtype=np.float64,
+                    )
+                    _pcg_freq = np.clip(_pcg_freq, 1e-3, None)
+                    _precomp_hist_freq = _pcg_freq / _pcg_freq.sum()
+        except Exception:
+            pass  # Non-fatal — fall back to uniform baseline
+
         # ===== RECENT PER-DRAW LEARNING FILE BLEND (Priority 5) =====
         # Load the 5 most recent draw_*_learning.json files and blend their hot-number
         # frequency data into the probability distribution with recency-weighted decay.
@@ -3423,11 +3463,11 @@ understanding that lottery outcomes remain random and unpredictable.
         # The position-based tree models systematically over-weight low-zone numbers
         # (model for position 1 always predicts small numbers; when max-pooled across
         # positions, numbers 1-6 absorb 20-28% of probability vs ~13.5% expected).
-        # Blending 22% of actual historical draw frequency corrects this without
-        # discarding the model signal.  The pre-computed _precomp_hist_freq is a
-        # 3-year rolling frequency from raw CSV — it tracks game distribution changes.
+        # Blending 30% of actual historical draw frequency corrects this without
+        # discarding the model signal.  Increased from 22% → 30% after observing
+        # top-10 mean sum of 173.2 vs expected 185.5 (Apr 2026 analysis).
         if _precomp_hist_freq is not None and len(_precomp_hist_freq) == max_number:
-            prob_values = 0.78 * prob_values + 0.22 * _precomp_hist_freq
+            prob_values = 0.70 * prob_values + 0.30 * _precomp_hist_freq
             prob_values /= prob_values.sum()
 
         # ===== COMPUTE DRAW AGE FOR TEMPORAL DECAY (Priority 4) =====
@@ -3532,8 +3572,8 @@ understanding that lottery outcomes remain random and unpredictable.
         # of whether no_repeat_numbers is enabled.
         _cross_set_count: Dict[int, int] = {}   # number → times selected so far
         # Maximum fraction of sets a number is allowed to dominate before suppression kicks in
-        # Tightened from 0.35 → 0.25 to suppress dominance sooner
-        _dominance_threshold = 0.25   # suppress if number appears in >25% of sets so far
+        # Tightened 0.35 → 0.25 → 0.15 to suppress dominance sooner
+        _dominance_threshold = 0.15   # suppress if number appears in >15% of sets so far
 
         # ===== PATTERN ANALYSIS FROM MODEL PROBABILITIES =====
         # Identify hot (high probability) and cold (low probability) numbers
@@ -3576,46 +3616,6 @@ understanding that lottery outcomes remain random and unpredictable.
 
         # Get list of all selected models for coverage verification
         selected_model_names = list(model_probabilities.keys())
-
-        # ── Pre-compute historical frequencies ONCE (not per set) ──────────────
-        # Used for: (a) historical frequency gravity correction, (b) ghost detection,
-        # (c) learning blend ghost cap.  Reading the CSV 63× per generation was the
-        # main source of per-set latency; loading it once removes that cost.
-        _precomp_hist_freq = np.ones(max_number, dtype=np.float64) / max_number
-        _precomp_ghost_nums: set = set()
-        _precomp_ghost_threshold: float = 5.0
-        try:
-            import glob as _pcg
-            _pcg_folder = _sanitize_game_name(self.game)
-            _pcg_csvs = sorted(_pcg.glob(str(Path("data") / _pcg_folder / "*.csv")))
-            if _pcg_csvs:
-                import pandas as _pd_pc
-                _pcg_chunks = [_pd_pc.read_csv(f, usecols=['numbers']) for f in _pcg_csvs[-3:]]
-                _pcg_df = _pd_pc.concat(_pcg_chunks, ignore_index=True)
-                _pcg_cnt: dict = {}
-                for _pcg_row in _pcg_df['numbers'].dropna():
-                    for _pcg_n in str(_pcg_row).split(','):
-                        try:
-                            _pcg_ni = int(_pcg_n.strip())
-                            if 1 <= _pcg_ni <= max_number:
-                                _pcg_cnt[_pcg_ni] = _pcg_cnt.get(_pcg_ni, 0) + 1
-                        except ValueError:
-                            pass
-                if _pcg_cnt:
-                    _pcg_max = max(_pcg_cnt.values())
-                    _precomp_ghost_threshold = max(5.0, _pcg_max * 0.02)
-                    _precomp_ghost_nums = {
-                        n for n in range(1, max_number + 1)
-                        if _pcg_cnt.get(n, 0) < _precomp_ghost_threshold
-                    }
-                    _pcg_freq = np.array(
-                        [float(_pcg_cnt.get(n, 0)) for n in range(1, max_number + 1)],
-                        dtype=np.float64,
-                    )
-                    _pcg_freq = np.clip(_pcg_freq, 1e-3, None)
-                    _precomp_hist_freq = _pcg_freq / _pcg_freq.sum()
-        except Exception:
-            pass  # Non-fatal — fall back to uniform baseline
 
         # Historical odd/even distribution used to pre-select target per set
         # Lotto Max: 1=2.9%, 2=17.5%, 3=27.2%, 4=29.1%, 5=20.4%, 6=2.9%
@@ -3891,6 +3891,23 @@ understanding that lottery outcomes remain random and unpredictable.
                 # Enforced during zone-constrained attempts to match actual draw statistics.
                 _target_odd = int(np.random.choice(_hist_odd_vals, p=_hist_odd_wts))
 
+                # Hard override from draw profile: use dominant odd/even pattern from every
+                # loaded profile, averaged. This ensures profile-guided generations are
+                # consistent rather than sampling randomly from historical weights.
+                if _profiles_to_blend:
+                    _prof_oe_totals = []
+                    for _prof_oe_d in _profiles_to_blend:
+                        _dom_oe_str = _prof_oe_d.get('dominant_strategy', {}).get('odd_even', '')
+                        if ' Odd' in _dom_oe_str:
+                            try:
+                                _parsed_odd_n = int(_dom_oe_str.split(' Odd')[0].strip())
+                                if 0 < _parsed_odd_n <= draw_size:
+                                    _prof_oe_totals.append(_parsed_odd_n)
+                            except (ValueError, IndexError):
+                                pass
+                    if _prof_oe_totals:
+                        _target_odd = int(round(sum(_prof_oe_totals) / len(_prof_oe_totals)))
+
                 # --- Zone-aware Gumbel sampling with structural + diversity checks ---
                 selected_numbers = None
 
@@ -4040,7 +4057,7 @@ understanding that lottery outcomes remain random and unpredictable.
                 for _ps in predictions:
                     for _pn in _ps:
                         _freq[_pn] = _freq.get(_pn, 0) + 1
-                _max_allowed_freq = max(3, int(num_sets * 0.30))
+                _max_allowed_freq = max(2, int(num_sets * 0.18))
                 _dominant = {n for n, c in _freq.items() if c > _max_allowed_freq}
                 if not _dominant:
                     break
@@ -4670,31 +4687,35 @@ def render_prediction_ai_page(services_registry=None, ai_engines=None, component
         # ── End auto-learning banner ─────────────────────────────────────────
 
         # Create tabs
-        tab1, tab2, tab3, tab4, tab5 = st.tabs([
+        tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
             "🤖 AI Model Configuration",
             "🎲 Generate Predictions",
             "� Jackpot Pattern Analysis",
             "🎰 MaxMillion Analysis" if selected_game == "Lotto Max" else "📈 Performance History",
-            "🧠 AI Learning"
+            "🧠 AI Learning",
+            "🔮 AGI Predictions",
         ])
-        
+
         with tab1:
             _render_model_configuration(analyzer)
-        
+
         with tab2:
             _render_prediction_generator(analyzer)
-        
+
         with tab3:
             _render_jackpot_analysis(analyzer)
-        
+
         with tab4:
             if selected_game == "Lotto Max":
                 _render_maxmillion_analysis(analyzer, selected_game)
             else:
                 _render_performance_history(analyzer)
-        
+
         with tab5:
             _render_deep_learning_tab(analyzer, selected_game)
+
+        with tab6:
+            _render_agi_predictions(analyzer)
         
         app_log("AI Prediction Engine page rendered successfully", "info")
         
@@ -5315,6 +5336,8 @@ def _render_prediction_generator(analyzer: SuperIntelligentAIAnalyzer) -> None:
         )
         return
 
+    _regen_triggered = st.session_state.pop('sia_regen_requested', False)
+
     # Show which model source is being used
     st.info(f"ℹ️ **Using Configuration from:** {model_source}")
     
@@ -5679,31 +5702,52 @@ def _render_prediction_generator(analyzer: SuperIntelligentAIAnalyzer) -> None:
     
     st.markdown("---")
     
-    if st.button("🚀 Generate AI-Optimized Prediction Sets", use_container_width=True, key="gen_pred_btn", help="Generate precisely calculated sets for maximum winning probability"):
+    if st.button("🚀 Generate AI-Optimized Prediction Sets", use_container_width=True, key="gen_pred_btn", help="Generate precisely calculated sets for maximum winning probability") or _regen_triggered:
         with st.spinner(f"🤖 Generating {final_sets} AI-optimized prediction sets using deep learning..."):
             try:
-                # Get adaptive learning setting (only relevant when learning is enabled)
-                use_adaptive_learning = st.session_state.get('sia_use_adaptive_learning', True)
-                
-                # ===== LOAD LEARNING FILES IF ENABLED =====
-                learning_data = None
-                learning_file_paths = []
-                
-                if use_learning and st.session_state.sia_selected_learning_files:
-                    st.info("📚 Loading learning files to enhance predictions...")
-                    available_files = _find_all_learning_files(analyzer.game)
-                    selected_files = [available_files[i] for i in st.session_state.sia_selected_learning_files]
-                    
-                    if selected_files:
-                        learning_file_paths = selected_files
-                        learning_data = _load_and_combine_learning_files(selected_files)
-                        st.success(f"✅ Loaded {len(selected_files)} learning file(s) with combined insights")
-                
-                # ===== LOAD DRAW PROFILE(S) IF ENABLED (P10: multi-profile) =====
-                draw_profile_data = None   # will be a List[Dict] when multiple profiles selected
-                draw_profile_name = None
+                # ── Regenerate mode: reuse params from original generation ─────────
+                _overwrite_filepath = None
+                if _regen_triggered:
+                    _rp = st.session_state.get('sia_regen_params', {})
+                    if _rp:
+                        use_adaptive_learning = _rp.get('use_adaptive_learning', True)
+                        learning_data = _rp.get('learning_data')
+                        learning_file_paths = [Path(p) for p in _rp.get('learning_file_paths', [])]
+                        draw_profile_data = _rp.get('draw_profile_data')
+                        draw_profile_name = f"{len(draw_profile_data)} profile(s)" if draw_profile_data else None
+                        final_sets = _rp.get('final_sets', final_sets)
+                        no_repeat_numbers = _rp.get('no_repeat_numbers', no_repeat_numbers)
+                        _overwrite_filepath = _rp.get('filepath')
+                        if learning_data:
+                            st.info(f"📚 Reusing {len(learning_file_paths)} learning file(s) from original generation")
+                        if draw_profile_data:
+                            st.info(f"🎯 Reusing {len(draw_profile_data)} draw profile(s) from original generation")
+                    else:
+                        _regen_triggered = False  # no stored params — fall through to normal load
 
-                if use_draw_profile:
+                if not _regen_triggered:
+                    # Get adaptive learning setting (only relevant when learning is enabled)
+                    use_adaptive_learning = st.session_state.get('sia_use_adaptive_learning', True)
+
+                    # ===== LOAD LEARNING FILES IF ENABLED =====
+                    learning_data = None
+                    learning_file_paths = []
+
+                    if use_learning and st.session_state.sia_selected_learning_files:
+                        st.info("📚 Loading learning files to enhance predictions...")
+                        available_files = _find_all_learning_files(analyzer.game)
+                        selected_files = [available_files[i] for i in st.session_state.sia_selected_learning_files]
+
+                        if selected_files:
+                            learning_file_paths = selected_files
+                            learning_data = _load_and_combine_learning_files(selected_files)
+                            st.success(f"✅ Loaded {len(selected_files)} learning file(s) with combined insights")
+
+                    # ===== LOAD DRAW PROFILE(S) IF ENABLED (P10: multi-profile) =====
+                    draw_profile_data = None   # will be a List[Dict] when multiple profiles selected
+                    draw_profile_name = None
+
+                if not _regen_triggered and use_draw_profile:
                     _sel_indices = st.session_state.get('sia_selected_draw_profiles', [])
                     # Fallback: legacy single-select
                     if not _sel_indices and st.session_state.sia_selected_draw_profile is not None:
@@ -5951,6 +5995,117 @@ def _render_prediction_generator(analyzer: SuperIntelligentAIAnalyzer) -> None:
                 # Also store rank per original-set-index for quick lookup
                 _rank_by_orig = {r['original_set_index']: r['rank'] for r in _generation_ranked}
 
+                # ── Portfolio diversity annotation ─────────────────────────────────
+                # Walk the ranked list in order.  For each set at rank R, any number
+                # that already appears in ≥30% of the R-1 higher-ranked sets is
+                # flagged as a correlated-risk number.  This does NOT change the
+                # ranking — it only annotates so the UI can warn the user.
+                _DIV_THRESHOLD = 0.30
+                _num_cumulative: dict = {}
+                for _div_entry in _generation_ranked:
+                    _div_rank = _div_entry['rank']
+                    _n_higher = _div_rank - 1
+                    _corr_nums = []
+                    if _n_higher > 0:
+                        for _dn in _div_entry['numbers']:
+                            _app = _num_cumulative.get(_dn, 0)
+                            if _app / _n_higher >= _DIV_THRESHOLD:
+                                _corr_nums.append(_dn)
+                    _div_entry['correlated_numbers'] = _corr_nums
+                    _div_entry['correlated_risk'] = len(_corr_nums) > 0
+                    for _dn in _div_entry['numbers']:
+                        _num_cumulative[_dn] = _num_cumulative.get(_dn, 0) + 1
+
+                # ── Post-ranking diversity enforcement ────────────────────────────
+                # Top-10: no number may appear in more than 3 of the 10 sets (30%).
+                # Ranks 11-20: cap at 4.  Process lowest-ranked sets first within each
+                # group so higher-confidence sets keep their numbers.
+                # Replacements are drawn from the same zone, picking the globally least-used
+                # number that isn't already in the target set.
+                try:
+                    _pr_max_number = analyzer.game_config.max_number
+                except Exception:
+                    _pr_max_number = 52 if 'max' in analyzer.game.lower() else 49
+
+                def _pr_zone(n, mx):
+                    if mx > 49:
+                        return 'lo' if n <= 17 else ('mi' if n <= 34 else 'hi')
+                    return 'lo' if n <= 16 else ('mi' if n <= 32 else 'hi')
+
+                def _pr_pool(zone, mx):
+                    if mx > 49:
+                        return {'lo': list(range(1, 18)),
+                                'mi': list(range(18, 35)),
+                                'hi': list(range(35, mx + 1))}.get(zone, [])
+                    return {'lo': list(range(1, 17)),
+                            'mi': list(range(17, 33)),
+                            'hi': list(range(33, mx + 1))}.get(zone, [])
+
+                # Global number usage for replacement priority (prefer globally rare numbers)
+                _global_usage: dict = {}
+                for _pset in predictions:
+                    for _pn in _pset:
+                        _global_usage[_pn] = _global_usage.get(_pn, 0) + 1
+
+                for _grp_lo, _grp_hi, _grp_cap in [(1, 10, 3), (11, 20, 4)]:
+                    _grp = [r for r in _generation_ranked if _grp_lo <= r['rank'] <= _grp_hi]
+                    if not _grp:
+                        continue
+                    # Count appearances of each number within this group
+                    _grp_freq: dict = {}
+                    for _ge in _grp:
+                        for _gn in _ge['numbers']:
+                            _grp_freq[_gn] = _grp_freq.get(_gn, 0) + 1
+
+                    # Iterate from lowest rank in group downward (preserve higher-ranked sets)
+                    for _de in sorted(_grp, key=lambda x: -x['rank']):
+                        _nums = list(_de['numbers'])
+                        _changed = False
+                        for _i, _n in enumerate(_nums):
+                            if _grp_freq.get(_n, 0) <= _grp_cap:
+                                continue
+                            # Find replacement: same zone, not in set, least used in group
+                            _zone = _pr_zone(_n, _pr_max_number)
+                            _pool = _pr_pool(_zone, _pr_max_number)
+                            _cands = sorted(
+                                [((_grp_freq.get(c, 0), _global_usage.get(c, 0)), c)
+                                 for c in _pool if c not in _nums],
+                            )
+                            if not _cands:
+                                # Fallback: try any zone
+                                _cands = sorted(
+                                    [((_grp_freq.get(c, 0), _global_usage.get(c, 0)), c)
+                                     for c in range(1, _pr_max_number + 1) if c not in _nums],
+                                )
+                            if _cands:
+                                _repl = _cands[0][1]
+                                _grp_freq[_n] = max(0, _grp_freq.get(_n, 0) - 1)
+                                _grp_freq[_repl] = _grp_freq.get(_repl, 0) + 1
+                                _global_usage[_n] = max(0, _global_usage.get(_n, 0) - 1)
+                                _global_usage[_repl] = _global_usage.get(_repl, 0) + 1
+                                _nums[_i] = _repl
+                                _changed = True
+                        if _changed:
+                            _de['numbers'] = sorted(_nums)
+                            _oi = _de['original_set_index']
+                            predictions[_oi] = sorted(_nums)
+                            if isinstance(predictions_with_attribution[_oi], dict):
+                                predictions_with_attribution[_oi]['numbers'] = sorted(_nums)
+
+                # Re-annotate correlated numbers after the diversity pass
+                _num_cumulative = {}
+                for _div_entry in _generation_ranked:
+                    _n_higher = _div_entry['rank'] - 1
+                    _corr_nums = []
+                    if _n_higher > 0:
+                        for _dn in _div_entry['numbers']:
+                            if _num_cumulative.get(_dn, 0) / _n_higher >= _DIV_THRESHOLD:
+                                _corr_nums.append(_dn)
+                    _div_entry['correlated_numbers'] = _corr_nums
+                    _div_entry['correlated_risk'] = len(_corr_nums) > 0
+                    for _dn in _div_entry['numbers']:
+                        _num_cumulative[_dn] = _num_cumulative.get(_dn, 0) + 1
+
                 # Embed rank info into predictions_with_attribution
                 for _si in range(len(predictions_with_attribution)):
                     if isinstance(predictions_with_attribution[_si], dict):
@@ -5963,27 +6118,58 @@ def _render_prediction_generator(analyzer: SuperIntelligentAIAnalyzer) -> None:
                 st.session_state.sia_predictions_with_attribution = predictions_with_attribution
                 st.session_state.sia_strategy_log = strategy_log
                 st.session_state.sia_generation_ranked = _generation_ranked
-                
-                # Add learning metadata to saved file
-                if learning_data:
-                    # Store learning file info in optimal_analysis for saving
-                    optimal_with_learning = optimal.copy()
-                    optimal_with_learning['learning_files_used'] = [str(f.name) for f in learning_file_paths]
-                    optimal_with_learning['learning_insights_count'] = len(learning_data.get('combined_insights', []))
-                    filepath = analyzer.save_predictions_advanced(predictions, analysis, optimal_with_learning, final_sets, predictions_with_attribution)
-                else:
-                    filepath = analyzer.save_predictions_advanced(predictions, analysis, optimal, final_sets, predictions_with_attribution)
 
-                # Patch saved file to include generation_ranking (not a hot path — one small file write)
-                try:
-                    import json as _json_patch
-                    with open(filepath, 'r') as _pf:
-                        _pdata = _json_patch.load(_pf)
-                    _pdata['generation_ranking'] = _generation_ranked
-                    with open(filepath, 'w') as _pf:
-                        _json_patch.dump(_pdata, _pf, indent=2, default=str)
-                except Exception:
-                    pass  # Non-critical — learning tab will degrade gracefully
+                # Determine save path — overwrite original file on regen, create new on normal gen
+                _optimal_to_save = optimal
+                if learning_data:
+                    _optimal_to_save = optimal.copy()
+                    _optimal_to_save['learning_files_used'] = [str(f.name) for f in learning_file_paths]
+                    _optimal_to_save['learning_insights_count'] = len(learning_data.get('combined_insights', []))
+
+                if _overwrite_filepath and Path(_overwrite_filepath).exists():
+                    # Regenerate: overwrite the original prediction file in-place
+                    filepath = _overwrite_filepath
+                    try:
+                        import json as _json_regen
+                        with open(filepath, 'r') as _rf:
+                            _regen_data = _json_regen.load(_rf)
+                        _regen_data.update({
+                            'predictions': predictions,
+                            'predictions_with_attribution': predictions_with_attribution,
+                            'generation_ranking': _generation_ranked,
+                            'optimal_calculation': _optimal_to_save,
+                            'regenerated_at': datetime.now().isoformat(),
+                        })
+                        with open(filepath, 'w') as _rf:
+                            _json_regen.dump(_regen_data, _rf, indent=2, default=str)
+                    except Exception as _re:
+                        # Fallback: create new file if overwrite fails
+                        filepath = analyzer.save_predictions_advanced(predictions, analysis, _optimal_to_save, final_sets, predictions_with_attribution)
+                else:
+                    # Normal generation: create new file
+                    filepath = analyzer.save_predictions_advanced(predictions, analysis, _optimal_to_save, final_sets, predictions_with_attribution)
+
+                    # Patch new file to include generation_ranking
+                    try:
+                        import json as _json_patch
+                        with open(filepath, 'r') as _pf:
+                            _pdata = _json_patch.load(_pf)
+                        _pdata['generation_ranking'] = _generation_ranked
+                        with open(filepath, 'w') as _pf:
+                            _json_patch.dump(_pdata, _pf, indent=2, default=str)
+                    except Exception:
+                        pass  # Non-critical — learning tab will degrade gracefully
+
+                # Store params so Regenerate button can replay this exact generation
+                st.session_state.sia_regen_params = {
+                    'final_sets': final_sets,
+                    'learning_data': learning_data,
+                    'learning_file_paths': [str(p) for p in learning_file_paths],
+                    'draw_profile_data': draw_profile_data,
+                    'use_adaptive_learning': use_adaptive_learning,
+                    'no_repeat_numbers': no_repeat_numbers,
+                    'filepath': filepath,
+                }
                 
                 st.success(f"✅ Successfully generated {final_sets} AI-optimized prediction sets!")
                 
@@ -6262,7 +6448,12 @@ def _render_prediction_generator(analyzer: SuperIntelligentAIAnalyzer) -> None:
             _tier = (
                 "🏆 Top 5" if _rr['rank'] <= 5 else
                 "⭐ Top 10" if _rr['rank'] <= 10 else
-                f"Rank {_rr['rank']}"
+                f"#{_rr['rank']}"
+            )
+            _corr = _rr.get('correlated_numbers', [])
+            _risk_label = (
+                "⚠️ " + ", ".join(map(str, _corr))
+                if _corr else "✓"
             )
             _rank_table.append({
                 'Rank': _rr['rank'],
@@ -6270,9 +6461,17 @@ def _render_prediction_generator(analyzer: SuperIntelligentAIAnalyzer) -> None:
                 'Set #': _rr['set_number'],
                 'Numbers': ', '.join(map(str, _rr['numbers'])),
                 'AI Confidence': f"{_rr['confidence_score']:.1%}",
+                'Portfolio Risk': _risk_label,
             })
         if _rank_table:
             st.dataframe(pd.DataFrame(_rank_table), use_container_width=True, hide_index=True)
+            _n_corr = sum(1 for r in _disp_ranked if r.get('correlated_risk'))
+            if _n_corr:
+                st.caption(
+                    f"⚠️ **Portfolio Risk column**: {_n_corr} set(s) share a number with ≥30% of "
+                    "higher-ranked sets. Numbers listed are the overlapping ones — consider these "
+                    "sets win/lose together on those numbers."
+                )
 
         # ── Helper: render one set as game balls ──────────────────────────────
         def _render_ranked_set(ranked_entry: dict, border_color: str, label_html: str) -> None:
@@ -6307,6 +6506,15 @@ def _render_prediction_generator(analyzer: SuperIntelligentAIAnalyzer) -> None:
                         unsafe_allow_html=True,
                     )
                     _render_ranked_set(_rr, "#f59e0b", "top5")
+                    # Portfolio diversity warning
+                    _corr = _rr.get('correlated_numbers', [])
+                    if _corr:
+                        st.warning(
+                            f"⚠️ **Portfolio overlap:** {', '.join(map(str, _corr))} "
+                            f"also appear in ≥30% of higher-ranked sets — "
+                            "this set wins/loses with those on shared numbers.",
+                            icon="⚠️",
+                        )
                     # Show which models contributed most to this set
                     _ma_i = (
                         _disp_attr[_attr_i].get('model_attribution', {})
@@ -6334,12 +6542,32 @@ def _render_prediction_generator(analyzer: SuperIntelligentAIAnalyzer) -> None:
                         unsafe_allow_html=True,
                     )
                     _render_ranked_set(_rr, "#6b7280", "top10")
+                    _corr = _rr.get('correlated_numbers', [])
+                    if _corr:
+                        st.warning(
+                            f"⚠️ **Portfolio overlap:** {', '.join(map(str, _corr))} "
+                            "appear in ≥30% of higher-ranked sets.",
+                            icon="⚠️",
+                        )
 
         # ── TIER 3: Ranks 11+ ─────────────────────────────────────────────────
         _tier3 = [r for r in _disp_ranked if r['rank'] > 10]
         if _tier3:
-            with st.expander(f"📋 Ranks 11–{len(_disp_ranked)} (remaining {len(_tier3)} sets)", expanded=False):
-                for _rr in _tier3:
+            # Split low-confidence sets (those with a big confidence cliff) for labelling
+            _confs_all = [r['confidence_score'] for r in _disp_ranked]
+            _conf_mean = sum(_confs_all) / len(_confs_all) if _confs_all else 0.5
+            _conf_stdev = (sum((c - _conf_mean) ** 2 for c in _confs_all) / len(_confs_all)) ** 0.5
+            _low_conf_threshold = max(0.35, _conf_mean - 1.5 * _conf_stdev)
+
+            _tier3_good = [r for r in _tier3 if r['confidence_score'] >= _low_conf_threshold]
+            _tier3_low  = [r for r in _tier3 if r['confidence_score'] < _low_conf_threshold]
+
+            with st.expander(
+                f"📋 Ranks 11–{len(_disp_ranked)} ({len(_tier3)} sets"
+                + (f" — {len(_tier3_low)} low-confidence" if _tier3_low else "") + ")",
+                expanded=False,
+            ):
+                for _rr in _tier3_good:
                     with st.container(border=True):
                         _cs = _rr['confidence_score']
                         st.markdown(
@@ -6348,6 +6576,28 @@ def _render_prediction_generator(analyzer: SuperIntelligentAIAnalyzer) -> None:
                             unsafe_allow_html=True,
                         )
                         _render_ranked_set(_rr, "#374151", "rest")
+                        _corr = _rr.get('correlated_numbers', [])
+                        if _corr:
+                            st.caption(f"⚠️ Overlap: {', '.join(map(str, _corr))} shared with higher-ranked sets.")
+
+                if _tier3_low:
+                    st.divider()
+                    st.caption(
+                        f"⬇️ **Low-confidence sets** (below {_low_conf_threshold:.0%}) — "
+                        "these scored significantly below the generation average and are shown for completeness only."
+                    )
+                    for _rr in _tier3_low:
+                        with st.container(border=True):
+                            _cs = _rr['confidence_score']
+                            st.markdown(
+                                f"**Rank #{_rr['rank']} — Set #{_rr['set_number']}** &nbsp;&nbsp; "
+                                f"AI Confidence: `{_cs:.1%}` *(low)*",
+                                unsafe_allow_html=True,
+                            )
+                            _render_ranked_set(_rr, "#374151", "rest")
+                            _corr = _rr.get('correlated_numbers', [])
+                            if _corr:
+                                st.caption(f"⚠️ Overlap: {', '.join(map(str, _corr))} shared with higher-ranked sets.")
 
         # ===== TOP RECURRENCE SETS =====
         st.divider()
@@ -6413,6 +6663,27 @@ def _render_prediction_generator(analyzer: SuperIntelligentAIAnalyzer) -> None:
             f"Visit **AI Learning** after the draw to see how the rankings held up."
         )
 
+    # ── Regenerate button — rendered OUTSIDE the generate block so Streamlit
+    # always encounters it and can register the click regardless of whether
+    # the generate block ran this render cycle.
+    _regen_avail = st.session_state.get('sia_regen_params', {})
+    if _regen_avail:
+        st.divider()
+        _ra_fp = _regen_avail.get('filepath', '')
+        _ra_sets = _regen_avail.get('final_sets', 0)
+        st.caption(
+            f"Active prediction file: `{Path(_ra_fp).name if _ra_fp else 'unknown'}` — "
+            f"{_ra_sets} sets"
+        )
+        if st.button(
+            "🔄 Regenerate Predictions",
+            use_container_width=True,
+            key="regen_pred_btn",
+            help="Re-run generation with identical settings and overwrite the current prediction file",
+        ):
+            st.session_state.sia_regen_requested = True
+            st.rerun()
+
 
 # ============================================================================
 # TAB 3: JACKPOT PATTERN ANALYSIS
@@ -6421,132 +6692,379 @@ def _render_prediction_generator(analyzer: SuperIntelligentAIAnalyzer) -> None:
 def _render_jackpot_analysis(analyzer: SuperIntelligentAIAnalyzer) -> None:
     """Analyze historical patterns based on jackpot amounts to create draw profiles."""
     st.subheader("💰 Jackpot Pattern Analysis")
-    
-    st.markdown("""
-    **Discover winning patterns based on jackpot amounts!**  
-    Search historical draws by jackpot value, analyze number patterns, and save draw profiles 
-    for use in future prediction generation.
-    """)
-    
-    # Get current game
+
     current_game = st.session_state.get('selected_game', 'Lotto Max')
-    
-    # Jackpot input section
-    col1, col2, col3 = st.columns([2, 1, 1])
-    
-    with col1:
-        jackpot_amount = st.number_input(
-            "Target Jackpot Amount ($)",
-            min_value=1000000,
-            max_value=200000000,
-            value=10000000,
-            step=1000000,
-            key="jackpot_amount_input",
-            help="Enter the jackpot amount you want to analyze"
-        )
-    
-    with col2:
-        range_tolerance = st.slider(
-            "Range Tolerance (%)",
-            min_value=0,
-            max_value=50,
-            value=10,
-            step=5,
-            key="range_tolerance_slider",
-            help="Allow jackpots within ±X% of target amount"
-        )
-    
-    with col3:
-        st.metric("Search Range", f"±{range_tolerance}%")
-        min_jackpot = jackpot_amount * (1 - range_tolerance / 100)
-        max_jackpot = jackpot_amount * (1 + range_tolerance / 100)
-        st.caption(f"${min_jackpot:,.0f} - ${max_jackpot:,.0f}")
-    
-    st.divider()
-    
-    # Search button
-    if st.button("🔍 Search Historical Patterns", type="primary", use_container_width=True):
-        with st.spinner("Searching historical draws..."):
-            # Search and analyze
-            matching_draws = _search_draws_by_jackpot(current_game, min_jackpot, max_jackpot)
-            
-            if len(matching_draws) < 5:
-                st.warning(f"⚠️ Found only {len(matching_draws)} draws matching criteria. Minimum 5 required for reliable analysis.")
-                st.info("💡 Try increasing the range tolerance to find more matching draws.")
-                return
-            
-            # Store in session state
-            st.session_state.jackpot_analysis_data = {
-                'matching_draws': matching_draws,
-                'jackpot_amount': jackpot_amount,
-                'range_tolerance': range_tolerance,
-                'game': current_game
-            }
-    
-    # Display results if available
-    if 'jackpot_analysis_data' in st.session_state:
-        data = st.session_state.jackpot_analysis_data
-        matching_draws = data['matching_draws']
-        
-        st.success(f"✅ Found {len(matching_draws)} historical draws matching ${data['jackpot_amount']:,.0f} (±{data['range_tolerance']}%)")
-        
-        # Quick stats
-        col1, col2, col3, col4 = st.columns(4)
+    is_max = 'max' in current_game.lower()
+
+    sec_analyze, sec_view = st.tabs(["🔍 Analyze & Save", "📂 View Saved Profiles"])
+
+    # =========================================================================
+    # SECTION 1 — ANALYZE & SAVE (existing content)
+    # =========================================================================
+    with sec_analyze:
+        st.markdown("""
+        **Discover winning patterns based on jackpot amounts!**
+        Search historical draws by jackpot value, analyze number patterns, and save draw profiles
+        for use in future prediction generation.
+        """)
+
+        col1, col2, col3 = st.columns([2, 1, 1])
+
         with col1:
-            st.metric("Total Draws", len(matching_draws))
-        with col2:
-            avg_jackpot = sum(d['jackpot'] for d in matching_draws) / len(matching_draws)
-            st.metric("Avg Jackpot", f"${avg_jackpot:,.0f}")
-        with col3:
-            min_date = min(d['date'] for d in matching_draws)
-            st.metric("Oldest Draw", min_date)
-        with col4:
-            max_date = max(d['date'] for d in matching_draws)
-            st.metric("Newest Draw", max_date)
-        
-        st.divider()
-        
-        # Analyze patterns
-        patterns = _analyze_draw_patterns(matching_draws, current_game)
-        
-        # Display patterns
-        _display_pattern_analysis(patterns, current_game)
-        
-        st.divider()
-        
-        # Save profile section
-        st.markdown("### 💾 Save Draw Profile")
-        
-        col1, col2 = st.columns([2, 1])
-        
-        with col1:
-            profile_name = st.text_input(
-                "Profile Name",
-                value=f"jackpot_{data['jackpot_amount']//1000000}M",
-                key="profile_name_input",
-                help="Enter a descriptive name for this profile"
+            jackpot_amount = st.number_input(
+                "Target Jackpot Amount ($)",
+                min_value=1000000,
+                max_value=200000000,
+                value=10000000,
+                step=1000000,
+                key="jackpot_amount_input",
+                help="Enter the jackpot amount you want to analyze"
             )
-        
+
         with col2:
-            st.write("")  # Spacer
-            st.write("")  # Spacer
-            if st.button("💾 Save Profile", type="primary", use_container_width=True):
-                if len(matching_draws) >= 5:
-                    profile_path = _save_draw_profile(
-                        profile_name,
-                        data['jackpot_amount'],
-                        data['range_tolerance'],
-                        matching_draws,
-                        patterns,
-                        current_game
-                    )
-                    if profile_path:
-                        st.success(f"✅ Profile saved: {profile_path.name}")
-                        app_log(f"Jackpot profile saved: {profile_name} for {current_game}", "info")
-                    else:
-                        st.error("❌ Failed to save profile")
+            range_tolerance = st.slider(
+                "Range Tolerance (%)",
+                min_value=0,
+                max_value=50,
+                value=10,
+                step=5,
+                key="range_tolerance_slider",
+                help="Allow jackpots within ±X% of target amount"
+            )
+
+        with col3:
+            st.metric("Search Range", f"±{range_tolerance}%")
+            min_jackpot = jackpot_amount * (1 - range_tolerance / 100)
+            max_jackpot = jackpot_amount * (1 + range_tolerance / 100)
+            st.caption(f"${min_jackpot:,.0f} - ${max_jackpot:,.0f}")
+
+        st.divider()
+
+        if st.button("🔍 Search Historical Patterns", type="primary", use_container_width=True):
+            with st.spinner("Searching historical draws..."):
+                matching_draws = _search_draws_by_jackpot(current_game, min_jackpot, max_jackpot)
+
+                if len(matching_draws) < 5:
+                    st.warning(f"⚠️ Found only {len(matching_draws)} draws matching criteria. Minimum 5 required for reliable analysis.")
+                    st.info("💡 Try increasing the range tolerance to find more matching draws.")
                 else:
-                    st.error("❌ Need at least 5 matching draws to save profile")
+                    st.session_state.jackpot_analysis_data = {
+                        'matching_draws': matching_draws,
+                        'jackpot_amount': jackpot_amount,
+                        'range_tolerance': range_tolerance,
+                        'game': current_game
+                    }
+
+        if 'jackpot_analysis_data' in st.session_state:
+            data = st.session_state.jackpot_analysis_data
+            matching_draws = data['matching_draws']
+
+            st.success(f"✅ Found {len(matching_draws)} historical draws matching ${data['jackpot_amount']:,.0f} (±{data['range_tolerance']}%)")
+
+            col1, col2, col3, col4 = st.columns(4)
+            with col1:
+                st.metric("Total Draws", len(matching_draws))
+            with col2:
+                avg_jackpot = sum(d['jackpot'] for d in matching_draws) / len(matching_draws)
+                st.metric("Avg Jackpot", f"${avg_jackpot:,.0f}")
+            with col3:
+                st.metric("Oldest Draw", min(d['date'] for d in matching_draws))
+            with col4:
+                st.metric("Newest Draw", max(d['date'] for d in matching_draws))
+
+            st.divider()
+
+            patterns = _analyze_draw_patterns(matching_draws, current_game)
+            _display_pattern_analysis(patterns, current_game)
+
+            st.divider()
+            st.markdown("### 💾 Save Draw Profile")
+
+            col1, col2 = st.columns([2, 1])
+            with col1:
+                profile_name = st.text_input(
+                    "Profile Name",
+                    value=f"jackpot_{data['jackpot_amount']//1000000}M",
+                    key="profile_name_input",
+                    help="Enter a descriptive name for this profile"
+                )
+            with col2:
+                st.write("")
+                st.write("")
+                if st.button("💾 Save Profile", type="primary", use_container_width=True):
+                    if len(matching_draws) >= 5:
+                        profile_path = _save_draw_profile(
+                            profile_name,
+                            data['jackpot_amount'],
+                            data['range_tolerance'],
+                            matching_draws,
+                            patterns,
+                            current_game
+                        )
+                        if profile_path:
+                            st.success(f"✅ Profile saved: {profile_path.name}")
+                            app_log(f"Jackpot profile saved: {profile_name} for {current_game}", "info")
+                        else:
+                            st.error("❌ Failed to save profile")
+                    else:
+                        st.error("❌ Need at least 5 matching draws to save profile")
+
+    # =========================================================================
+    # SECTION 2 — VIEW SAVED PROFILES
+    # =========================================================================
+    with sec_view:
+        st.markdown("**Load and inspect any previously saved jackpot draw profile.**")
+
+        profile_files = _find_all_draw_profiles(current_game)
+
+        if not profile_files:
+            st.info(
+                f"No saved profiles found for **{current_game}**. "
+                "Use the **Analyze & Save** tab to create one."
+            )
+        else:
+            # Build readable labels: "jackpot_50M_20260420_143022.json  →  50M · 45 draws · 2026-04-20"
+            def _profile_label(fp: Path) -> str:
+                try:
+                    import json as _j
+                    with open(fp, "r") as _f:
+                        _d = _j.load(_f)
+                    _m = _d.get("metadata", {})
+                    _jp = _m.get("jackpot_amount", 0)
+                    _n  = _m.get("total_draws_analyzed", "?")
+                    _dt = _m.get("created_date", "")[:10]
+                    _name = _m.get("profile_name", fp.stem)
+                    return f"{_name}  ·  ${_jp/1e6:.0f}M  ·  {_n} draws  ·  saved {_dt}"
+                except Exception:
+                    return fp.stem
+
+            labels = [_profile_label(fp) for fp in profile_files]
+
+            col_sel, col_del = st.columns([4, 1])
+            with col_sel:
+                selected_idx = st.selectbox(
+                    "Select a saved profile",
+                    range(len(profile_files)),
+                    format_func=lambda i: labels[i],
+                    key="jp_view_selected_idx",
+                )
+            with col_del:
+                st.write("")
+                st.write("")
+                if st.button("🗑️ Delete", key="jp_view_delete_btn", use_container_width=True):
+                    try:
+                        profile_files[selected_idx].unlink()
+                        st.success("Profile deleted.")
+                        st.rerun()
+                    except Exception as _de:
+                        st.error(f"Could not delete: {_de}")
+
+            st.divider()
+
+            profile_data = _load_draw_profile(profile_files[selected_idx])
+            if not profile_data:
+                st.error("Failed to load profile file.")
+            else:
+                meta = profile_data.get("metadata", {})
+                sum_stats = profile_data.get("sum_analysis", {})
+                sum_pct   = profile_data.get("sum_percentiles", {})
+                core      = profile_data.get("core_patterns", {})
+                zone_ana  = profile_data.get("zone_analysis", {})
+                dom       = profile_data.get("dominant_strategy", {})
+                np_data   = profile_data.get("number_patterns", {})
+                adv       = profile_data.get("advanced_insights", {})
+                fingerprints = profile_data.get("structural_fingerprints", [])
+                hist_draws   = profile_data.get("historical_draws", [])
+                bonus_data   = profile_data.get("bonus_patterns", {})
+
+                # ── Metadata banner ──────────────────────────────────────────
+                st.markdown(f"### 📋 {meta.get('profile_name', 'Profile')}")
+                m1, m2, m3, m4, m5 = st.columns(5)
+                m1.metric("Game", meta.get("game", current_game))
+                m2.metric("Jackpot", f"${meta.get('jackpot_amount', 0)/1e6:.0f}M")
+                m3.metric("Tolerance", f"±{meta.get('range_tolerance_percent', '?')}%")
+                m4.metric("Draws Analysed", meta.get("total_draws_analyzed", "?"))
+                m5.metric("Saved", meta.get("created_date", "")[:10])
+                dr = meta.get("date_range", {})
+                st.caption(f"Draw date range: **{dr.get('oldest', '?')}** → **{dr.get('newest', '?')}**")
+
+                st.divider()
+
+                # ── Sum analysis ─────────────────────────────────────────────
+                st.markdown("#### 📊 Sum Distribution")
+                s1, s2, s3, s4, s5 = st.columns(5)
+                s1.metric("Min", sum_stats.get("min", sum_pct.get("p10", "?")))
+                s2.metric("P25", sum_pct.get("p25", "?"))
+                s3.metric("Median", sum_stats.get("median", sum_pct.get("p50", "?")))
+                s4.metric("P75", sum_pct.get("p75", "?"))
+                s5.metric("Max", sum_stats.get("max", sum_pct.get("p90", "?")))
+                if sum_stats.get("mean"):
+                    st.caption(f"Mean: **{sum_stats['mean']:.1f}**  ·  Std dev: **{sum_stats.get('std', '?'):.1f}**")
+
+                st.divider()
+
+                # ── Structural fingerprint ────────────────────────────────────
+                col_str, col_oe = st.columns(2)
+
+                with col_str:
+                    st.markdown("#### 🏗️ Dominant Strategy")
+                    if dom:
+                        zp = dom.get("zone_pattern", [])
+                        if len(zp) == 3:
+                            st.markdown(f"- **Zone split:** Lo {zp[0]} · Mid {zp[1]} · Hi {zp[2]}")
+                        if dom.get("zone_description"):
+                            st.caption(dom["zone_description"])
+                        st.markdown(f"- **Odd/Even:** {dom.get('odd_even', '?')}")
+                        st.markdown(f"- **Sum target:** {dom.get('sum_target', '?')} (P25 {dom.get('sum_p25','?')} – P75 {dom.get('sum_p75','?')})")
+                        top_pct = zone_ana.get("top_pct")
+                        if top_pct is not None:
+                            st.caption(f"Top zone appears in {top_pct:.1f}% of matched draws")
+                    else:
+                        st.caption("No dominant strategy recorded.")
+
+                with col_oe:
+                    st.markdown("#### ⚖️ Odd / Even Distribution")
+                    oe_dist = core.get("odd_even_distribution", {})
+                    if oe_dist:
+                        oe_sorted = sorted(oe_dist.items(), key=lambda x: x[1], reverse=True)
+                        for combo, weight in oe_sorted[:6]:
+                            bar_pct = weight / max(v for _, v in oe_sorted) if oe_sorted else 0
+                            st.markdown(f"`{combo}` — {weight:.2f}")
+                    else:
+                        st.caption("No odd/even data.")
+
+                st.divider()
+
+                # ── Zone analysis ─────────────────────────────────────────────
+                st.markdown("#### 🗺️ Zone Distribution")
+                lo_cap_v = zone_ana.get("lo_cap", 17 if is_max else 16)
+                mi_cap_v = zone_ana.get("mi_cap", 34 if is_max else 32)
+                max_num_v = zone_ana.get("max_num", 52 if is_max else 49)
+                st.caption(
+                    f"Zones — 🔵 Lo: 1–{lo_cap_v}  ·  🟣 Mid: {lo_cap_v+1}–{mi_cap_v}  ·  🔴 Hi: {mi_cap_v+1}–{max_num_v}"
+                )
+                zone_patterns = zone_ana.get("patterns", {})
+                if zone_patterns:
+                    zone_rows_sorted = sorted(zone_patterns.items(), key=lambda x: x[1], reverse=True)
+                    _zone_total = sum(v for _, v in zone_rows_sorted) or 1.0
+                    zone_df_data = []
+                    for zone_key, weight in zone_rows_sorted[:12]:
+                        try:
+                            parts = str(zone_key).strip("()").split(",")
+                            lo_z, mi_z, hi_z = [p.strip() for p in parts]
+                            zone_df_data.append({
+                                "Lo · Mid · Hi": f"{lo_z} · {mi_z} · {hi_z}",
+                                "Score": round(float(weight), 3),
+                                "Share %": f"{float(weight) / _zone_total * 100:.1f}%",
+                            })
+                        except Exception:
+                            zone_df_data.append({
+                                "Lo · Mid · Hi": str(zone_key),
+                                "Score": round(float(weight), 3),
+                                "Share %": f"{float(weight) / _zone_total * 100:.1f}%",
+                            })
+                    if zone_df_data:
+                        st.dataframe(zone_df_data, use_container_width=True, hide_index=True)
+                else:
+                    st.caption("No zone distribution data in this profile — resave to include it.")
+
+                st.divider()
+
+                # ── Hot / Cold numbers ────────────────────────────────────────
+                st.markdown("#### 🔥 Hot & Cold Numbers")
+                hot_nums  = np_data.get("hot_numbers", [])
+                cold_nums = np_data.get("cold_numbers", [])
+
+                col_hot, col_cold = st.columns(2)
+                with col_hot:
+                    st.markdown("**🔥 Hot (most frequent)**")
+                    if hot_nums:
+                        hot_html = " ".join(
+                            f'<span style="display:inline-block;background:#e74c3c;color:white;'
+                            f'border-radius:50%;width:32px;height:32px;line-height:32px;'
+                            f'text-align:center;font-weight:bold;margin:2px">{n}</span>'
+                            for n, _ in hot_nums[:10]
+                        )
+                        st.markdown(hot_html, unsafe_allow_html=True)
+                    else:
+                        st.caption("No data.")
+
+                with col_cold:
+                    st.markdown("**🧊 Cold (least frequent)**")
+                    if cold_nums:
+                        cold_html = " ".join(
+                            f'<span style="display:inline-block;background:#3498db;color:white;'
+                            f'border-radius:50%;width:32px;height:32px;line-height:32px;'
+                            f'text-align:center;font-weight:bold;margin:2px">{n}</span>'
+                            for n, _ in cold_nums[:10]
+                        )
+                        st.markdown(cold_html, unsafe_allow_html=True)
+                    else:
+                        st.caption("No data.")
+
+                st.divider()
+
+                # ── Advanced insights ─────────────────────────────────────────
+                with st.expander("🔬 Advanced Insights", expanded=False):
+                    ai1, ai2, ai3 = st.columns(3)
+
+                    with ai1:
+                        st.markdown("**Consecutive pairs per draw**")
+                        consec = adv.get("consecutive_distribution", {})
+                        if consec:
+                            for k, v in sorted(consec.items(), key=lambda x: float(x[1]), reverse=True)[:5]:
+                                st.caption(f"{k} pairs: {v:.2f}")
+
+                    with ai2:
+                        st.markdown("**Decade distribution**")
+                        decade = adv.get("decade_distribution", {})
+                        if decade:
+                            for k, v in sorted(decade.items()):
+                                st.caption(f"{k}: {v:.2f}")
+
+                    with ai3:
+                        st.markdown("**Gap statistics**")
+                        gap_stats = adv.get("gap_statistics", {})
+                        if gap_stats:
+                            for k, v in gap_stats.items():
+                                st.caption(f"{k}: {v:.2f}" if isinstance(v, float) else f"{k}: {v}")
+
+                    if is_max and bonus_data.get("hot_bonus_numbers"):
+                        st.markdown("**🎱 Bonus ball (top 5)**")
+                        bonus_html = " ".join(
+                            f'<span style="display:inline-block;background:#8e44ad;color:white;'
+                            f'border-radius:50%;width:32px;height:32px;line-height:32px;'
+                            f'text-align:center;font-weight:bold;margin:2px">{n}</span>'
+                            for n, _ in bonus_data["hot_bonus_numbers"]
+                        )
+                        st.markdown(bonus_html, unsafe_allow_html=True)
+
+                # ── Structural fingerprints table ─────────────────────────────
+                if fingerprints:
+                    with st.expander(f"🧬 Structural Fingerprints ({len(fingerprints)} draws)", expanded=False):
+                        fp_rows = []
+                        for fp_item in fingerprints:
+                            fp_rows.append({
+                                "Date":    fp_item.get("date", ""),
+                                "Numbers": str(fp_item.get("numbers", [])),
+                                "Lo · Mi · Hi": f"{fp_item.get('lo',0)} · {fp_item.get('mi',0)} · {fp_item.get('hi',0)}",
+                                "Odd/Even": f"{fp_item.get('odd',0)}O / {fp_item.get('even',0)}E",
+                                "Sum":     fp_item.get("sum", ""),
+                            })
+                        st.dataframe(fp_rows, use_container_width=True, hide_index=True)
+
+                # ── Historical draws table ────────────────────────────────────
+                if hist_draws:
+                    with st.expander(f"📅 Historical Draws in Profile ({len(hist_draws)} shown)", expanded=False):
+                        draw_rows = []
+                        for d in hist_draws:
+                            draw_rows.append({
+                                "Date":    d.get("date", ""),
+                                "Numbers": "  ".join(str(n) for n in d.get("numbers", [])),
+                                "Bonus":   d.get("bonus", ""),
+                                "Jackpot": f"${d.get('jackpot', 0):,.0f}",
+                            })
+                        st.dataframe(draw_rows, use_container_width=True, hide_index=True)
 
 
 def _search_draws_by_jackpot(game: str, min_jackpot: float, max_jackpot: float) -> List[Dict]:
@@ -9909,7 +10427,7 @@ def _load_past_draw_dates(game: str) -> List[str]:
     # Sort descending (most recent first)
     dates = sorted(list(set(dates)), reverse=True)
     
-    return dates[:50]  # Return last 50 draws
+    return dates[:300]  # Return last 300 draws (~3 years of Lotto Max at 2x/week)
 
 
 def _load_actual_results(game: str, draw_date: str) -> Dict:
@@ -12364,6 +12882,1639 @@ def _save_learning_regenerated_predictions(
     # Save
     with open(new_filepath, 'w') as f:
         json.dump(enhanced_data, f, indent=2, default=str)
-    
+
     return new_filepath
+
+
+# ============================================================================
+# AGI PREDICTIONS TAB
+# ============================================================================
+
+@st.cache_data(ttl=300)
+def _agi_load_history(game: str) -> List[Dict]:
+    """Load complete historical draw data for AGI engine. Cached for 5 minutes."""
+    game_folder = _sanitize_game_name(game)
+    data_dir = Path("data") / game_folder
+    if not data_dir.exists():
+        return []
+
+    is_max = "max" in game.lower()
+    draw_size = 7 if is_max else 6
+    max_num = 52 if is_max else 49
+    num_cols = [f"n{i}" for i in range(1, 8)]
+
+    frames = []
+    for csv_file in sorted(data_dir.glob("*.csv")):
+        try:
+            frames.append(pd.read_csv(csv_file))
+        except Exception:
+            continue
+
+    if not frames:
+        return []
+
+    df = pd.concat(frames, ignore_index=True)
+
+    # Vectorised number extraction
+    avail_cols = [c for c in num_cols if c in df.columns]
+    if not avail_cols:
+        return []
+
+    num_arr = df[avail_cols].apply(pd.to_numeric, errors="coerce").values  # shape (N, len(avail_cols))
+
+    # Jackpot — clean currency strings once
+    if "jackpot" in df.columns:
+        jackpots = (
+            df["jackpot"]
+            .astype(str)
+            .str.replace(r"[$,]", "", regex=True)
+            .pipe(pd.to_numeric, errors="coerce")
+            .fillna(0.0)
+            .values
+        )
+    else:
+        jackpots = [0.0] * len(df)
+
+    bonuses = pd.to_numeric(df["bonus"], errors="coerce").fillna(0).astype(int).values if "bonus" in df.columns else [0] * len(df)
+    dates = df["draw_date"].astype(str).values if "draw_date" in df.columns else [""] * len(df)
+
+    rows = []
+    for i in range(len(df)):
+        raw = num_arr[i]
+        nums = sorted([int(v) for v in raw if not pd.isna(v) and 1 <= v <= max_num])
+        if len(nums) < draw_size:
+            continue
+        rows.append({
+            "date": str(dates[i]),
+            "numbers": nums[:draw_size],
+            "bonus": int(bonuses[i]),
+            "jackpot": float(jackpots[i]),
+        })
+
+    rows.sort(key=lambda x: x["date"], reverse=True)
+    return rows
+
+
+def _agi_score_numbers(history: List[Dict], game: str, jackpot_amount: float = 0.0,
+                       draw_day: str = "") -> Dict[int, float]:
+    """
+    Pure statistical scoring engine — no ML models.
+    Returns composite score per number (higher = more likely to be selected).
+
+    Factors:
+      1.  Long-run frequency (full history)                            w=0.18
+      2.  Unified recency curve — exponential decay, half-life 20     w=0.16
+      3.  Overdue bonus — extra lift for numbers absent 30+ draws     w=0.10
+      4.  Range-position tendency (zone-affinity via sorted position)  w=0.04
+      5.  Co-appearance affinity (pairs above chance threshold)        w=0.12
+      6.  Anti-birthday-cluster bias (1-31 overplayed on tickets)     w=0.07
+      7.  Breakout detection (last-30 vs prior-30 frequency trend)    w=0.07
+      8.  Draw-day cyclicality (Tue/Fri for Max; Wed/Sat for 6/49)   w=0.05
+      9.  Jackpot-tier correlation (Max) / Quarter cyclicality (6/49) w=0.06
+      10. Acute hot streak — dedicated 10-draw high-temp window        w=0.07
+      11. Sum oscillation / mean reversion (recent sum bias)          w=0.08
+      12. Draw-span spread (spacing entropy regression to mean)        w=0.05
+      13. Rollover depth correlation — Lotto Max only                  w=0.07 (Max)
+                                     — redistributed to others for 6/49
+    """
+    import collections
+    import math
+
+    is_max = "max" in game.lower()
+    max_num = 52 if is_max else 49
+    draw_size = 7 if is_max else 6
+
+    if not history:
+        return {n: 1.0 for n in range(1, max_num + 1)}
+
+    total_draws = len(history)
+
+    # ── Factor 1: Long-run frequency (full history) ───────────────────────────
+    all_numbers_seq = [n for draw in history for n in draw["numbers"]]
+    freq = collections.Counter(all_numbers_seq)
+    max_freq = max(freq.values()) if freq else 1
+    freq_score = {n: freq.get(n, 0) / max_freq for n in range(1, max_num + 1)}
+
+    # ── Factor 2: Unified recency curve (exponential decay, half-life = 20 draws)
+    decay_half = 20.0
+    recency_score = {n: 0.0 for n in range(1, max_num + 1)}
+    for idx, draw in enumerate(history):
+        weight = math.exp(-idx * math.log(2) / decay_half)
+        for n in draw["numbers"]:
+            recency_score[n] += weight
+    max_rec = max(recency_score.values()) if any(recency_score.values()) else 1.0
+    recency_score = {n: recency_score[n] / max_rec for n in range(1, max_num + 1)}
+
+    # ── Factor 3: Overdue bonus (extra lift beyond recency for very cold numbers)
+    last_seen = {}
+    for idx, draw in enumerate(history):
+        for n in draw["numbers"]:
+            if n not in last_seen:
+                last_seen[n] = idx
+    overdue_score = {}
+    for n in range(1, max_num + 1):
+        gap = last_seen.get(n, total_draws)
+        overdue_score[n] = min(1.0, (gap - 29) / 30.0) if gap >= 30 else 0.0
+
+    # ── Factor 4: Range-position tendency ────────────────────────────────────
+    pos_counts = collections.defaultdict(lambda: collections.defaultdict(int))
+    for draw in history:
+        for pos, n in enumerate(draw["numbers"]):
+            pos_counts[n][pos] += 1
+    range_pos_score = {}
+    for n in range(1, max_num + 1):
+        if n in pos_counts:
+            best = max(pos_counts[n].values())
+            range_pos_score[n] = min(0.5, best / max(total_draws * 0.15, 1))
+        else:
+            range_pos_score[n] = 0.0
+
+    # ── Factor 5: Co-appearance affinity ──────────────────────────────────────
+    pair_counts = collections.Counter()
+    for draw in history:
+        nums = draw["numbers"]
+        for i in range(len(nums)):
+            for j in range(i + 1, len(nums)):
+                pair_counts[(nums[i], nums[j])] += 1
+    co_score = collections.defaultdict(float)
+    expected_rate = (draw_size * (draw_size - 1)) / (max_num * (max_num - 1))
+    pair_threshold = max(4, int(total_draws * expected_rate * 1.5))
+    for (a, b), cnt in pair_counts.items():
+        if cnt >= pair_threshold:
+            bonus_val = min(0.4, (cnt - pair_threshold) / max(total_draws * 0.05, 1))
+            co_score[a] += bonus_val
+            co_score[b] += bonus_val
+    max_co = max(co_score.values()) if co_score else 1.0
+    co_score_norm = {n: co_score[n] / max(max_co, 1.0) for n in range(1, max_num + 1)}
+
+    # ── Factor 6: Anti-birthday-cluster bias ──────────────────────────────────
+    birthday_penalty = {n: -0.12 if n <= 31 else 0.06 for n in range(1, max_num + 1)}
+
+    # ── Factor 7: Breakout detection ──────────────────────────────────────────
+    recent_30 = collections.Counter(n for draw in history[:30] for n in draw["numbers"])
+    prior_30 = collections.Counter(n for draw in history[30:60] for n in draw["numbers"])
+    breakout_score = {}
+    for n in range(1, max_num + 1):
+        r = recent_30.get(n, 0)
+        p = prior_30.get(n, 0)
+        if p == 0 and r >= 2:
+            breakout_score[n] = 0.3
+        elif p > 0:
+            ratio = r / p
+            breakout_score[n] = min(0.4, (ratio - 1.0) * 0.25) if ratio > 1.3 else 0.0
+        else:
+            breakout_score[n] = 0.0
+
+    # ── Factor 8: Draw-day cyclicality ────────────────────────────────────────
+    day_score = {n: 0.0 for n in range(1, max_num + 1)}
+    if draw_day:
+        day_history = [d for d in history if draw_day[:3].lower() in d.get("date", "").lower()]
+        if len(day_history) >= 15:
+            day_freq = collections.Counter(n for d in day_history for n in d["numbers"])
+            max_df = max(day_freq.values()) if day_freq else 1
+            for n in range(1, max_num + 1):
+                day_score[n] = day_freq.get(n, 0) / max_df
+
+    # ── Factor 9a: Jackpot-tier correlation (Lotto Max only) ─────────────────
+    # For 6/49 the jackpot is always $5M so this factor is dead weight — replaced
+    # below with quarter cyclicality which provides a real independent signal.
+    jackpot_score = {n: 0.0 for n in range(1, max_num + 1)}
+    if is_max and jackpot_amount > 0:
+        jp_tol = jackpot_amount * 0.20
+        tier_draws = [d for d in history
+                      if abs(d.get("jackpot", 0) - jackpot_amount) <= jp_tol
+                      and d.get("jackpot", 0) > 0]
+        if len(tier_draws) >= 5:
+            hj_freq = collections.Counter(n for d in tier_draws for n in d["numbers"])
+            max_hj = max(hj_freq.values()) if hj_freq else 1
+            for n in range(1, max_num + 1):
+                jackpot_score[n] = hj_freq.get(n, 0) / max_hj
+
+    # ── Factor 9b: Quarter/season cyclicality (Lotto 6/49 only) ──────────────
+    # Replaces jackpot correlation for 6/49 (jackpot never changes).
+    # Finds which numbers appear more often in the same calendar quarter as the
+    # upcoming draw, giving a real independent signal not captured by other factors.
+    quarter_score = {n: 0.0 for n in range(1, max_num + 1)}
+    if not is_max:
+        from datetime import date as _date
+        target_quarter = (_date.today().month - 1) // 3 + 1  # 1-4
+        q_history = [d for d in history
+                     if d.get("date", "") and
+                     (int(d["date"][5:7]) - 1) // 3 + 1 == target_quarter]
+        if len(q_history) >= 10:
+            q_freq = collections.Counter(n for d in q_history for n in d["numbers"])
+            max_qf = max(q_freq.values()) if q_freq else 1
+            for n in range(1, max_num + 1):
+                quarter_score[n] = q_freq.get(n, 0) / max_qf
+
+    # ── Factor 10: Acute hot streak (last 10 draws — high-temperature window) ─
+    # Half-life-20 recency decay means draws 1-5 ago are nearly indistinguishable
+    # from draws 15-20 ago. This dedicated 10-draw counter captures very recent
+    # momentum as a distinct signal.
+    hot10 = collections.Counter(n for draw in history[:10] for n in draw["numbers"])
+    max_hot10 = max(hot10.values()) if hot10 else 1
+    hot10_score = {n: hot10.get(n, 0) / max_hot10 for n in range(1, max_num + 1)}
+
+    # ── Factor 11: Sum oscillation / mean reversion ───────────────────────────
+    # Compute the mean draw sum over full history. If recent draws (last 15) are
+    # running above the mean, numbers that would push the sum DOWN are boosted,
+    # and vice versa. Implements observable regression-to-mean in winning sums.
+    all_sums = [sum(d["numbers"][:draw_size]) for d in history if len(d["numbers"]) >= draw_size]
+    sum_oscillation_score = {n: 0.0 for n in range(1, max_num + 1)}
+    if len(all_sums) >= 20:
+        global_mean_sum = sum(all_sums) / len(all_sums)
+        recent_sums = all_sums[:15]
+        recent_mean = sum(recent_sums) / len(recent_sums)
+        sum_bias = recent_mean - global_mean_sum  # positive = recent sums running high
+        # When recent sums are high, prefer lower numbers (negative correlation with value)
+        # When recent sums are low, prefer higher numbers
+        # Normalise: max contribution from a single number ≈ global_mean_sum / draw_size
+        per_num_mean = global_mean_sum / draw_size
+        for n in range(1, max_num + 1):
+            # How far is this number from the per-draw average value?
+            deviation = (n - per_num_mean) / per_num_mean  # -1 to +1 approx
+            # If sum_bias > 0 (running high), reward low numbers (deviation < 0)
+            raw = -deviation * (sum_bias / global_mean_sum)
+            sum_oscillation_score[n] = max(0.0, min(1.0, 0.5 + raw))
+
+    # ── Factor 12: Draw-span spread (spacing entropy regression) ──────────────
+    # Compute span (max − min) of each winning set. If recent draws have had
+    # unusually tight spans (bunched numbers), bias toward numbers at the extremes
+    # of the range to widen the next draw's span, and vice versa.
+    spans = [max(d["numbers"]) - min(d["numbers"])
+             for d in history if len(d["numbers"]) >= draw_size]
+    span_score = {n: 0.0 for n in range(1, max_num + 1)}
+    if len(spans) >= 20:
+        global_mean_span = sum(spans) / len(spans)
+        recent_span_mean = sum(spans[:10]) / 10
+        span_bias = recent_span_mean - global_mean_span  # negative = recently bunched
+        if abs(span_bias) > 2:  # only act when the deviation is meaningful
+            mid = max_num / 2.0
+            for n in range(1, max_num + 1):
+                # Extremity: how far is this number from the centre of the pool?
+                extremity = abs(n - mid) / mid  # 0 at centre, ~1 at edges
+                if span_bias < 0:
+                    # Recent draws bunched → boost extremes to widen span
+                    span_score[n] = extremity * min(1.0, abs(span_bias) / 10.0)
+                else:
+                    # Recent draws wide → boost centre numbers to tighten span
+                    span_score[n] = (1.0 - extremity) * min(1.0, span_bias / 10.0)
+
+    # ── Factor 13: Rollover depth correlation (Lotto Max only) ────────────────
+    # Jackpot grows ~$5M per rollover from a ~$10M base. Infer rollover count
+    # and compare to historical wins at the same rollover depth bucket.
+    # At high rollover counts (8+), the draw has survived many consecutive
+    # non-wins; numbers that historically appear in wins at similar depth
+    # receive a modest lift.
+    rollover_score = {n: 0.0 for n in range(1, max_num + 1)}
+    if is_max and jackpot_amount > 0:
+        base_jackpot = 10_000_000.0
+        increment = 5_000_000.0
+        inferred_rollovers = max(0, round((jackpot_amount - base_jackpot) / increment))
+        # Bucket: 0-3 → "low", 4-7 → "mid", 8+ → "high"
+        if inferred_rollovers <= 3:
+            depth_bucket = (0, 3)
+        elif inferred_rollovers <= 7:
+            depth_bucket = (4, 7)
+        else:
+            depth_bucket = (8, 999)
+        depth_draws = []
+        for d in history:
+            jp = d.get("jackpot", 0)
+            if jp > 0:
+                d_rollovers = max(0, round((jp - base_jackpot) / increment))
+                if depth_bucket[0] <= d_rollovers <= depth_bucket[1]:
+                    depth_draws.append(d)
+        if len(depth_draws) >= 8:
+            rd_freq = collections.Counter(n for d in depth_draws for n in d["numbers"])
+            max_rd = max(rd_freq.values()) if rd_freq else 1
+            for n in range(1, max_num + 1):
+                rollover_score[n] = rd_freq.get(n, 0) / max_rd
+
+    # ── Composite score ───────────────────────────────────────────────────────
+    # Weights differ by game: 6/49 uses quarter cyclicality (F9b) and gets the
+    # rollover weight redistributed to freq/recency; Max uses jackpot tier (F9a)
+    # and rollover depth (F13).
+    if is_max:
+        # Weights sum = 1.00 (13 factors)
+        weights = {
+            "freq":       0.16,
+            "recency":    0.14,
+            "overdue":    0.09,
+            "range_pos":  0.03,
+            "co":         0.11,
+            "birthday":   0.06,
+            "breakout":   0.06,
+            "day":        0.04,
+            "jackpot":    0.06,   # jackpot-tier correlation (Max)
+            "hot10":      0.07,
+            "sum_osc":    0.08,
+            "span":       0.04,
+            "rollover":   0.06,   # rollover depth (Max only)
+        }
+    else:
+        # Weights sum = 1.00 (12 factors — no rollover)
+        weights = {
+            "freq":       0.18,
+            "recency":    0.16,
+            "overdue":    0.09,
+            "range_pos":  0.03,
+            "co":         0.11,
+            "birthday":   0.06,
+            "breakout":   0.06,
+            "day":        0.04,
+            "quarter":    0.06,   # quarter/season cyclicality (6/49, replaces jackpot tier)
+            "hot10":      0.07,
+            "sum_osc":    0.09,
+            "span":       0.05,
+        }
+
+    scores = {}
+    for n in range(1, max_num + 1):
+        if is_max:
+            scores[n] = (
+                weights["freq"]      * freq_score[n]
+                + weights["recency"] * recency_score[n]
+                + weights["overdue"] * overdue_score[n]
+                + weights["range_pos"] * range_pos_score[n]
+                + weights["co"]      * co_score_norm[n]
+                + weights["birthday"] * birthday_penalty[n]
+                + weights["breakout"] * breakout_score[n]
+                + weights["day"]     * day_score[n]
+                + weights["jackpot"] * jackpot_score[n]
+                + weights["hot10"]   * hot10_score[n]
+                + weights["sum_osc"] * sum_oscillation_score[n]
+                + weights["span"]    * span_score[n]
+                + weights["rollover"] * rollover_score[n]
+            )
+        else:
+            scores[n] = (
+                weights["freq"]      * freq_score[n]
+                + weights["recency"] * recency_score[n]
+                + weights["overdue"] * overdue_score[n]
+                + weights["range_pos"] * range_pos_score[n]
+                + weights["co"]      * co_score_norm[n]
+                + weights["birthday"] * birthday_penalty[n]
+                + weights["breakout"] * breakout_score[n]
+                + weights["day"]     * day_score[n]
+                + weights["quarter"] * quarter_score[n]
+                + weights["hot10"]   * hot10_score[n]
+                + weights["sum_osc"] * sum_oscillation_score[n]
+                + weights["span"]    * span_score[n]
+            )
+    return scores
+
+
+def _agi_build_candidate_scores(base_scores: Dict[int, float], game: str) -> Dict[int, float]:
+    """
+    Rank-blended normalisation: 35% raw normalised score + 65% rank position.
+
+    Pure min-max normalisation creates extreme score skew where a handful of
+    numbers dominate sampling and the same cluster repeats every set. Blending
+    with the rank position flattens that concentration while still preferring
+    statistically better numbers.
+    """
+    if not base_scores:
+        return base_scores
+    items = sorted(base_scores.items(), key=lambda x: x[1])
+    n = len(items)
+    mn = items[0][1]
+    mx = items[-1][1]
+    span = mx - mn if mx > mn else 1.0
+    result = {}
+    for rank, (num, raw_score) in enumerate(items):
+        raw_norm = (raw_score - mn) / span        # 0 → 1 by raw score
+        rank_norm = rank / max(n - 1, 1)          # 0 → 1 by rank
+        result[num] = 0.35 * raw_norm + 0.65 * rank_norm
+    return result
+
+
+def _agi_derive_jackpot_constraints(game: str, jackpot_amount: float,
+                                     history: List[Dict]) -> Dict:
+    """
+    Derive sum range and odd/even targets from historical draws at a similar jackpot level.
+
+    Tiered tolerance search: ±10% → ±20% → ±30% → fallback defaults.
+    Reports the effective tolerance and confidence level used.
+    """
+    import collections
+
+    is_max = "max" in game.lower()
+    draw_size = 7 if is_max else 6
+
+    def _match(tol_pct: float) -> List[Dict]:
+        tol = jackpot_amount * tol_pct
+        lo, hi = max(0, jackpot_amount - tol), jackpot_amount + tol
+        return [d for d in history
+                if lo <= d.get("jackpot", 0) <= hi and len(d["numbers"]) >= draw_size]
+
+    matched = _match(0.10)
+    effective_tol = 0.10
+    confidence = "High"
+
+    if len(matched) < 5:
+        matched = _match(0.20)
+        effective_tol = 0.20
+        confidence = "Medium"
+
+    if len(matched) < 5:
+        matched = _match(0.30)
+        effective_tol = 0.30
+        confidence = "Low"
+
+    # Fallback defaults when no historical jackpot data exists at this level
+    if len(matched) < 5:
+        if is_max:
+            return {
+                "sum_p25": 120, "sum_p75": 200, "sum_median": 160,
+                "odd_even_top4": [(3, 4), (4, 3), (2, 5), (5, 2)],
+                "draws_matched": 0,
+                "effective_tolerance_pct": None,
+                "confidence": "None — using broad defaults",
+            }
+        else:
+            return {
+                "sum_p25": 100, "sum_p75": 170, "sum_median": 135,
+                "odd_even_top4": [(3, 3), (2, 4), (4, 2), (1, 5)],
+                "draws_matched": 0,
+                "effective_tolerance_pct": None,
+                "confidence": "None — using broad defaults",
+            }
+
+    sums = sorted([sum(d["numbers"][:draw_size]) for d in matched])
+    n = len(sums)
+
+    # Widen percentile window for small samples to avoid false precision
+    if n < 20:
+        p_lo, p_hi = 0.10, 0.90
+        confidence = f"{confidence} (wide percentiles — only {n} draws matched)"
+    else:
+        p_lo, p_hi = 0.25, 0.75
+
+    sum_p25 = sums[max(0, int(n * p_lo))]
+    sum_p75 = sums[min(n - 1, int(n * p_hi))]
+    sum_median = sums[n // 2]
+
+    oe_counter = collections.Counter()
+    for d in matched:
+        nums = d["numbers"][:draw_size]
+        odd = sum(1 for x in nums if x % 2 != 0)
+        even = draw_size - odd
+        oe_counter[(odd, even)] += 1
+
+    odd_even_top4 = [pair for pair, _ in oe_counter.most_common(4)]
+    if not odd_even_top4:
+        odd_even_top4 = [(3, 4), (4, 3)] if is_max else [(3, 3), (2, 4)]
+
+    return {
+        "sum_p25": sum_p25,
+        "sum_p75": sum_p75,
+        "sum_median": sum_median,
+        "odd_even_top4": odd_even_top4,
+        "draws_matched": len(matched),
+        "effective_tolerance_pct": effective_tol,
+        "confidence": confidence,
+    }
+
+
+def _agi_generate_one_set(norm_scores: Dict[int, float], game: str,
+                           temperature: float = 0.8,
+                           suppressed: Optional[set] = None,
+                           used_pairs: Optional[set] = None,
+                           sum_range: Optional[tuple] = None,
+                           odd_targets: Optional[List[int]] = None,
+                           no_pairs: bool = False,
+                           globally_used: Optional[set] = None,
+                           manual_zone: Optional[tuple] = None) -> List[int]:
+    """
+    Zone-stratified weighted sampling.
+
+    The previous Gumbel-top-k approach sampled from the full pool and then searched
+    for valid combos in the top-17 candidates. Because scoring skews toward
+    frequently-seen numbers (often clustered in the low zone), high-zone numbers
+    (35-52 for Lotto Max) rarely entered that narrow window — producing the same
+    low-number cluster in every set.
+
+    This approach independently samples from each zone pool (Lo / Mid / Hi),
+    guaranteeing every set spans the full numeric range regardless of scoring skew.
+    Within each zone, selection is proportional to the rank-blended normalised score.
+    """
+    import random
+
+    is_max = "max" in game.lower()
+    max_num = 52 if is_max else 49
+    draw_size = 7 if is_max else 6
+    lo_cap = 17 if is_max else 16
+    mi_cap = 34 if is_max else 32
+
+    # Sum constraints — wider defaults to avoid over-restriction when unconstrained
+    if sum_range:
+        sum_lo, sum_hi = sum_range
+    else:
+        sum_lo, sum_hi = (110, 225) if is_max else (90, 185)
+
+    # Accepted odd counts
+    if odd_targets:
+        _accepted_odd = (
+            set(oe[0] for oe in odd_targets)
+            if isinstance(odd_targets[0], (list, tuple))
+            else set(odd_targets)
+        )
+    else:
+        _accepted_odd = None  # no odd/even constraint when disabled
+
+    # Zone pools — hard-exclude globally used numbers (no repeat across sets)
+    lo_pool = [n for n in range(1, lo_cap + 1) if not (globally_used and n in globally_used)]
+    mi_pool = [n for n in range(lo_cap + 1, mi_cap + 1) if not (globally_used and n in globally_used)]
+    hi_pool = [n for n in range(mi_cap + 1, max_num + 1) if not (globally_used and n in globally_used)]
+
+    # If any zone is depleted, can't satisfy zone constraints — fallback immediately
+    if len(lo_pool) < 1 or len(mi_pool) < 1 or len(hi_pool) < 1:
+        available = [n for n in range(1, max_num + 1) if not (globally_used and n in globally_used)]
+        if len(available) >= draw_size:
+            result = sorted(random.sample(available, draw_size))
+        else:
+            result = sorted(random.sample(range(1, max_num + 1), draw_size))
+        result.append(-1)
+        return result
+
+    # Zone allocation list — manual_zone is a list of (lo, mi, hi) tuples when provided.
+    # The generator shuffles through them exactly like the built-in defaults.
+    _valid_mz = (
+        [tuple(z) for z in manual_zone
+         if len(z) == 3 and sum(z) == draw_size and all(v >= 0 for v in z)]
+        if manual_zone else []
+    )
+    if _valid_mz:
+        zone_allocs = _valid_mz
+    elif draw_size == 7:
+        zone_allocs = [
+            (2, 3, 2), (2, 2, 3), (3, 2, 2),
+            (1, 3, 3), (3, 3, 1), (1, 2, 4),
+            (2, 4, 1), (3, 1, 3), (1, 4, 2),
+        ]
+    else:
+        zone_allocs = [
+            (2, 2, 2), (1, 3, 2), (2, 3, 1),
+            (1, 2, 3), (2, 1, 3), (3, 2, 1),
+            (3, 1, 2), (1, 4, 1),
+        ]
+
+    def _zone_probs(pool: list) -> list:
+        """Sampling weights for one zone pool, with temperature and suppression."""
+        raw = []
+        for n in pool:
+            s = max(0.001, norm_scores.get(n, 0.1))
+            s = s ** (1.0 / max(temperature, 0.1))   # temperature scaling
+            if suppressed and n in suppressed:
+                s *= 0.001                             # near-exclude, not hard-exclude
+            raw.append(s)
+        total = sum(raw) or 1.0
+        return [r / total for r in raw]
+
+    lo_probs = _zone_probs(lo_pool)
+    mi_probs = _zone_probs(mi_pool)
+    hi_probs = _zone_probs(hi_pool)
+
+    allocs = zone_allocs[:]
+    random.shuffle(allocs)  # randomise split order so no single split dominates
+
+    for lo_n, mi_n, hi_n in allocs:
+        if lo_n > len(lo_pool) or mi_n > len(mi_pool) or hi_n > len(hi_pool):
+            continue
+
+        for _attempt in range(60):
+            # Independent weighted sample from each zone
+            lo_raw = random.choices(lo_pool, weights=lo_probs, k=lo_n * 5)
+            mi_raw = random.choices(mi_pool, weights=mi_probs, k=mi_n * 5)
+            hi_raw = random.choices(hi_pool, weights=hi_probs, k=hi_n * 5)
+
+            lo_picks = list(dict.fromkeys(lo_raw))[:lo_n]
+            mi_picks = list(dict.fromkeys(mi_raw))[:mi_n]
+            hi_picks = list(dict.fromkeys(hi_raw))[:hi_n]
+
+            if len(lo_picks) < lo_n or len(mi_picks) < mi_n or len(hi_picks) < hi_n:
+                continue
+
+            combo = sorted(lo_picks + mi_picks + hi_picks)
+
+            if len(set(combo)) < draw_size:
+                continue
+
+            # No consecutive pairs constraint
+            if no_pairs and any(combo[i + 1] - combo[i] == 1 for i in range(len(combo) - 1)):
+                continue
+
+            s = sum(combo)
+            if not (sum_lo <= s <= sum_hi):
+                continue
+
+            if _accepted_odd is not None:
+                odd_count = sum(1 for n in combo if n % 2 != 0)
+                if odd_count not in _accepted_odd:
+                    continue
+
+            return combo
+
+    # Fallback: score-blind zone-balanced pick; mark as constraint-relaxed
+    lo_fb = random.sample(lo_pool, min(2, len(lo_pool))) if lo_pool else []
+    mi_fb = random.sample(mi_pool, min(3 if draw_size == 7 else 2, len(mi_pool))) if mi_pool else []
+    hi_fb = random.sample(hi_pool, min(2, len(hi_pool))) if hi_pool else []
+    fallback = sorted(set(lo_fb + mi_fb + hi_fb))
+    if len(fallback) < draw_size:
+        excluded = set(fallback) | (globally_used or set())
+        remaining = [n for n in range(1, max_num + 1) if n not in excluded]
+        need = draw_size - len(fallback)
+        fallback += random.sample(remaining, min(need, len(remaining)))
+    result = sorted(fallback[:draw_size])
+    result.append(-1)  # sentinel: constraint-relaxed fallback
+    return result
+
+
+def _agi_generate_sets(scores: Dict[int, float], game: str, num_sets: int,
+                        sum_range: Optional[tuple] = None,
+                        odd_targets: Optional[list] = None,
+                        no_pairs: bool = False,
+                        no_repeat_across: bool = False,
+                        manual_zone: Optional[tuple] = None) -> tuple:
+    """
+    Generate diverse AGI prediction sets with two-pass diversity enforcement.
+
+    Pass 1 — sequential generation with cross-set suppression:
+      Any number appearing in >15% of sets so far is near-excluded from the
+      next set's zone sampling weights.
+      When no_repeat_across=True, every number used by a previous set is
+      hard-excluded (globally_used) from all subsequent sets.
+      When no_pairs=True, combos containing consecutive numbers are rejected.
+
+    Pass 2 — post-generation diversity sweep (skipped when no_repeat_across=True,
+      as hard exclusion already guarantees uniqueness):
+      Any number appearing in >25% of sets is replaced with a zone-compatible,
+      least-used alternative.
+
+    Returns (sets: List[List[int]], relaxed_flags: List[bool])
+    """
+    import random
+
+    norm = _agi_build_candidate_scores(scores, game)
+    results = []
+    relaxed_flags = []
+    is_max = "max" in game.lower()
+    max_num = 52 if is_max else 49
+    lo_cap = 17 if is_max else 16
+    mi_cap = 34 if is_max else 32
+    usage = {n: 0 for n in range(1, max_num + 1)}
+    globally_used: set = set()
+
+    # ── Pass 1: sequential generation ────────────────────────────────────────
+    for i in range(num_sets):
+        # Soft suppression: numbers in >15% of sets so far get near-excluded
+        threshold_count = max(1, int(len(results) * 0.15)) if results else 999
+        suppressed = {n for n, cnt in usage.items() if cnt > threshold_count}
+        # Temperature rises 0.7 → 1.1 to increase diversity in later sets
+        temp = 0.7 + 0.4 * (i / max(num_sets - 1, 1))
+        raw = _agi_generate_one_set(
+            norm, game, temperature=temp, suppressed=suppressed,
+            sum_range=sum_range, odd_targets=odd_targets,
+            no_pairs=no_pairs,
+            globally_used=globally_used if no_repeat_across else None,
+            manual_zone=manual_zone,
+        )
+        if raw and raw[-1] == -1:
+            pred = raw[:-1]
+            relaxed_flags.append(True)
+        else:
+            pred = raw
+            relaxed_flags.append(False)
+        results.append(pred)
+        for n in pred:
+            usage[n] += 1
+            if no_repeat_across:
+                globally_used.add(n)
+
+    # ── Pass 2: post-generation diversity sweep ───────────────────────────────
+    # Skip when no_repeat_across is active — hard exclusion already guarantees
+    # each number appears in at most one set.
+    if not no_repeat_across:
+        max_allowed = max(2, int(num_sets * 0.25))
+
+        for n in sorted(usage.keys()):
+            if usage[n] <= max_allowed:
+                continue
+            excess = usage[n] - max_allowed
+            sets_with_n = [i for i, s in enumerate(results) if n in s]
+            for idx in sets_with_n[-excess:]:
+                if n <= lo_cap:
+                    candidates = [c for c in range(1, lo_cap + 1)
+                                   if c not in results[idx] and usage.get(c, 0) < max_allowed]
+                elif n <= mi_cap:
+                    candidates = [c for c in range(lo_cap + 1, mi_cap + 1)
+                                   if c not in results[idx] and usage.get(c, 0) < max_allowed]
+                else:
+                    candidates = [c for c in range(mi_cap + 1, max_num + 1)
+                                   if c not in results[idx] and usage.get(c, 0) < max_allowed]
+                if not candidates:
+                    continue
+                replacement = min(candidates,
+                                  key=lambda c: (usage.get(c, 0), -scores.get(c, 0)))
+                results[idx] = sorted(x if x != n else replacement for x in results[idx])
+                usage[n] -= 1
+                usage[replacement] = usage.get(replacement, 0) + 1
+
+    return results, relaxed_flags
+
+
+def _agi_annotate_set(numbers: List[int], game: str, scores: Dict[int, float],
+                       history: List[Dict], constraint_relaxed: bool = False) -> Dict:
+    """Compute structural annotations for one set."""
+    is_max = "max" in game.lower()
+    lo_cap = 17 if is_max else 16
+    mi_cap = 34 if is_max else 32
+
+    s = sum(numbers)
+    odd_count = sum(1 for n in numbers if n % 2 != 0)
+    even_count = len(numbers) - odd_count
+    lo = [n for n in numbers if n <= lo_cap]
+    mi = [n for n in numbers if lo_cap < n <= mi_cap]
+    hi = [n for n in numbers if n > mi_cap]
+
+    consecutive_pairs = sum(
+        1 for i in range(len(numbers) - 1) if numbers[i + 1] - numbers[i] == 1
+    )
+    last_digit_spread = len(set(n % 10 for n in numbers))
+    decade_spread = len(set(n // 10 for n in numbers))
+    avg_score = sum(scores.get(n, 0) for n in numbers) / len(numbers) if numbers else 0.0
+
+    repeat_from_last = 0
+    if history:
+        last_draw = set(history[0]["numbers"])
+        repeat_from_last = sum(1 for n in numbers if n in last_draw)
+
+    return {
+        "sum": s,
+        "odd": odd_count,
+        "even": even_count,
+        "zone_lo": len(lo),
+        "zone_mi": len(mi),
+        "zone_hi": len(hi),
+        "consecutive_pairs": consecutive_pairs,
+        "last_digit_spread": last_digit_spread,
+        "decade_spread": decade_spread,
+        "avg_score": avg_score,
+        "repeat_from_last": repeat_from_last,
+        "constraint_relaxed": constraint_relaxed,
+    }
+
+
+def _agi_rank_sets(sets: List[List[int]], game: str, scores: Dict[int, float],
+                    history: List[Dict],
+                    relaxed_flags: Optional[List[bool]] = None) -> List[Dict]:
+    """Rank generated sets by composite quality score."""
+    ranked = []
+    for i, numbers in enumerate(sets):
+        is_relaxed = (relaxed_flags[i] if relaxed_flags and i < len(relaxed_flags) else False)
+        ann = _agi_annotate_set(numbers, game, scores, history, constraint_relaxed=is_relaxed)
+
+        # avg_score drives ranking; structural bonuses add differentiation
+        score = ann["avg_score"] * 0.55
+        if ann["consecutive_pairs"] >= 1:
+            score += 0.06
+        if ann["last_digit_spread"] >= 4:
+            score += 0.06
+        if ann["decade_spread"] >= 3:
+            score += 0.06
+        if ann["repeat_from_last"] in (1, 2):
+            score += 0.05
+        # Penalise constraint-relaxed sets so they rank lower
+        if is_relaxed:
+            score *= 0.75
+
+        ranked.append({"rank": i + 1, "numbers": numbers, "annotation": ann, "score": score})
+
+    ranked.sort(key=lambda x: x["score"], reverse=True)
+    for i, r in enumerate(ranked):
+        r["rank"] = i + 1
+    return ranked
+
+
+def _agi_display_balls(numbers: List[int], game: str, highlight: Optional[set] = None) -> str:
+    """Render numbers as styled HTML lottery balls."""
+    is_max = "max" in game.lower()
+    lo_cap = 17 if is_max else 16
+    mi_cap = 34 if is_max else 32
+
+    parts = []
+    for n in numbers:
+        if highlight and n in highlight:
+            bg = "#2ecc71"
+            color = "#fff"
+            border = "3px solid #27ae60"
+        elif n <= lo_cap:
+            bg = "#3498db"
+            color = "#fff"
+            border = "2px solid #2980b9"
+        elif n <= mi_cap:
+            bg = "#9b59b6"
+            color = "#fff"
+            border = "2px solid #8e44ad"
+        else:
+            bg = "#e74c3c"
+            color = "#fff"
+            border = "2px solid #c0392b"
+
+        parts.append(
+            f'<span style="display:inline-flex;align-items:center;justify-content:center;'
+            f'width:38px;height:38px;border-radius:50%;background:{bg};color:{color};'
+            f'font-weight:bold;font-size:15px;margin:2px;border:{border};">{n}</span>'
+        )
+    return " ".join(parts)
+
+
+def _agi_get_next_draw_date(game: str) -> tuple:
+    """Return (iso_date_str, weekday_name) for the next draw of this game.
+    If today is a draw day it is returned as the next draw (draw hasn't happened yet)."""
+    from datetime import date, timedelta
+    today = date.today()
+    day_names = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
+    if "max" in game.lower():
+        # Lotto Max: Tuesday (1) and Friday (4)
+        for delta in range(0, 8):
+            d = today + timedelta(days=delta)
+            if d.weekday() in (1, 4):
+                return d.isoformat(), day_names[d.weekday()]
+    else:
+        # Lotto 6/49: Wednesday (2) and Saturday (5)
+        for delta in range(0, 8):
+            d = today + timedelta(days=delta)
+            if d.weekday() in (2, 5):
+                return d.isoformat(), day_names[d.weekday()]
+    d = today + timedelta(days=3)
+    return d.isoformat(), day_names[d.weekday()]
+
+
+def _agi_save_predictions(game: str, predictions: List[List[int]], ranked: List[Dict],
+                           scores: Dict[int, float], methodology: Dict,
+                           jackpot_amount: float, num_sets: int) -> Path:
+    """Save AGI prediction file to predictions/{game}/agi_predictions/."""
+    game_folder = _sanitize_game_name(game)
+    save_dir = Path("predictions") / game_folder / "agi_predictions"
+    save_dir.mkdir(parents=True, exist_ok=True)
+
+    ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+    filename = f"agi_predictions_{ts}_{num_sets}sets.json"
+    filepath = save_dir / filename
+
+    data = {
+        "game": game,
+        "generated_at": datetime.now().isoformat(),
+        "num_sets": num_sets,
+        "jackpot_amount": jackpot_amount,
+        "predictions": predictions,
+        "ranked_predictions": [
+            {
+                "rank": r["rank"],
+                "numbers": r["numbers"],
+                "score": r["score"],
+                "annotation": r["annotation"],
+            }
+            for r in ranked
+        ],
+        "number_scores": {str(k): v for k, v in scores.items()},
+        "methodology": methodology,
+        "engine": "AGI_Pure_Statistical_v1",
+    }
+    with open(filepath, "w") as f:
+        json.dump(data, f, indent=2, default=str)
+    return filepath
+
+
+def _agi_load_prediction_files(game: str) -> List[Path]:
+    """List all saved AGI prediction files, newest first."""
+    game_folder = _sanitize_game_name(game)
+    save_dir = Path("predictions") / game_folder / "agi_predictions"
+    if not save_dir.exists():
+        return []
+    files = sorted(save_dir.glob("agi_predictions_*.json"), reverse=True)
+    return list(files)
+
+
+def _render_agi_predictions(analyzer: "SuperIntelligentAIAnalyzer") -> None:
+    """Render the AGI Predictions tab — pure statistical engine, no ML models."""
+    game = analyzer.game
+    is_max = "max" in game.lower()
+    max_num = 52 if is_max else 49
+    draw_size = 7 if is_max else 6
+    lo_cap = 17 if is_max else 16
+    mi_cap = 34 if is_max else 32
+
+    st.markdown("## 🔮 AGI Pure Statistical Predictions")
+    st.caption(
+        "This engine uses only historical draw statistics — no ML models. "
+        "Weighted factors: frequency, recency decay, overdue gap, acute hot streak, "
+        "co-appearance affinity, breakout detection, birthday anti-bias, draw-day cyclicality, "
+        "sum oscillation, span spread"
+        + (", jackpot-tier correlation, rollover depth." if is_max else ", quarter/season cyclicality.")
+    )
+
+    # ── Two sections ─────────────────────────────────────────────────────────
+    sec1, sec2 = st.tabs(["🎲 Generate AGI Predictions", "📊 Compare vs Actual Results"])
+
+    # =========================================================================
+    # SECTION 1 — GENERATE
+    # =========================================================================
+    with sec1:
+        next_draw_date, next_draw_day = _agi_get_next_draw_date(game)
+        st.info(f"**Next estimated draw date:** {next_draw_date} ({next_draw_day})")
+
+        col_settings, col_info = st.columns([2, 1])
+
+        with col_settings:
+            num_sets = st.number_input(
+                "Number of prediction sets",
+                min_value=1, max_value=50, value=10, step=1,
+                key="agi_num_sets",
+            )
+
+            jackpot_amount = 0.0
+            if is_max:
+                jackpot_input = st.number_input(
+                    "Estimated jackpot amount ($M)",
+                    min_value=10.0, max_value=500.0, value=50.0, step=5.0,
+                    key="agi_jackpot",
+                    help=(
+                        "Used for jackpot-tier correlation scoring and structural constraint "
+                        "derivation. Draws within ±20% of this amount are used for scoring; "
+                        "±10% (expanding to ±30%) for sum/odd-even constraints."
+                    ),
+                )
+                jackpot_amount = jackpot_input * 1_000_000
+            else:
+                # 6/49 jackpot is always $5M — not a scoring factor (replaced by quarter
+                # cyclicality). Set internally for constraint derivation only.
+                jackpot_amount = 5_000_000.0
+                from datetime import date as _ui_date
+                _cur_quarter = (_ui_date.today().month - 1) // 3 + 1
+                _quarter_names = {1: "Q1 (Jan–Mar)", 2: "Q2 (Apr–Jun)",
+                                  3: "Q3 (Jul–Sep)", 4: "Q4 (Oct–Dec)"}
+                st.info(
+                    f"**Lotto 6/49** — Fixed $5M jackpot. Scoring uses "
+                    f"**quarter/season cyclicality** instead of jackpot tier. "
+                    f"Active quarter: **{_quarter_names[_cur_quarter]}**"
+                )
+
+            _constraints_label = (
+                "Apply jackpot-derived structural constraints (sum range & odd/even)"
+                if is_max else
+                "Apply historical structural constraints (sum range & odd/even)"
+            )
+            _constraints_help = (
+                (
+                    "When checked: predictions are filtered to match the sum range and "
+                    "odd/even splits derived from historical draws at this jackpot level "
+                    "(±10–30% tolerance).\n\n"
+                    "When unchecked: predictions are generated purely by statistical score "
+                    "with no structural filtering — maximises score diversity."
+                ) if is_max else (
+                    "When checked: predictions are filtered to match the sum range and "
+                    "odd/even splits derived from the full historical draw record.\n\n"
+                    "Since the 6/49 jackpot never changes, all historical draws are used "
+                    "to derive these structural targets.\n\n"
+                    "When unchecked: predictions are generated purely by statistical score "
+                    "with no structural filtering — maximises score diversity."
+                )
+            )
+            use_constraints = st.checkbox(
+                _constraints_label,
+                value=True,
+                key="agi_use_constraints",
+                help=_constraints_help,
+            )
+            if is_max:
+                st.caption(
+                    "✅ Filters each generated set to match the **sum range** and "
+                    "**odd/even split** seen in historical draws at this jackpot level. "
+                    "Sets outside those bounds are re-sampled automatically."
+                )
+            else:
+                st.caption(
+                    "✅ Filters each generated set to match the **sum range** (e.g. 129–174) "
+                    "and **odd/even split** (e.g. 3 Odd / 3 Even) derived from all 6/49 "
+                    "historical draws. Sets outside those bounds are re-sampled automatically. "
+                    "Uncheck to remove these filters and allow any statistically scored combination."
+                )
+
+            no_pairs = st.checkbox(
+                "No draw pairs (no two consecutive numbers within a set)",
+                value=False,
+                key="agi_no_pairs",
+                help=(
+                    "When checked: every generated set is guaranteed to contain no two "
+                    "numbers that are adjacent (e.g. 14 and 15 cannot both appear). "
+                    "Rejected combos are re-sampled automatically."
+                ),
+            )
+
+            _max_no_repeat_sets = max_num // draw_size
+            no_repeat_across = st.checkbox(
+                "No repeat numbers across sets",
+                value=False,
+                key="agi_no_repeat_across",
+                help=(
+                    "When checked: each number can appear in at most one prediction set. "
+                    f"Hard limit for {game}: {_max_no_repeat_sets} sets "
+                    f"({max_num} numbers ÷ {draw_size} per set). "
+                    "Sets beyond that limit are automatically dropped."
+                ),
+            )
+
+            if no_repeat_across and int(num_sets) > _max_no_repeat_sets:
+                st.warning(
+                    f"⚠️ No-repeat mode: only **{_max_no_repeat_sets}** unique sets possible "
+                    f"({max_num} numbers ÷ {draw_size} per set). "
+                    f"Requested {int(num_sets)} — excess sets will be omitted."
+                )
+
+            # ── Lotto Max only: manual overrides ─────────────────────────────
+            manual_odd_even_targets = None
+            manual_zone = None
+
+            if is_max:
+                st.markdown("---")
+                st.caption("**Lotto Max manual overrides** — override auto-derived targets")
+
+                use_manual_oe = st.checkbox(
+                    "Manual Odd/Even Targets",
+                    value=False,
+                    key="agi_manual_oe_enabled",
+                    help=(
+                        "Override the auto-derived odd/even targets. Select one or more "
+                        "split patterns — only sets matching your selection will be generated."
+                    ),
+                )
+                if use_manual_oe:
+                    _all_oe_opts = [f"{o} Odd / {7 - o} Even" for o in range(8)]
+                    _selected_oe = st.multiselect(
+                        "Select allowed Odd/Even splits",
+                        options=_all_oe_opts,
+                        default=["3 Odd / 4 Even", "4 Odd / 3 Even"],
+                        key="agi_manual_oe_selection",
+                    )
+                    if _selected_oe:
+                        manual_odd_even_targets = [
+                            (int(s.split()[0]), 7 - int(s.split()[0]))
+                            for s in _selected_oe
+                        ]
+                        st.caption(f"Active: {', '.join(_selected_oe)}")
+                    else:
+                        st.warning("⚠️ Select at least one split or uncheck Manual Odd/Even Targets.")
+
+                use_manual_zone = st.checkbox(
+                    "Manual Zone Distribution (Lo · Mid · Hi)",
+                    value=False,
+                    key="agi_manual_zone_enabled",
+                    help=(
+                        "Force generated sets to use specific zone splits. "
+                        "Lo = 1–17, Mid = 18–34, Hi = 35–52. Each row must sum to 7. "
+                        "Add multiple rows — the generator picks from your list randomly, "
+                        "one split per set."
+                    ),
+                )
+                if use_manual_zone:
+                    # Initialise list in session state
+                    if "agi_zone_list" not in st.session_state:
+                        st.session_state["agi_zone_list"] = [{"lo": 2, "mid": 3, "hi": 2}]
+
+                    # Header row
+                    _zh1, _zh2, _zh3, _zh4 = st.columns([2, 2, 1, 1])
+                    _zh1.caption("🔵 Lo (1–17)")
+                    _zh2.caption("🟣 Mid (18–34)")
+                    _zh3.caption("🔴 Hi (35–52)")
+                    _zh4.caption("")
+
+                    _zones_to_remove = []
+                    for _zi, _zentry in enumerate(st.session_state["agi_zone_list"]):
+                        _zc1, _zc2, _zc3, _zc4 = st.columns([2, 2, 1, 1])
+                        with _zc1:
+                            _lo = st.selectbox(
+                                "Lo", range(0, 8),
+                                index=min(_zentry.get("lo", 2), 7),
+                                key=f"agi_mz_lo_{_zi}",
+                                label_visibility="collapsed",
+                            )
+                        with _zc2:
+                            _mid_max = 7 - _lo
+                            _mid_idx = min(_zentry.get("mid", 2), _mid_max)
+                            _mid = st.selectbox(
+                                "Mid", range(0, _mid_max + 1),
+                                index=_mid_idx,
+                                key=f"agi_mz_mid_{_zi}",
+                                label_visibility="collapsed",
+                            )
+                        with _zc3:
+                            _hi = 7 - _lo - _mid
+                            st.metric(f"hi_{_zi}", _hi, label_visibility="collapsed")
+                            if _hi < 0:
+                                st.error("!")
+                        with _zc4:
+                            if len(st.session_state["agi_zone_list"]) > 1:
+                                if st.button("✕", key=f"agi_mz_rem_{_zi}", use_container_width=True):
+                                    _zones_to_remove.append(_zi)
+                        # Write back current values
+                        st.session_state["agi_zone_list"][_zi] = {"lo": _lo, "mid": _mid, "hi": _hi}
+
+                    # Remove rows (process after loop to avoid index shift)
+                    if _zones_to_remove:
+                        for _ri in reversed(_zones_to_remove):
+                            st.session_state["agi_zone_list"].pop(_ri)
+                        st.rerun()
+
+                    # Add button
+                    if st.button("➕ Add Zone Distribution", key="agi_mz_add", use_container_width=True):
+                        st.session_state["agi_zone_list"].append({"lo": 2, "mid": 3, "hi": 2})
+                        st.rerun()
+
+                    # Collect valid zones for generation
+                    manual_zone = [
+                        (_z["lo"], _z["mid"], _z["hi"])
+                        for _z in st.session_state["agi_zone_list"]
+                        if _z["hi"] >= 0 and _z["lo"] + _z["mid"] + _z["hi"] == 7
+                    ]
+                    _invalid = len(st.session_state["agi_zone_list"]) - len(manual_zone)
+                    if _invalid:
+                        st.warning(f"⚠️ {_invalid} row(s) don't sum to 7 and will be skipped.")
+                    if manual_zone:
+                        st.caption(
+                            f"**{len(manual_zone)} zone split(s) active** — generator picks "
+                            f"randomly from your list: "
+                            + ", ".join(f"({z[0]}·{z[1]}·{z[2]})" for z in manual_zone)
+                        )
+
+        # Load full history — cached, so slider interactions don't re-read CSV files
+        _agi_history_preview = _agi_load_history(game)
+
+        # Derive jackpot-matched structural constraints dynamically
+        _agi_constraints = _agi_derive_jackpot_constraints(game, jackpot_amount, _agi_history_preview)
+        _sum_range = (_agi_constraints["sum_p25"], _agi_constraints["sum_p75"])
+        _odd_targets = _agi_constraints["odd_even_top4"]
+        _odd_target_strs = [f"{o} Odd / {e} Even" for o, e in _odd_targets]
+        _draws_matched = _agi_constraints["draws_matched"]
+        _confidence = _agi_constraints.get("confidence", "")
+        _eff_tol = _agi_constraints.get("effective_tolerance_pct")
+
+        with col_info:
+            st.markdown(f"""
+**Game:** {game}
+**Draw size:** {draw_size} balls (1–{max_num})
+**Full history loaded:** {len(_agi_history_preview)} draws
+**Zone boundaries:**
+- 🔵 Low: 1–{lo_cap}
+- 🟣 Mid: {lo_cap + 1}–{mi_cap}
+- 🔴 High: {mi_cap + 1}–{max_num}
+""")
+            if use_constraints:
+                if is_max:
+                    st.markdown("**Jackpot-derived structural constraints:** ✅ Active")
+                    if _draws_matched > 0:
+                        _tol_str = f"±{int(_eff_tol * 100)}%" if _eff_tol else ""
+                        st.caption(
+                            f"Derived from **{_draws_matched}** historical draws "
+                            f"at ≈ ${jackpot_amount / 1e6:.0f}M {_tol_str} · Confidence: **{_confidence}**"
+                        )
+                    else:
+                        st.caption("⚠️ No jackpot matches — using broad defaults")
+                else:
+                    st.markdown("**Historical structural constraints:** ✅ Active")
+                    st.caption(
+                        f"Derived from **{_draws_matched}** historical draws "
+                        f"(full record — jackpot fixed at $5M) · Confidence: **{_confidence}**"
+                    )
+                st.markdown(f"- **Sum range:** {_sum_range[0]} – {_sum_range[1]} (median {_agi_constraints['sum_median']})")
+                st.markdown("- **Odd/Even targets:**")
+                for _oe_str in _odd_target_strs:
+                    st.markdown(f"  - {_oe_str}")
+                st.markdown("- Each zone ≥ 1 number")
+            else:
+                st.markdown("**Structural constraints:** ⬜ Disabled")
+                st.caption(
+                    "Predictions generated by statistical score only — "
+                    "no sum range or odd/even filtering applied."
+                )
+            st.markdown(f"- **Draw day:** {next_draw_day} (cyclicality scoring)")
+            if is_max:
+                _inferred_rollovers = max(0, round((jackpot_amount - 10_000_000) / 5_000_000))
+                _depth_label = "Low (0–3)" if _inferred_rollovers <= 3 else ("Mid (4–7)" if _inferred_rollovers <= 7 else "High (8+)")
+                st.markdown(f"- **Rollover depth:** ~{_inferred_rollovers} ({_depth_label})")
+            else:
+                from datetime import date as _qi_date
+                _q = (_qi_date.today().month - 1) // 3 + 1
+                _qn = {1: "Q1", 2: "Q2", 3: "Q3", 4: "Q4"}[_q]
+                st.markdown(f"- **Scoring quarter:** {_qn} (season cyclicality)")
+
+        st.divider()
+
+        _agi_regen = st.session_state.pop("agi_regen_requested", False)
+
+        if st.button("🚀 Generate AGI Predictions", use_container_width=True, key="agi_gen_btn") or _agi_regen:
+            _regen_params = st.session_state.get("agi_regen_params", {}) if _agi_regen else {}
+            _regen_jackpot = _regen_params.get("jackpot_amount", jackpot_amount)
+            _regen_num_sets = _regen_params.get("num_sets", int(num_sets))
+            _regen_draw_day = _regen_params.get("draw_day", next_draw_day)
+            _regen_overwrite = _regen_params.get("filepath") if _agi_regen else None
+            _regen_use_constraints = _regen_params.get("use_constraints", use_constraints)
+            _regen_no_pairs = _regen_params.get("no_pairs", no_pairs)
+            _regen_no_repeat_across = _regen_params.get("no_repeat_across", no_repeat_across)
+            _regen_manual_oe = _regen_params.get("manual_odd_even_targets", manual_odd_even_targets)
+            _regen_manual_zone = _regen_params.get("manual_zone", manual_zone)
+
+            with st.spinner("Analysing historical patterns and generating predictions..."):
+                history = _agi_history_preview
+                if len(history) < 10:
+                    st.error("Not enough historical data. Please load draw history in the Data Training tab first.")
+                    return
+
+                constraints = _agi_derive_jackpot_constraints(game, _regen_jackpot, history)
+
+                # Only apply constraints when the checkbox is on (or was on when regen was triggered)
+                if _regen_use_constraints:
+                    sum_range = (constraints["sum_p25"], constraints["sum_p75"])
+                    odd_targets = constraints["odd_even_top4"]
+                else:
+                    sum_range = None
+                    odd_targets = None
+
+                # Manual overrides take precedence over auto-derived targets
+                if _regen_manual_oe:
+                    odd_targets = _regen_manual_oe
+
+                # Score — pass the actual draw day so Factor 8 is populated
+                scores = _agi_score_numbers(
+                    game=game, history=history,
+                    jackpot_amount=_regen_jackpot,
+                    draw_day=_regen_draw_day,
+                )
+
+                # Generate — manual overrides applied where set
+                sets, relaxed_flags = _agi_generate_sets(
+                    scores, game, num_sets=_regen_num_sets,
+                    sum_range=sum_range, odd_targets=odd_targets,
+                    no_pairs=_regen_no_pairs,
+                    no_repeat_across=_regen_no_repeat_across,
+                    manual_zone=_regen_manual_zone,
+                )
+
+                ranked = _agi_rank_sets(sets, game, scores, history,
+                                         relaxed_flags=relaxed_flags)
+
+                odd_target_labels = [f"{o}O/{e}E" for o, e in odd_targets] if odd_targets else []
+                eff_tol = constraints.get("effective_tolerance_pct")
+                methodology = {
+                    "history_draws_used": len(history),
+                    "jackpot_amount": _regen_jackpot,
+                    "jackpot_matched_draws": constraints["draws_matched"],
+                    "jackpot_tolerance_pct": int(eff_tol * 100) if eff_tol else None,
+                    "jackpot_constraint_confidence": constraints.get("confidence"),
+                    "next_draw_estimate": next_draw_date,
+                    "draw_day": _regen_draw_day,
+                    "factors": [
+                        "long_run_frequency",
+                        "unified_recency_curve_exp_decay_halflife_20",
+                        "overdue_bonus_30plus_draws",
+                        "range_position_tendency",
+                        "co_appearance_affinity",
+                        "birthday_cluster_anti_bias",
+                        "breakout_detection_last30_vs_prior30",
+                        "draw_day_cyclicality",
+                        "jackpot_tier_correlation_20pct_window (Max) / quarter_season_cyclicality (6/49)",
+                        "acute_hot_streak_last10_draws",
+                        "sum_oscillation_mean_reversion",
+                        "draw_span_spread_regression",
+                        "rollover_depth_correlation (Max only)",
+                    ],
+                    "constraints_enabled": _regen_use_constraints,
+                    "structural_constraints": {
+                        "applied": _regen_use_constraints,
+                        "sum_range": list(sum_range) if sum_range else None,
+                        "sum_median": constraints["sum_median"] if _regen_use_constraints else None,
+                        "odd_even_targets": odd_target_labels if odd_targets else None,
+                        "zone_min_each": 1,
+                    },
+                    "sampling": "Gumbel-top-k weighted without replacement",
+                    "temperature_schedule": "0.7 rising to 1.0",
+                    "dominance_suppression_threshold": 0.20,
+                    "constraint_relaxed_sets": sum(relaxed_flags),
+                    "no_pairs": _regen_no_pairs,
+                    "no_repeat_across": _regen_no_repeat_across,
+                    "manual_odd_even_targets": (
+                        [f"{o}O/{e}E" for o, e in _regen_manual_oe]
+                        if _regen_manual_oe else None
+                    ),
+                    "manual_zone_distribution": (
+                        [{"lo": z[0], "mid": z[1], "hi": z[2]} for z in _regen_manual_zone]
+                        if _regen_manual_zone else None
+                    ),
+                }
+
+                # Save — overwrite if regenerating, otherwise create new file
+                if _regen_overwrite and Path(_regen_overwrite).exists():
+                    filepath = Path(_regen_overwrite)
+                    try:
+                        import json as _jregen
+                        with open(filepath, "r") as _rf:
+                            _regen_data = _jregen.load(_rf)
+                        _regen_data.update({
+                            "predictions": sets,
+                            "ranked_predictions": [
+                                {"rank": r["rank"], "numbers": r["numbers"],
+                                 "score": r["score"], "annotation": r["annotation"]}
+                                for r in ranked
+                            ],
+                            "number_scores": {str(k): v for k, v in scores.items()},
+                            "methodology": methodology,
+                            "regenerated_at": datetime.now().isoformat(),
+                        })
+                        with open(filepath, "w") as _rf:
+                            _jregen.dump(_regen_data, _rf, indent=2, default=str)
+                    except Exception as _re:
+                        filepath = _agi_save_predictions(
+                            game=game, predictions=sets, ranked=ranked,
+                            scores=scores, methodology=methodology,
+                            jackpot_amount=_regen_jackpot, num_sets=_regen_num_sets,
+                        )
+                else:
+                    filepath = _agi_save_predictions(
+                        game=game, predictions=sets, ranked=ranked,
+                        scores=scores, methodology=methodology,
+                        jackpot_amount=_regen_jackpot, num_sets=_regen_num_sets,
+                    )
+
+                st.session_state["agi_last_ranked"] = ranked
+                st.session_state["agi_last_scores"] = scores
+                st.session_state["agi_last_filepath"] = str(filepath)
+                st.session_state["agi_last_history"] = history
+                st.session_state["agi_last_game"] = game
+                st.session_state["agi_regen_params"] = {
+                    "jackpot_amount": _regen_jackpot,
+                    "num_sets": _regen_num_sets,
+                    "draw_day": _regen_draw_day,
+                    "use_constraints": _regen_use_constraints,
+                    "no_pairs": _regen_no_pairs,
+                    "no_repeat_across": _regen_no_repeat_across,
+                    "manual_odd_even_targets": _regen_manual_oe,
+                    "manual_zone": [list(z) for z in _regen_manual_zone] if _regen_manual_zone else None,
+                    "filepath": str(filepath),
+                }
+
+            relaxed_count = sum(relaxed_flags) if relaxed_flags else 0
+            if relaxed_count:
+                st.warning(
+                    f"⚠️ {relaxed_count} set(s) could not satisfy all structural constraints "
+                    f"and used a relaxed fallback — they are ranked lower automatically."
+                )
+            st.success(f"✅ Generated {len(ranked)} AGI prediction sets — saved to `{filepath.name}`")
+
+        # Display results if available
+        _agi_ranked = st.session_state.get("agi_last_ranked")
+        _agi_scores = st.session_state.get("agi_last_scores")
+
+        if _agi_ranked and st.session_state.get("agi_last_game") == game:
+            st.divider()
+            st.markdown("### 🏆 Ranked AGI Prediction Sets")
+            st.caption("Sets ranked by composite statistical quality score. "
+                       "🔵 Low zone · 🟣 Mid zone · 🔴 High zone · ⚠️ = constraint relaxed")
+
+            for r in _agi_ranked:
+                ann = r["annotation"]
+                balls_html = _agi_display_balls(r["numbers"], game)
+                is_relaxed = ann.get("constraint_relaxed", False)
+                with st.container():
+                    col_rank, col_balls, col_stats = st.columns([1, 4, 3])
+                    with col_rank:
+                        rank_label = f"**#{r['rank']}**" + (" ⚠️" if is_relaxed else "")
+                        st.markdown(rank_label)
+                        st.caption(f"Score: {r['score']:.3f}")
+                    with col_balls:
+                        st.markdown(balls_html, unsafe_allow_html=True)
+                    with col_stats:
+                        st.caption(
+                            f"Sum {ann['sum']} · {ann['odd']}O/{ann['even']}E · "
+                            f"Lo{ann['zone_lo']}/Mi{ann['zone_mi']}/Hi{ann['zone_hi']} · "
+                            f"{ann['consecutive_pairs']} pair(s)"
+                            + (" · relaxed" if is_relaxed else "")
+                        )
+
+            # Number score chart
+            st.divider()
+            st.markdown("### 📊 Number Score Distribution")
+            st.caption(
+                "Composite AGI score per number. Bars show relative statistical favouring. "
+                "🔵 Low · 🟣 Mid · 🔴 High · birthday anti-bias visibly pulls down 1-31."
+            )
+            _score_rows = []
+            for n, v in sorted(_agi_scores.items()):
+                zone = "Low" if n <= lo_cap else ("Mid" if n <= mi_cap else "High")
+                color = "#3498db" if zone == "Low" else ("#9b59b6" if zone == "Mid" else "#e74c3c")
+                _score_rows.append({"Number": str(n), "Score": round(v, 4), "Zone": zone, "Color": color})
+            _score_df = pd.DataFrame(_score_rows)
+            st.bar_chart(_score_df.set_index("Number")["Score"], use_container_width=True, height=260)
+            with st.expander("View full score table"):
+                st.dataframe(_score_df[["Number", "Score", "Zone"]], use_container_width=True, height=300)
+
+            # ── Regenerate button ─────────────────────────────────────────────
+            st.divider()
+            _agi_rp = st.session_state.get("agi_regen_params", {})
+            if _agi_rp:
+                _agi_fp = _agi_rp.get("filepath", "")
+                st.caption(
+                    f"Active file: `{Path(_agi_fp).name if _agi_fp else 'unknown'}` · "
+                    f"{_agi_rp.get('num_sets', 0)} sets · jackpot ${_agi_rp.get('jackpot_amount', 0) / 1e6:.0f}M"
+                )
+                if st.button(
+                    "🔄 Regenerate AGI Predictions",
+                    use_container_width=True,
+                    key="agi_regen_btn",
+                    help="Re-run with identical settings and overwrite the current file",
+                ):
+                    st.session_state["agi_regen_requested"] = True
+                    st.rerun()
+
+    # =========================================================================
+    # SECTION 2 — COMPARE vs ACTUAL
+    # =========================================================================
+    with sec2:
+        st.markdown("### 📊 AGI Predictions vs Actual Draw Results")
+        st.caption(
+            "Select a prediction file — the draw date it was targeting is loaded automatically. "
+            "If the draw hasn't happened yet the results panel shows a pending state."
+        )
+
+        # ── Prediction file is the primary anchor ─────────────────────────────
+        pred_files = _agi_load_prediction_files(game)
+        if not pred_files:
+            st.info("No AGI prediction files saved yet. Generate predictions in the first tab.")
+            return
+
+        # Build display labels showing target draw date + generation timestamp
+        def _agi_file_label(fp: Path) -> str:
+            try:
+                with open(fp, "r") as _f:
+                    _d = json.load(_f)
+                target = _d.get("methodology", {}).get("next_draw_estimate", "")
+                gen_at = _d.get("generated_at", "")[:16].replace("T", " ")
+                n_sets = _d.get("num_sets", "?")
+                regen = " ↩ regenerated" if "regenerated_at" in _d else ""
+                return f"{fp.name}  |  target: {target}  |  generated: {gen_at}  |  {n_sets} sets{regen}"
+            except Exception:
+                return fp.name
+
+        file_labels = [_agi_file_label(f) for f in pred_files]
+        chosen_label = st.selectbox(
+            "Select AGI prediction file",
+            options=file_labels,
+            key="agi_compare_file",
+        )
+        pred_file_choice = pred_files[file_labels.index(chosen_label)]
+
+        # Load the prediction file
+        try:
+            with open(pred_file_choice, "r") as f:
+                pred_data = json.load(f)
+        except Exception as e:
+            st.error(f"Could not load prediction file: {e}")
+            return
+
+        # Extract metadata
+        methodology = pred_data.get("methodology", {})
+        target_date = methodology.get("next_draw_estimate", "")
+        gen_at = pred_data.get("generated_at", "unknown")[:16].replace("T", " ")
+        pred_num_sets = pred_data.get("num_sets", 0)
+        jackpot_at_gen = pred_data.get("jackpot_amount", 0)
+
+        # Summary row
+        c_meta1, c_meta2, c_meta3 = st.columns(3)
+        with c_meta1:
+            st.metric("Target Draw Date", target_date or "unknown")
+        with c_meta2:
+            st.metric("Generated At", gen_at)
+        with c_meta3:
+            st.metric("Prediction Sets", pred_num_sets)
+
+        # ── Date override ─────────────────────────────────────────────────────
+        all_draw_dates = _load_past_draw_dates(game)
+        with st.expander("🔧 Override comparison draw date (optional)"):
+            st.caption(
+                "By default the target date from the prediction file is used. "
+                "Override here if you want to compare against a different draw."
+            )
+            override_date = st.selectbox(
+                "Select a different draw date",
+                options=["— use target date —"] + all_draw_dates,
+                key="agi_compare_date_override",
+            )
+
+        compare_date = (
+            target_date
+            if override_date == "— use target date —"
+            else override_date
+        )
+
+        st.divider()
+
+        # ── Try to load actual results for the comparison date ────────────────
+        actual = _load_actual_results(game, compare_date) if compare_date else {}
+
+        if not actual or not actual.get("numbers"):
+            # Draw hasn't happened yet or date not in CSV data
+            st.info(
+                f"📅 **No draw results found for {compare_date}.**\n\n"
+                "The draw may not have occurred yet, or draw data for that date hasn't been loaded. "
+                "Once the draw happens, load the latest data in the **Data Training** tab, "
+                "then return here to see the comparison."
+            )
+            # Still show the predictions so the user can review them before the draw
+            st.markdown("#### Your AGI Predictions (awaiting draw result)")
+            ranked_preds = pred_data.get("ranked_predictions", [])
+            if not ranked_preds:
+                raw_preds = pred_data.get("predictions", [])
+                ranked_preds = [{"rank": i + 1, "numbers": p, "score": 0} for i, p in enumerate(raw_preds)]
+
+            for r in ranked_preds[:20]:
+                balls_html = _agi_display_balls(r["numbers"], game)
+                c1, c2 = st.columns([1, 7])
+                with c1:
+                    st.markdown(f"**#{r['rank']}**")
+                with c2:
+                    st.markdown(balls_html, unsafe_allow_html=True)
+
+            if methodology:
+                with st.expander("🔬 View Generation Methodology"):
+                    st.json(methodology)
+            return
+
+        # ── Actual results exist — show full comparison ───────────────────────
+        actual_numbers = actual["numbers"]
+        actual_set = set(actual_numbers)
+        bonus = actual.get("bonus", 0)
+        jackpot_val = actual.get("jackpot", 0)
+
+        st.markdown(f"#### Actual Draw — {compare_date}")
+        col_ab, col_am = st.columns([3, 2])
+        with col_ab:
+            bonus_html = (
+                f' <span style="display:inline-flex;align-items:center;justify-content:center;'
+                f'width:38px;height:38px;border-radius:50%;background:#f39c12;color:#fff;'
+                f'font-weight:bold;font-size:15px;margin:2px;border:2px solid #e67e22;">B{bonus}</span>'
+            ) if bonus else ""
+            st.markdown(_agi_display_balls(actual_numbers, game) + bonus_html, unsafe_allow_html=True)
+        with col_am:
+            if jackpot_val:
+                st.metric("Jackpot", f"${jackpot_val:,.0f}")
+
+        # Ranked predictions
+        ranked_preds = pred_data.get("ranked_predictions", [])
+        if not ranked_preds:
+            raw_preds = pred_data.get("predictions", [])
+            ranked_preds = [{"rank": i + 1, "numbers": p, "score": 0} for i, p in enumerate(raw_preds)]
+
+        # Match statistics
+        match_counts = [len(set(r["numbers"]) & actual_set) for r in ranked_preds]
+        best_match = max(match_counts) if match_counts else 0
+        avg_match = sum(match_counts) / len(match_counts) if match_counts else 0
+        sets_with_2plus = sum(1 for m in match_counts if m >= 2)
+
+        st.divider()
+        mc1, mc2, mc3 = st.columns(3)
+        with mc1:
+            st.metric("Best Match", f"{best_match}/{draw_size} numbers")
+        with mc2:
+            st.metric("Average Match", f"{avg_match:.1f}/{draw_size}")
+        with mc3:
+            st.metric("Sets with 2+ Matches", f"{sets_with_2plus}/{len(match_counts)}")
+
+        st.divider()
+        st.markdown("#### Set-by-Set Comparison")
+        st.caption("✅ = matched number (green) · Ranked by original AGI score")
+
+        for r, mc in zip(ranked_preds[:20], match_counts[:20]):
+            nums = r["numbers"]
+            matched = set(nums) & actual_set
+            balls_html = _agi_display_balls(nums, game, highlight=matched)
+            c1, c2, c3 = st.columns([1, 5, 2])
+            with c1:
+                st.markdown(f"**#{r['rank']}**")
+            with c2:
+                st.markdown(balls_html, unsafe_allow_html=True)
+            with c3:
+                match_color = "#2ecc71" if mc >= 3 else ("#f39c12" if mc >= 2 else "#bdc3c7")
+                st.markdown(
+                    f'<span style="color:{match_color};font-weight:bold;">'
+                    f'{mc} match{"es" if mc != 1 else ""}</span>',
+                    unsafe_allow_html=True,
+                )
+
+        if len(ranked_preds) > 20:
+            st.caption(f"Showing top 20 of {len(ranked_preds)} sets.")
+
+        if methodology:
+            with st.expander("🔬 View Generation Methodology"):
+                st.json(methodology)
 

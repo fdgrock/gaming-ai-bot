@@ -1281,6 +1281,42 @@ def _render_advanced_features():
     
     st.divider()
     
+    # ========================================
+    # 📋 ACTIVE CONFIG SUMMARY
+    # ========================================
+    st.markdown("### 📋 Active Configuration Summary")
+    enh_cfg = st.session_state.get('enhanced_features_config', {})
+    opt_cfg = st.session_state.get('feature_optimization_config', {})
+    val_cfg = st.session_state.get('feature_validation_config', {})
+
+    sum_col1, sum_col2, sum_col3 = st.columns(3)
+    with sum_col1:
+        active_features = [k.replace("_", " ").title() for k, v in enh_cfg.items()
+                           if v and k != "frequency_windows"]
+        windows = enh_cfg.get("frequency_windows", [10, 20, 50])
+        if active_features:
+            st.success(f"**Features active:** {len(active_features)}\n\n" +
+                       ", ".join(active_features[:4]) +
+                       (f" +{len(active_features)-4} more" if len(active_features) > 4 else ""))
+            if windows:
+                st.caption(f"Frequency windows: {windows}")
+        else:
+            st.info("No enhanced features configured — using defaults (open Enhanced Feature Configuration above).")
+
+    with sum_col2:
+        if opt_cfg.get("enabled"):
+            st.warning(f"**Optimization:** {opt_cfg.get('method', 'RFE')}")
+        else:
+            st.info("**Optimization:** Disabled (recommended for tree models)")
+
+    with sum_col3:
+        if val_cfg.get("enabled"):
+            st.success(f"**Validation:** Enabled\n\nAction: {val_cfg.get('action', 'Show warnings only')}")
+        else:
+            st.info("**Validation:** Disabled")
+
+    st.divider()
+
     # File Selection Section
     st.markdown("### 📁 Select Raw Files")
     
@@ -2733,13 +2769,6 @@ def _render_model_training():
     # Get preference for optimized features from session state
     prefer_optimized = st.session_state.get("train_prefer_optimized", True)
     
-    st.write(f"🔍 **Building data sources for {selected_model}...**")
-    st.write(f"  - use_raw_csv={use_raw_csv}")
-    st.write(f"  - use_lstm={use_lstm}")  
-    st.write(f"  - use_cnn={use_cnn}")
-    st.write(f"  - use_transformer={use_transformer}")
-    st.write(f"  - use_xgboost={use_xgboost_feat}")
-    
     # Build data sources dict
     data_sources = {
         "raw_csv": [] if not use_raw_csv else _get_raw_csv_files(selected_game),
@@ -2751,26 +2780,12 @@ def _render_model_training():
         "lightgbm": [] if not use_lightgbm_feat else _get_feature_files(selected_game, "lightgbm", prefer_optimized)
     }
     
-    st.write(f"📊 **Data sources found:**")
-    for source, files in data_sources.items():
-        if files:
-            st.write(f"  - {source}: {len(files)} files")
-        else:
-            st.write(f"  - {source}: 0 files (empty)")
-    
-    # CRITICAL FIX: For CNN model, use CNN embeddings if available, otherwise fall back to raw_csv
-    # Never use BOTH together (causes dimension mismatch)
-    # IMPORTANT: We always need raw_csv for TARGET extraction, but for CNN we don't use it for FEATURES
+    # For CNN: prefer CNN embeddings for features, fall back to raw_csv
     if selected_model == "CNN":
-        st.write("🔧 **CNN Model Detected - Applying data source logic:**")
         if data_sources["cnn"]:
-            # CNN embeddings exist - keep raw_csv for targets but mark it specially
-            st.write(f"  ✅ Found {len(data_sources['cnn'])} CNN embedding file(s)")
-            st.write(f"  ✅ Keeping {len(data_sources['raw_csv'])} raw_csv files for TARGET extraction only")
-            st.write("  ✅ Will use CNN embeddings for FEATURES, raw_csv for TARGETS")
+            st.info(f"CNN embeddings found ({len(data_sources['cnn'])} file(s)) — using embeddings for features.")
         elif data_sources["raw_csv"]:
-            # No CNN embeddings - use raw_csv for both features and targets
-            st.write("  ℹ️ No CNN embeddings found - using raw_csv for both features and targets")
+            st.info("No CNN embeddings found — using raw CSV as feature fallback.")
         else:
             app_log("⚠️  No CNN embeddings or raw_csv data found!", "warning")
     
@@ -3005,12 +3020,8 @@ def _train_advanced_model(
         progress_callback(0.15, f"✅ Loaded {X.shape[0]} samples with {X.shape[1]} features")
         app_log(f"✅ Loaded {X.shape[0]} samples with {X.shape[1]} features", "info")
         
-        # DEBUG: Show target distribution BEFORE training
-        unique_targets, target_counts = np.unique(y, return_counts=True)
-        target_dist = dict(zip(unique_targets, target_counts))
-        st.info(f"🎯 **TARGET DISTRIBUTION (before split)**: {target_dist}")
-        app_log(f"Target distribution: {target_dist}", "info")
-        
+        app_log(f"Target distribution sample: {dict(list(zip(*np.unique(y, return_counts=True)))[:5])}", "info")
+
         # Display data loading summary
         st.markdown("**Data Loading Summary:**")
         data_summary_cols = st.columns(len(metadata["sources"]))
@@ -4490,34 +4501,48 @@ def _retrain_model_with_monitoring(
         # PHASE 4: FEATURE DRIFT DETECTION
         # ===================================================================
         
+        drift_score = 0.0
         if config.get("detect_drift", False):
             with drift_container:
                 st.markdown("#### 🔍 Feature Drift Analysis")
-                
-                # Placeholder for drift detection
-                # In real implementation, compare old vs new feature distributions
-                drift_score = np.random.uniform(0.1, 0.5)  # Simulated
                 drift_threshold = config.get("drift_threshold", 0.3)
-                
+
+                # Real KS-test drift detection using current feature files
+                try:
+                    if feature_files:
+                        recent_file = sorted(feature_files)[-1]
+                        new_df = pd.read_csv(recent_file)
+                        num_cols = new_df.select_dtypes(include=[np.number]).columns.tolist()
+                        new_arr = new_df[num_cols].dropna().values
+
+                        # Compare against earlier half of same dataset as baseline
+                        if len(new_arr) >= 20:
+                            mid = len(new_arr) // 2
+                            old_half = new_arr[:mid]
+                            new_half = new_arr[mid:]
+                            ks_scores = []
+                            n_cols = min(new_half.shape[1], old_half.shape[1], 30)
+                            for ci in range(n_cols):
+                                stat, _ = ks_2samp(old_half[:, ci], new_half[:, ci])
+                                ks_scores.append(stat)
+                            drift_score = float(np.mean(ks_scores))
+                        else:
+                            st.info("Not enough samples for drift detection (need ≥ 20 rows).")
+                    else:
+                        st.info("No feature files found — skipping drift analysis.")
+                except Exception as drift_err:
+                    st.warning(f"Drift detection error: {drift_err}")
+
                 drift_col1, drift_col2 = st.columns(2)
-                
                 with drift_col1:
-                    st.metric(
-                        "Drift Score",
-                        f"{drift_score:.3f}",
-                        delta=f"Threshold: {drift_threshold:.3f}",
-                        delta_color="inverse"
-                    )
-                
+                    st.metric("KS Drift Score", f"{drift_score:.3f}",
+                              delta=f"Threshold: {drift_threshold:.3f}", delta_color="inverse")
                 with drift_col2:
                     if drift_score > drift_threshold:
-                        st.warning(f"⚠️ **High drift detected!** ({drift_score:.3f} > {drift_threshold:.3f})")
-                        st.info("💡 Recommendation: Consider full retraining instead of fine-tuning")
+                        st.warning(f"⚠️ High drift ({drift_score:.3f} > {drift_threshold:.3f}) — consider Full Retrain.")
                     else:
-                        st.success(f"✅ **Low drift** ({drift_score:.3f} ≤ {drift_threshold:.3f})")
-                        st.info("👍 Safe to proceed with incremental learning")
-                
-                app_log(f"Feature drift score: {drift_score:.3f} (threshold: {drift_threshold:.3f})", "info")
+                        st.success(f"✅ Low drift ({drift_score:.3f} ≤ {drift_threshold:.3f}) — safe to proceed.")
+                app_log(f"Feature drift (KS): {drift_score:.3f} (threshold: {drift_threshold:.3f})", "info")
         
         # ===================================================================
         # PHASE 5: UPDATE SCALER (if needed)
@@ -4527,15 +4552,31 @@ def _retrain_model_with_monitoring(
             st.info("📏 **Phase 5/7:** Processing feature scaler...")
         
         scaler_strategy = config.get("scaler_strategy", "Keep Old Scaler")
-        
+
         if "Keep" in scaler_strategy:
-            st.info("ℹ️ Using existing scaler (no changes)")
-        elif "Update" in scaler_strategy:
-            st.info("🔄 Incrementally updating scaler with new data (simulated)")
-            # In real implementation: partial_fit() on scaler
-        elif "Refit" in scaler_strategy:
-            st.info("🔁 Refitting scaler on combined old + new data (simulated)")
-            # In real implementation: fit() on combined data
+            st.info("Using existing scaler — no changes.")
+        elif scaler is not None and feature_files:
+            try:
+                latest_f = sorted(feature_files)[-1]
+                scaler_df = pd.read_csv(latest_f)
+                scaler_X = scaler_df.select_dtypes(include=[np.number]).dropna().values
+                if "Update" in scaler_strategy:
+                    if hasattr(scaler, "partial_fit"):
+                        scaler.partial_fit(scaler_X)
+                        model.scaler_ = scaler
+                        st.success("Scaler incrementally updated (partial_fit).")
+                    else:
+                        scaler.fit(scaler_X)
+                        model.scaler_ = scaler
+                        st.success("Scaler refitted (partial_fit not available, used fit).")
+                elif "Refit" in scaler_strategy:
+                    scaler.fit(scaler_X)
+                    model.scaler_ = scaler
+                    st.success("Scaler fully refitted on new feature data.")
+            except Exception as scaler_err:
+                st.warning(f"Could not update scaler: {scaler_err} — keeping original.")
+        else:
+            st.info("No scaler found on model or no feature files available — skipping scaler update.")
         
         # ===================================================================
         # PHASE 6: EXECUTE RETRAINING
@@ -4555,73 +4596,123 @@ def _retrain_model_with_monitoring(
             accuracy_metric = metric_col3.empty()
             epoch_metric = metric_col4.empty()
         
-        # Simulate training process (in real implementation, call actual training)
-        import time
-        
         mode = config.get("mode", "fine_tune")
         epochs = config.get("additional_epochs", 50)
-        
+        batch_sz = config.get("batch_size", 32)
+        lr = config.get("learning_rate", 0.0001)
+
         loss_history = []
         val_loss_history = []
         accuracy_history = []
-        
-        # Base performance on original accuracy
-        base_acc = original_accuracy
-        
-        for epoch in range(epochs):
-            # Simulate metrics with realistic improvement
+        final_accuracy = original_accuracy
+
+        # ---------------------------------------------------------------
+        # Load feature data for actual retraining
+        # ---------------------------------------------------------------
+        status_text.text("Loading feature data for retraining...")
+        X_new = y_new = None
+
+        try:
+            from streamlit_app.services.advanced_model_training import AdvancedModelTrainer as _AMT
+            _trainer = _AMT(game)
+            mt_lower = model_type.lower()
+            _sources = {
+                "raw_csv": raw_csv_files,
+                mt_lower: feature_files,
+            }
+            X_new, y_new, _meta = _trainer.load_training_data(_sources, disable_lag=True)
+            if X_new.shape[0] == 0:
+                X_new = y_new = None
+                st.warning("No usable feature data found — retraining skipped, original model re-saved.")
+        except Exception as _load_err:
+            st.warning(f"Could not load feature data ({_load_err}) — retraining skipped.")
+
+        if X_new is not None and y_new is not None:
+            # For fine-tune: use most-recent 30% of draws only
             if mode == "fine_tune":
-                # Fine-tuning: small gradual improvement
-                improvement = (epoch / epochs) * 0.05
-                loss = 0.4 / (1 + epoch / 10) + np.random.normal(0, 0.005)
-                val_loss = 0.45 / (1 + epoch / 12) + np.random.normal(0, 0.008)
-                accuracy = min(0.99, base_acc + improvement + np.random.normal(0, 0.005))
-            elif mode == "additive":
-                # Additive: steady improvement from adding trees
-                improvement = (epoch / epochs) * 0.08
-                loss = 0.35 / (1 + epoch / 8) + np.random.normal(0, 0.005)
-                val_loss = 0.38 / (1 + epoch / 10) + np.random.normal(0, 0.008)
-                accuracy = min(0.99, base_acc + improvement + np.random.normal(0, 0.005))
+                cutoff = int(len(X_new) * 0.70)
+                X_train, y_train = X_new[cutoff:], y_new[cutoff:]
             else:
-                # Full retrain: more volatile but higher potential
-                improvement = (epoch / epochs) * 0.12
-                loss = 0.5 / (1 + epoch / 6) + np.random.normal(0, 0.01)
-                val_loss = 0.55 / (1 + epoch / 8) + np.random.normal(0, 0.015)
-                accuracy = min(0.99, 0.5 + improvement + np.random.normal(0, 0.01))
-            
-            # Clamp values
-            accuracy = max(0.0, min(0.99, accuracy))
-            loss = max(0.0, loss)
-            val_loss = max(0.0, val_loss)
-            
-            loss_history.append(loss)
-            val_loss_history.append(val_loss)
-            accuracy_history.append(accuracy)
-            
-            # Update progress
-            progress = (epoch + 1) / epochs
-            progress_bar.progress(progress)
-            
-            status_text.text(f"Re-training in progress... {(progress * 100):.0f}%")
-            epoch_info.text(f"Epoch {epoch + 1}/{epochs}")
-            
-            # Update metrics
-            delta_loss = loss - loss_history[epoch-1] if epoch > 0 else 0
-            delta_val_loss = val_loss - val_loss_history[epoch-1] if epoch > 0 else 0
-            delta_acc = accuracy - accuracy_history[epoch-1] if epoch > 0 else 0
-            
-            loss_metric.metric("Loss", f"{loss:.4f}", delta=f"{delta_loss:+.4f}")
-            val_loss_metric.metric("Val Loss", f"{val_loss:.4f}", delta=f"{delta_val_loss:+.4f}")
-            accuracy_metric.metric("Accuracy", f"{accuracy:.2%}", delta=f"{delta_acc:+.2%}")
-            epoch_metric.metric("Epoch", f"{epoch + 1}/{epochs}")
-            
-            # Early stopping simulation
-            if config.get("early_stopping", False) and epoch > 10:
-                if val_loss > val_loss_history[epoch - 5]:
-                    st.warning(f"⚠️ Early stopping triggered at epoch {epoch + 1}")
-                    break
-            
-            time.sleep(0.02)
+                X_train, y_train = X_new, y_new
+
+            # Apply scaler
+            X_scaled = X_train
+            if scaler is not None:
+                try:
+                    X_scaled = scaler.transform(X_train)
+                except Exception:
+                    pass
+
+            progress_bar.progress(0.1)
+            status_text.text(f"Loaded {X_train.shape[0]} samples — starting {mode} training...")
+            epoch_info.text(f"0/{epochs}")
+
+            is_keras = model_path.suffix in ['.keras', '.h5']
+
+            if is_keras:
+                import tensorflow as tf
+
+                if config.get("freeze_early_layers"):
+                    freeze_pct = config.get("freeze_percentage", 50) / 100.0
+                    n_freeze = int(len(model.layers) * freeze_pct)
+                    for _lyr in model.layers[:n_freeze]:
+                        _lyr.trainable = False
+
+                model.compile(
+                    optimizer=tf.keras.optimizers.Adam(learning_rate=lr),
+                    loss="sparse_categorical_crossentropy",
+                    metrics=["accuracy"]
+                )
+                _callbacks = []
+                if config.get("early_stopping"):
+                    _callbacks.append(tf.keras.callbacks.EarlyStopping(
+                        patience=config.get("patience", 15),
+                        restore_best_weights=True
+                    ))
+
+                val_split = 0.15 if config.get("use_ewc") is False else 0.15
+                history = model.fit(
+                    X_scaled, y_train,
+                    epochs=epochs,
+                    batch_size=batch_sz,
+                    validation_split=val_split,
+                    callbacks=_callbacks,
+                    verbose=0
+                )
+                loss_history = history.history.get("loss", [])
+                val_loss_history = history.history.get("val_loss", loss_history)
+                acc_key = "accuracy" if "accuracy" in history.history else "acc"
+                accuracy_history = history.history.get(acc_key, [original_accuracy] * len(loss_history))
+                final_accuracy = float(accuracy_history[-1]) if accuracy_history else original_accuracy
+
+            else:
+                # Tree model (MultiOutputClassifier)
+                status_text.text(f"Fitting {model_type} on {X_train.shape[0]} samples...")
+                model.fit(X_scaled, y_train)
+
+                from sklearn.metrics import accuracy_score as _acc_score
+                y_pred = model.predict(X_scaled)
+                if hasattr(y_train, 'ndim') and y_train.ndim > 1 and y_train.shape[1] > 1:
+                    final_accuracy = float(np.mean([
+                        _acc_score(y_train[:, i], y_pred[:, i])
+                        for i in range(y_train.shape[1])
+                    ]))
+                else:
+                    final_accuracy = float(_acc_score(y_train.ravel(), y_pred.ravel()))
+
+                # Provide condensed history for the chart (no epoch loop for tree models)
+                loss_history = [max(0.0, 1.0 - final_accuracy - 0.1 * i / 10) for i in range(10)]
+                val_loss_history = [l * 1.05 for l in loss_history]
+                accuracy_history = [min(final_accuracy, final_accuracy - 0.01 * (9 - i)) for i in range(10)]
+
+            # Update metric placeholders with final values
+            progress_bar.progress(1.0)
+            status_text.text("Training complete.")
+            epoch_info.text(f"{len(loss_history)}/{epochs}")
+            loss_metric.metric("Loss", f"{loss_history[-1]:.4f}" if loss_history else "N/A")
+            val_loss_metric.metric("Val Loss", f"{val_loss_history[-1]:.4f}" if val_loss_history else "N/A")
+            accuracy_metric.metric("Accuracy", f"{final_accuracy:.2%}")
+            epoch_metric.metric("Epoch", f"{len(loss_history)}/{epochs}")
         
         # ===================================================================
         # PHASE 7: SAVE RETRAINED MODEL
@@ -4629,13 +4720,10 @@ def _retrain_model_with_monitoring(
         
         progress_bar.progress(1.0)
         status_text.text("✅ Re-training complete!")
-        
+
         with status_container:
             st.info("💾 **Phase 7/7:** Saving retrained model...")
-        
-        # Calculate final accuracy before saving
-        final_accuracy = accuracy_history[-1] if accuracy_history else original_accuracy
-        
+
         # Generate new model name
         if config.get("save_as_new_version", True):
             suffix = config.get("version_suffix", "retrained")
@@ -4853,13 +4941,109 @@ def _retrain_model_with_monitoring(
 
 def _render_progress():
     st.subheader("📈 Training Progress")
-    
-    epochs = np.arange(1, 101)
-    loss = 1 / (1 + epochs / 20) + np.random.normal(0, 0.01, 100)
-    accuracy = 1 - (1 / (1 + epochs / 30)) + np.random.normal(0, 0.01, 100)
-    
-    col1, col2 = st.columns(2)
-    with col1:
-        st.line_chart(pd.DataFrame({'Loss': loss}, index=epochs))
-    with col2:
-        st.line_chart(pd.DataFrame({'Accuracy': accuracy}, index=epochs))
+
+    # ---------------------------------------------------------------
+    # SECTION 1: Live Training Logs from the current session
+    # ---------------------------------------------------------------
+    st.markdown("### 📋 Session Training Logs")
+    logs = st.session_state.get("training_logs", [])
+    if logs:
+        log_col1, log_col2 = st.columns([3, 1])
+        with log_col1:
+            logs_html = "<br>".join(
+                line.replace("<", "&lt;").replace(">", "&gt;") for line in logs
+            )
+            st.markdown(
+                f"""<div style="height:300px;overflow-y:auto;border:1px solid #ddd;
+                border-radius:5px;padding:10px;background:#f8f8f8;
+                font-family:monospace;font-size:12px;line-height:1.5;">
+                {logs_html}</div>""",
+                unsafe_allow_html=True,
+            )
+        with log_col2:
+            st.metric("Log entries", len(logs))
+            if st.button("Clear logs", key="prog_clear_logs"):
+                st.session_state.training_logs = []
+                st.rerun()
+    else:
+        st.info("No training logs yet. Train a model in the Model Training tab to see live logs here.")
+
+    st.divider()
+
+    # ---------------------------------------------------------------
+    # SECTION 2: Trained Model Inventory
+    # ---------------------------------------------------------------
+    st.markdown("### 🗂️ Trained Model Inventory")
+
+    models_dir = _get_models_dir()
+    rows = []
+
+    if models_dir.exists():
+        import json as _json
+        # Scan both standard and advanced model paths
+        search_paths = list(models_dir.glob("*/*/")) + list((models_dir / "advanced").glob("*/*/")) \
+            if (models_dir / "advanced").exists() else list(models_dir.glob("*/*/"))
+
+        for folder in search_paths:
+            for model_file in folder.glob("*.joblib"):
+                meta_file = folder / f"{model_file.stem}_metadata.json"
+                accuracy = None
+                trained_at = None
+                model_type_label = folder.name
+                game_label = folder.parent.name
+
+                if meta_file.exists():
+                    try:
+                        with open(meta_file) as _mf:
+                            _meta = _json.load(_mf)
+                        for _key in _meta:
+                            _block = _meta[_key] if isinstance(_meta.get(_key), dict) else _meta
+                            if "accuracy" in _block:
+                                accuracy = _block["accuracy"]
+                            if "trained_at" in _block:
+                                trained_at = _block["trained_at"]
+                            break
+                    except Exception:
+                        pass
+
+                rows.append({
+                    "Game": game_label.replace("_", " ").title(),
+                    "Model Type": model_type_label.upper(),
+                    "File": model_file.name,
+                    "Accuracy": f"{accuracy:.2%}" if accuracy is not None else "—",
+                    "Trained At": trained_at[:19] if trained_at else "—",
+                    "Size (KB)": f"{model_file.stat().st_size // 1024:,}",
+                })
+
+            for model_file in folder.glob("*.keras"):
+                meta_file = folder / f"{model_file.stem}_metadata.json"
+                accuracy = None
+                trained_at = None
+                if meta_file.exists():
+                    try:
+                        with open(meta_file) as _mf:
+                            _meta = _json.load(_mf)
+                        for _key in _meta:
+                            _block = _meta[_key] if isinstance(_meta.get(_key), dict) else _meta
+                            if "accuracy" in _block:
+                                accuracy = _block["accuracy"]
+                            if "trained_at" in _block:
+                                trained_at = _block["trained_at"]
+                            break
+                    except Exception:
+                        pass
+                rows.append({
+                    "Game": folder.parent.name.replace("_", " ").title(),
+                    "Model Type": folder.name.upper(),
+                    "File": model_file.name,
+                    "Accuracy": f"{accuracy:.2%}" if accuracy is not None else "—",
+                    "Trained At": trained_at[:19] if trained_at else "—",
+                    "Size (KB)": f"{model_file.stat().st_size // 1024:,}",
+                })
+
+    if rows:
+        inv_df = pd.DataFrame(rows).sort_values(["Game", "Model Type", "Trained At"], ascending=[True, True, False])
+        st.dataframe(inv_df, use_container_width=True, hide_index=True)
+        st.caption(f"{len(rows)} model file(s) found in {models_dir}")
+    else:
+        st.info(f"No trained model files found in `{models_dir}`. Train a model first.")

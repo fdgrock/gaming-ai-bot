@@ -375,75 +375,101 @@ def _render_ml_predictions() -> None:
         else:
             st.warning(f"⚠️ No model cards available for {game_name}")
     
-    # Helper function to get promoted models from Phase 2D
+    PROJECT_ROOT = Path(__file__).resolve().parents[2]
+
+    # ── Load advanced models from Phase 2D model cards ──────────────────────
     def get_promoted_models(game_name: str, card_filename: str = None) -> List[Dict[str, Any]]:
         """Load promoted models from Phase 2D leaderboard JSON file."""
-        import os
-        import json
-        from pathlib import Path
         from streamlit_app.core import sanitize_game_name
-        
         game_lower = sanitize_game_name(game_name)
-        PROJECT_ROOT = Path(os.path.dirname(os.path.abspath(__file__))).parent.parent
         model_cards_dir = PROJECT_ROOT / "models" / "advanced" / "model_cards"
-        
         if not model_cards_dir.exists():
-            st.error(f"❌ Model cards directory not found at: {model_cards_dir}")
             return []
-        
-        # If a specific card filename is provided, use it
         if card_filename:
             target_file = model_cards_dir / card_filename
             if not target_file.exists():
-                st.error(f"❌ Selected model card not found: {card_filename}")
                 return []
         else:
-            # Find the latest model cards file for this game
             matching_files = list(model_cards_dir.glob(f"model_cards_{game_lower}_*.json"))
-            
             if not matching_files:
                 return []
-            
-            # Get the most recent file
             target_file = max(matching_files, key=lambda p: p.stat().st_mtime)
-        
         try:
             with open(target_file, 'r') as f:
-                models_data = json.load(f)
-            return models_data
-        except Exception as e:
-            st.error(f"Error loading model cards: {e}")
+                data = json.load(f)
+            # Tag each entry so downstream code knows the source
+            for m in data:
+                m.setdefault('model_source', 'advanced')
+            return data
+        except Exception:
             return []
-    
-    promoted_models = get_promoted_models(game_name, selected_card if available_cards else None)
-    
-    if not promoted_models:
-        st.warning(f"⚠️ No promoted models found for {game_name}. Please visit Phase 2D Leaderboard first.")
+
+    # ── Load standard models (XGBoost/CatBoost/LightGBM) from models/{game}/ ─
+    def get_standard_models(game_name: str) -> List[Dict[str, Any]]:
+        """Discover trained standard models from models/{game}/{type}/ directories."""
+        from streamlit_app.core import sanitize_game_name
+        game_lower = sanitize_game_name(game_name)
+        standard = []
+        for model_type in ('xgboost', 'catboost', 'lightgbm'):
+            model_dir = PROJECT_ROOT / "models" / game_lower / model_type
+            if not model_dir.exists():
+                continue
+            for model_file in sorted(model_dir.glob("*.joblib")):
+                model_name = f"{model_type.upper()}_{model_file.stem}"
+                # Try to read health score from companion metadata JSON
+                meta_path = model_file.with_suffix('.json')
+                health = 0.70
+                if meta_path.exists():
+                    try:
+                        with open(meta_path) as mf:
+                            meta = json.load(mf)
+                        health = float(meta.get('health_score', meta.get('accuracy', 0.70)))
+                    except Exception:
+                        pass
+                standard.append({
+                    'model_name': model_name,
+                    'model_type': model_type,
+                    'model_path': str(model_file),
+                    'health_score': health,
+                    'model_source': 'standard',
+                })
+        return standard
+
+    advanced_models = get_promoted_models(game_name, selected_card if available_cards else None)
+    standard_models = get_standard_models(game_name)
+    all_models = advanced_models + standard_models
+
+    if not all_models:
+        st.warning(
+            f"⚠️ No models found for **{game_name}**. "
+            "Train standard models in **Data & Training → Model Training**, "
+            "or run Phase 2D to promote advanced models."
+        )
         return
-    
+
     st.markdown("#### Select Models to Use")
-    
-    # DEBUG: Show what models are loaded
-    st.write(f"**DEBUG: Loaded {len(promoted_models)} models**")
-    for idx, m in enumerate(promoted_models):
-        st.write(f"  {idx+1}. {m.get('model_name', 'Unknown')} (health: {m.get('health_score', 0.75):.3f})")
-    
-    # promoted_models is now a list of dicts
-    model_names = [m.get("model_name", "Unknown") for m in promoted_models]
-    available_models = model_names
+
+    # Show source summary so user knows what's available
+    if advanced_models and standard_models:
+        st.info(f"📦 {len(advanced_models)} advanced model(s) + {len(standard_models)} standard model(s) available")
+    elif standard_models:
+        st.info(f"📦 {len(standard_models)} standard model(s) available (no advanced model cards found)")
+    else:
+        st.info(f"📦 {len(advanced_models)} advanced model(s) available")
+
+    model_names = [m.get("model_name", "Unknown") for m in all_models]
     selected_models = st.multiselect(
         "Select Models",
-        available_models,
-        default=available_models[:min(3, len(available_models))],
+        model_names,
+        default=model_names[:min(3, len(model_names))],
         key="ml_model_selector"
     )
-    
+
     if not selected_models:
         st.info("ℹ️ Please select at least one model to generate predictions.")
         return
-    
-    # Get the selected model objects
-    selected_model_objs = [m for m in promoted_models if m.get("model_name") in selected_models]
+
+    selected_model_objs = [m for m in all_models if m.get("model_name") in selected_models]
     
     # ==================== SECTION 2: Prediction Mode ====================
     st.markdown("#### 2️⃣ Prediction Mode")
@@ -465,10 +491,8 @@ def _render_ml_predictions() -> None:
                 selected_models,
                 key="ml_single_model"
             )
-            st.write(f"**DEBUG: Selected Model = `{selected_model}`**")
         else:
             selected_model = None  # Ensemble uses all selected models
-            st.write(f"**DEBUG: Using Ensemble with {len(selected_models)} models**")
     
     # ==================== SECTION 3: Generation Controls ====================
     st.markdown("#### 3️⃣ Generation Settings")
@@ -534,15 +558,21 @@ def _render_ml_predictions() -> None:
         help="Incorporate historical learning insights from AI Prediction Engine to enhance predictions",
         key="ml_use_learning"
     )
-    
+
+    # Seed control for reproducibility
+    seed_col1, seed_col2 = st.columns(2)
+    with seed_col1:
+        use_fixed_seed = st.checkbox("🔁 Fixed Seed (reproducible)", value=False, key="ml_fixed_seed")
+    with seed_col2:
+        fixed_seed_value = st.number_input("Seed value", value=42, min_value=0, max_value=2**31-1,
+                                           key="ml_seed_value", disabled=not use_fixed_seed)
+
     learning_files_to_use = []
     if use_learning_data:
-        from pathlib import Path
         from streamlit_app.core import sanitize_game_name
-        import json
-        
+
         game_lower = sanitize_game_name(game_name)
-        learning_dir = Path("data") / "learning" / game_lower
+        learning_dir = PROJECT_ROOT / "data" / "learning" / game_lower
         
         if learning_dir.exists():
             available_learning_files = sorted(
@@ -592,8 +622,8 @@ def _render_ml_predictions() -> None:
                     st.info(f"📖 Loading {len(learning_files_to_use)} learning file(s)...")
                     
                     game_lower = sanitize_game_name(game_name)
-                    learning_dir = Path("data") / "learning" / game_lower
-                    
+                    learning_dir = PROJECT_ROOT / "data" / "learning" / game_lower
+
                     learning_data_list = []
                     for filename in learning_files_to_use:
                         try:
@@ -664,21 +694,11 @@ def _render_ml_predictions() -> None:
                         st.error("Selected model not found")
                         return
                     
-                    # Extract model type
-                    model_type = selected_model.lower().split('_')[0]
-                    
-                    # Log which model is being used
-                    st.write(f"📊 **Model Selected**: `{selected_model}`")
-                    st.write(f"🔍 **Model Type**: `{model_type.upper()}`")
-                    
                     # Get health score for bias correction
                     health_score = model_data.get("health_score", 0.75)
-                    
-                    # Generate truly random seed for each prediction
+
                     import random
-                    current_seed = random.randint(1, 2**31 - 1)
-                    
-                    st.write(f"**Generating {num_predictions} Prediction(s)** - Model: `{selected_model}`")
+                    current_seed = int(fixed_seed_value) if use_fixed_seed else random.randint(1, 2**31 - 1)
                     
                     # Generate all predictions in one call to maintain diversity tracking
                     result_list = engine.predict_single_model(
@@ -726,18 +746,13 @@ def _render_ml_predictions() -> None:
                         quality_portion = sqrt_weight / total_sqrt
                         model_weights[name] = 0.5 * equal_portion + 0.5 * quality_portion
                     
-                    st.write(f"📊 **Ensemble Mode**: {len(model_weights)} models (balanced voting)")
-                    
                     # Show balanced weights
-                    with st.expander("🔍 Model Contribution Weights"):
+                    with st.expander(f"🔍 Model Contribution Weights ({len(model_weights)} models)"):
                         for name, weight in model_weights.items():
                             st.write(f"  • {name}: {weight:.1%} voting power")
-                    
-                    # Generate truly random seed for each prediction
+
                     import random
-                    current_seed = random.randint(1, 2**31 - 1)
-                    
-                    st.write(f"**Generating {num_predictions} Ensemble Prediction(s)**")
+                    current_seed = int(fixed_seed_value) if use_fixed_seed else random.randint(1, 2**31 - 1)
                     
                     # Generate all predictions in one call to maintain diversity tracking
                     result_list = engine.predict_ensemble(
